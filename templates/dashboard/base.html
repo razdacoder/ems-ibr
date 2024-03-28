@@ -8,9 +8,12 @@
     <div class="container-fluid page-body-wrapper">
       {% include 'dashboard/partials/sidebar.html' %}
       <div class="main-panel">
-        {% block main %}
-          Dashboard
-        {% endblock %}
+        <div class="content-wrapper" id="main-content">
+          {% block main %}
+            Dashboard
+          {% endblock %}
+        </div>
+
         {% include 'dashboard/partials/footer.html' %}
       </div>
     </div>

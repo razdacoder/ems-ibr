@@ -1,13 +1,15 @@
+{% load active_link_tags %}
+
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
   <ul class="nav">
-    <li class="nav-item">
-      <a class="nav-link" href="index.html">
+    <li class="nav-item {% active_link 'dashboard' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'dashboard' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Dashboard</span>
         <i class="mdi mdi-home menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="#ui-basic">
+    <li class="nav-item {% active_link 'department' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'department' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Departments</span>
         <i class="mdi mdi-account-multiple menu-icon"></i>
       </a>
