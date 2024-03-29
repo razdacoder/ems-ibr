@@ -10,12 +10,12 @@
     <ul class="navbar-nav navbar-nav-right">
       <li class="nav-item nav-profile">
         <div class="nav-profile-text">
-          <p class="mb-1 text-black">David Greymaax</p>
+          <p class="mb-1 text-black">{{ request.user.first_name }} {{ request.user.last_name }}</p>
         </div>
       </li>
 
       <li class="nav-item nav-logout d-none d-lg-block">
-        <a class="nav-link text-xs" href="#"><i class="mdi mdi-power"></i> Sign out</a>
+        <a class="nav-link text-xs" href="{% url 'logout' %}"><i class="mdi mdi-power"></i> Sign out</a>
       </li>
     </ul>
     <button class="navbar-toggler navbar-toggler-right d-lg-none align-self-center" type="button" data-toggle="offcanvas"><span class="mdi mdi-menu"></span></button>

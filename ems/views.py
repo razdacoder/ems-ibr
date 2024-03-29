@@ -1,4 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .forms import LoginForm
+
 
 # Create your views here.
 
@@ -8,9 +13,30 @@ def index(request):
 
 
 def login_view(request):
-    return render(request, template_name="site/login.html")
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+    if request.method == "POST":
+        email = request.POST.get("email")
+        password = request.POST.get("password")
+        user = authenticate(request, username=email, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect("dashboard")
+        messages.error(request, "Invalid email or password.")
+        return redirect("login")
+
+    return render(
+        request,
+        template_name="site/login.html",
+    )
 
 
+def logout_view(request):
+    logout(request)
+    return redirect("login")
+
+
+@login_required(redirect_field_name="login")
 def dashboard(request):
     if request.htmx:
         template_name = "dashboard/pages/dashboard.html"
@@ -20,6 +46,7 @@ def dashboard(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def departments(request):
     if request.htmx:
         template_name = "dashboard/pages/departments.html"
@@ -29,6 +56,7 @@ def departments(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def halls(request):
     if request.htmx:
         template_name = "dashboard/pages/halls.html"
@@ -38,6 +66,7 @@ def halls(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def timetable(request):
     if request.htmx:
         template_name = "dashboard/pages/timetable.html"
@@ -47,6 +76,7 @@ def timetable(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def distribution(request):
     if request.htmx:
         template_name = "dashboard/pages/distribution.html"
@@ -56,6 +86,7 @@ def distribution(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def allocation(request):
     if request.htmx:
         template_name = "dashboard/pages/allocation.html"
@@ -65,6 +96,7 @@ def allocation(request):
     return render(request, template_name=template_name)
 
 
+@login_required(redirect_field_name="login")
 def manage_users(request):
     if request.htmx:
         template_name = "dashboard/pages/manage-users.html"
