@@ -14,32 +14,32 @@
         <i class="mdi mdi-account-multiple menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="pages/icons/mdi.html">
+    <li class="nav-item {% active_link 'halls' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'halls' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Halls</span>
         <i class="mdi mdi-domain menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="pages/forms/basic_elements.html">
+    <li class="nav-item {% active_link 'timetable' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'timetable' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Timetables</span>
         <i class="mdi mdi-table-large menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="pages/charts/chartjs.html">
+    <li class="nav-item {% active_link 'distribution' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'distribution' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Hall Distributions</span>
         <i class="mdi mdi-chart-bar menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="pages/tables/basic-table.html">
+    <li class="nav-item {% active_link 'allocation' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'allocation' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Seat Allocations</span>
         <i class="mdi mdi-chair-school menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item">
-      <a class="nav-link" href="#general-pages">
+    <li class="nav-item {% active_link 'manage_users' 'active' %}">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Manage Users</span>
 
         <i class="mdi mdi-account-key menu-icon"></i>
@@ -47,3 +47,19 @@
     </li>
   </ul>
 </nav>
+
+<script>
+  // Get all navigation links
+  const navLinks = document.querySelectorAll('.nav-item')
+  
+  // Loop through each link and add click event listener
+  navLinks.forEach((link) => {
+    link.addEventListener('click', function () {
+      // Remove active class from all links
+      navLinks.forEach((link) => link.classList.remove('active'))
+  
+      // Add active class to the clicked link
+      this.classList.add('active')
+    })
+  })
+</script>
