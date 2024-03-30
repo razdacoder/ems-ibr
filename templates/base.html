@@ -17,7 +17,7 @@
       {% endblock %}- EMS-IBR
     </title>
   </head>
-  <body>
+  <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {% block content %}
       This is the block Content
     {% endblock %}

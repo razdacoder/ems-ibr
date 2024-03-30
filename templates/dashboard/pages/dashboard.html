@@ -16,7 +16,7 @@
       <div class="card-body">
         <img src="{% static 'assets/images/dashboard/circle.svg' %}" class="card-img-absolute" alt="circle-image" />
         <h4 class="font-weight-normal mb-3">Total Departments</h4>
-        <h2 class="mb-5">45</h2>
+        <h2 class="mb-5">{{ departments_count }}</h2>
       </div>
     </div>
   </div>
@@ -25,7 +25,7 @@
       <div class="card-body">
         <img src="{% static 'assets/images/dashboard/circle.svg' %} " class="card-img-absolute" alt="circle-image" />
         <h4 class="font-weight-normal mb-3">Total Halls</h4>
-        <h2 class="mb-5">75</h2>
+        <h2 class="mb-5">{{ halls_count }}</h2>
       </div>
     </div>
   </div>
@@ -43,7 +43,7 @@
       <div class="card-body">
         <img src="{% static 'assets/images/dashboard/circle.svg' %} " class="card-img-absolute" alt="circle-image" />
         <h4 class="font-weight-normal mb-3">Total Courses</h4>
-        <h2 class="mb-5">400</h2>
+        <h2 class="mb-5">{{ courses_count }}</h2>
       </div>
     </div>
   </div>

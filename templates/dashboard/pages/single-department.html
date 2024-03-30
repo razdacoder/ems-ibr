@@ -1,5 +1,5 @@
 <div class="page-header">
-  <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> Departments</h3>
+  <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> {{ department.name }}</h3>
   <nav aria-label="breadcrumb">
     <ul class="breadcrumb">
       <li class="breadcrumb-item active" aria-current="page">
@@ -10,7 +10,7 @@
           <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalCenterTitle">Upload Department Data</h5>
+                <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ department.name }} data</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
               <form hx-post="{% url 'upload-departments' %}" hx-target="#main-content" hx-encoding="multipart/form-data">
@@ -36,55 +36,25 @@
   </nav>
 </div>
 
-{% if departments|length %}
-  <form hx-get="{% url 'department' %}" hx-target="#main-content" hx-push-url="true" class="mb-3 d-flex align-items-center gap-3">
-    <input class="form-control w-25" name="query" type="text" placeholder="Search..." />
-    <button type="button" hx-get="{% url 'department' %}" hx-target="#main-content" hx-push-url="true" class="btn btn-md btn-secondary">Clear</button>
-  </form>
-
+{% if clases|length %}
   <table class="table table-hover bg-white">
     <thead>
       <tr class="p-3">
-        <th>Department ID</th>
-        <th>Department Name</th>
-        <th>Department Code</th>
+        <th>Class Name</th>
+        <th>Class Population</th>
+        <th>No. of Courses</th>
       </tr>
     </thead>
     <tbody>
-      {% for department in departments %}
+      {% for class in clases %}
         <tr hx-get="{% url 'get_department' department.slug %}" hx-target="#main-content" hx-push-url="true" style="cursor: pointer;">
-          <td>{{ department.id }}</td>
-          <td>{{ department.name }}</td>
-          <td>{{ department.slug }}</td>
+          <td>{{ class.name }}</td>
+          <td>{{ class.size }}</td>
+          <td>{{ class.courses|length }}</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
-
-  <div style="display: flex; justify-content: end;" class="mt-3">
-    {% if departments.has_previous %}
-      <button hx-get="?page={{ departments.previous_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
-    {% else %}
-      <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
-    {% endif %}
-
-    <button disabled class="btn btn-icon">{{ departments.number }}</button>
-
-    {% if departments.has_next %}
-      <button hx-get="?page={{ departments.next_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
-    {% else %}
-      <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
-    {% endif %}
-  </div>
 {% else %}
-  <p class="text-center">Sorry, No departments to show</p>
+  <p class="text-center">Sorry, No data for {{ department.name|lower }}.</p>
 {% endif %}
-
-<script>
-  const fileInput = document.getElementById('departmentFile')
-  const fileName = document.getElementById('fileName')
-  
-  fileInput.addEventListener('change', (e) => {
-    fileName.textContent = e.target.files[0].name
-  })
-</script>

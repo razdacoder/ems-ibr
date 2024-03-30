@@ -7,9 +7,13 @@ urlpatterns = [
     path("logout/", view=views.logout_view, name="logout"),
     path("dashboard/", view=views.dashboard, name="dashboard"),
     path("departments/", view=views.departments, name="department"),
+    path(
+        "upload-departments/", view=views.upload_departments, name="upload-departments"
+    ),
     path("halls/", view=views.halls, name="halls"),
     path("timetable/", view=views.timetable, name="timetable"),
     path("distribution/", view=views.distribution, name="distribution"),
     path("allocation/", view=views.allocation, name="allocation"),
     path("manage-users/", view=views.manage_users, name="manage_users"),
+    path("departments/<str:slug>/", view=views.get_depertment, name="get_department"),
 ]

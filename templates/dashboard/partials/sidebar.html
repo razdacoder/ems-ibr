@@ -38,13 +38,15 @@
         <i class="mdi mdi-chair-school menu-icon"></i>
       </a>
     </li>
-    <li class="nav-item {% active_link 'manage_users' 'active' %}">
-      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true">
-        <span class="menu-title">Manage Users</span>
+    {% if request.user.is_staff %}
+      <li class="nav-item {% active_link 'manage_users' 'active' %}">
+        <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true">
+          <span class="menu-title">Manage Users</span>
 
-        <i class="mdi mdi-account-key menu-icon"></i>
-      </a>
-    </li>
+          <i class="mdi mdi-account-key menu-icon"></i>
+        </a>
+      </li>
+    {% endif %}
   </ul>
 </nav>
 

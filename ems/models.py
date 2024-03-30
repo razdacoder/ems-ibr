@@ -53,3 +53,36 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class Course(models.Model):
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50)
+    exam_type = models.CharField(max_length=50, default="PBE")
+
+    def __str__(self) -> str:
+        return str(self.name)
+
+
+class Class(models.Model):
+    name = models.CharField(max_length=25, null=True, blank=True)
+    courses = models.ManyToManyField(Course, related_name="courses")
+    department = models.ForeignKey(
+        Department, related_name="class_dep", on_delete=models.CASCADE
+    )
+    size = models.IntegerField()
+
+    def __str__(self) -> str:
+        return f"{self.name} - {self.department.name}"
+
+
+class Hall(models.Model):
+    name = models.CharField(max_length=255)
+    capacity = models.IntegerField()
+    max_students = models.IntegerField(default=0)
+    min_courses = models.IntegerField(default=0)
+    class_x = models.IntegerField()
+    class_y = models.IntegerField()
+
+    def __str__(self) -> str:
+        return str(self.name)
