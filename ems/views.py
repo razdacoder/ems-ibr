@@ -1,15 +1,21 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_POST
 from django.db.models import Q
 import pandas as pd
 from django.core.paginator import Paginator
 from django.contrib import messages
 from .forms import LoginForm
-from .models import Department, Hall, Course, Class
+from .models import Department, Hall, Course, Class, User
 
 
 # Create your views here.
+
+
+def admin_required(view_func):
+    decorated_view_func = user_passes_test(lambda user: user.is_staff)(view_func)
+    return decorated_view_func
 
 
 def index(request):
@@ -95,6 +101,35 @@ def get_depertment(request, slug):
 
 
 @login_required(redirect_field_name="login")
+def get_class_course(request, slug, id):
+    cls = get_object_or_404(Class, department__slug=slug, id=id)
+    context = {"class": cls}
+    if request.htmx:
+        template_name = "dashboard/pages/class.html"
+    else:
+        template_name = "dashboard/class.html"
+
+    return render(request, template_name=template_name, context=context)
+
+
+@login_required(redirect_field_name="login")
+def upload_classes(request, dept_slug):
+    if request.method == "POST":
+        department = get_object_or_404(Department, slug=dept_slug)
+        data = request.FILES.get("file")
+        dept = pd.read_csv(data)
+        dept = dept.to_dict()
+        for key in dept["Name"]:
+            cls, created = Class.objects.get_or_create(
+                name=dept["Name"][key],
+                defaults={"size": dept["Size"][key], "department": department},
+            )
+            if created:
+                cls.save()
+        return redirect("get_department", department.slug)
+
+
+@login_required(redirect_field_name="login")
 def upload_departments(request):
     if request.method == "POST":
         data = request.FILES.get("file")
@@ -152,9 +187,69 @@ def allocation(request):
 
 @login_required(redirect_field_name="login")
 def manage_users(request):
+    users = User.objects.all()
+    department_list = Department.objects.all()
+    query = request.GET.get("query")
+    if query:
+        users = users.filter(
+            Q(first_name__icontains=query) | Q(last_name__icontains=query)
+        )
+
+    paginator = Paginator(users, 10)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {"users": page_obj, "departments": department_list}
+
     if request.htmx:
         template_name = "dashboard/pages/manage-users.html"
     else:
         template_name = "dashboard/manage-users.html"
 
-    return render(request, template_name=template_name)
+    return render(request, template_name=template_name, context=context)
+
+
+@require_POST
+@login_required(redirect_field_name="login")
+@admin_required
+def add_user(request):
+    first_name = request.POST.get("first_name")
+    last_name = request.POST.get("last_name")
+    email = request.POST.get("email")
+    department_slug = request.POST.get("department")
+    password = request.POST.get("password")
+    password_confirm = request.POST.get("password-confirm")
+
+    if password != password_confirm:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Passwords do not match"},
+        )
+    if not Department.objects.filter(slug=department_slug).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": f"Department with code {department_slug} does not exists"
+            },
+        )
+    if User.objects.filter(email=email).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Email alredy exists"},
+        )
+
+    user = User.objects.create_user(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        department=get_object_or_404(Department, slug=department_slug),
+        password=password,
+    )
+    user.save()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "User created succeesfully"},
+    )

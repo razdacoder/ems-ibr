@@ -1,5 +1,5 @@
 <div class="page-header">
-  <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> {{ department.name }}</h3>
+  <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> {{ class.department.name }} - {{ class.name }}</h3>
   <nav aria-label="breadcrumb">
     <ul class="breadcrumb">
       <li class="breadcrumb-item active" aria-current="page">
@@ -13,7 +13,7 @@
                 <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ department.name }} data</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
-              <form hx-post="{% url 'upload_classes' department.slug %}" hx-target="#main-content" hx-encoding="multipart/form-data">
+              <form  hx-target="#main-content" hx-encoding="multipart/form-data">
                 <div class="modal-body">
                   <input name="file" required style="display: none;" type="file" id="clsFile" />
                   <label style="border: 2px dotted #333333; height: 150px; display: flex; justify-content: center; align-items: center; cursor: pointer;" for="clsFile" class="w-100">
@@ -36,7 +36,7 @@
   </nav>
 </div>
 
-{% if clases|length %}
+{% if clases.courses|length %}
   <table class="table table-hover bg-white">
     <thead>
       <tr class="p-3">
@@ -56,7 +56,7 @@
     </tbody>
   </table>
 {% else %}
-  <p class="text-center">Sorry, No data for {{ department.name|lower }}.</p>
+  <p class="text-center">Sorry, No data for  {{ class.department.name|lower }} - {{ class.name }}.</p>
 {% endif %}
 
 

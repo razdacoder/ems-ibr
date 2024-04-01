@@ -56,9 +56,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Course(models.Model):
+
+    COURSE_TYPE = (("PBE", "PBE"), ("CBE", "CBE"))
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50)
-    exam_type = models.CharField(max_length=50, default="PBE")
+    exam_type = models.CharField(max_length=50, default="PBE", choices=COURSE_TYPE)
 
     def __str__(self) -> str:
         return str(self.name)

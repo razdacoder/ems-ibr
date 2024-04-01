@@ -16,4 +16,15 @@ urlpatterns = [
     path("allocation/", view=views.allocation, name="allocation"),
     path("manage-users/", view=views.manage_users, name="manage_users"),
     path("departments/<str:slug>/", view=views.get_depertment, name="get_department"),
+    path(
+        "upload-classes/<str:dept_slug>/",
+        view=views.upload_classes,
+        name="upload_classes",
+    ),
+    path(
+        "departments/<str:slug>/<int:id>/",
+        view=views.get_class_course,
+        name="get_class_course",
+    ),
+    path("add-user/", view=views.add_user, name="add-user"),
 ]
