@@ -3,19 +3,6 @@ __pycache__/
 *.pyc
 
 # Static files
-staticfiles/
-*.css
-*.map
-*.js
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.svg
-*.ico
-
-# Media files
-media/
 
 # Database
 db.sqlite3
