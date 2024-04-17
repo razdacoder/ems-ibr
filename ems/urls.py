@@ -15,7 +15,7 @@ urlpatterns = [
     path("distribution/", view=views.distribution, name="distribution"),
     path("allocation/", view=views.allocation, name="allocation"),
     path("manage-users/", view=views.manage_users, name="manage_users"),
-    path("departments/<str:slug>/", view=views.get_depertment, name="get_department"),
+    path("departments/<str:slug>/", view=views.get_department, name="get_department"),
     path(
         "upload-classes/<str:dept_slug>/",
         view=views.upload_classes,
