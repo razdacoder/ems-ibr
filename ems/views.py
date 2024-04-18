@@ -14,7 +14,8 @@ from .models import Department, Hall, Course, Class, User
 
 
 def admin_required(view_func):
-    decorated_view_func = user_passes_test(lambda user: user.is_staff)(view_func)
+    decorated_view_func = user_passes_test(
+        lambda user: user.is_staff)(view_func)
     return decorated_view_func
 
 
@@ -122,6 +123,7 @@ def upload_classes(request, dept_slug):
         for key in dept["Name"]:
             cls, created = Class.objects.get_or_create(
                 name=dept["Name"][key],
+                department=department,
                 defaults={"size": dept["Size"][key], "department": department},
             )
             if created:
