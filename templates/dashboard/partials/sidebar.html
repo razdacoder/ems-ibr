@@ -9,7 +9,7 @@
       </a>
     </li>
     <li class="nav-item {% active_link 'department' 'active' %}">
-      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'department' %}" hx-target="#main-content" hx-push-url="true">
+      <a style="cursor: pointer;" class="nav-link" hx-get="{% url 'department' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true">
         <span class="menu-title">Departments</span>
         <i class="mdi mdi-account-multiple menu-icon"></i>
       </a>
