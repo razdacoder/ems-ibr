@@ -42,13 +42,13 @@ def login_view(request):
     )
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def logout_view(request):
     logout(request)
     return redirect("login")
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def dashboard(request):
     departments = Department.objects.all().count()
     halls = Hall.objects.all().count()
@@ -67,16 +67,16 @@ def dashboard(request):
     return render(request, template_name=template_name, context=context)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def departments(request):
-    departmets_list = Department.objects.all().order_by("id")
+    departments_list = Department.objects.all().order_by("id")
     query = request.GET.get("query")
     if query:
-        departmets_list = departmets_list.filter(
+        departments_list = departments_list.filter(
             Q(name__icontains=query) | Q(slug__icontains=query)
         )
 
-    paginator = Paginator(departmets_list, 10)
+    paginator = Paginator(departments_list, 10)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
     context = {"departments": page_obj}
@@ -88,11 +88,11 @@ def departments(request):
     return render(request, template_name=template_name, context=context)
 
 
-@login_required(redirect_field_name="login")
-def get_depertment(request, slug):
+@login_required(login_url="login")
+def get_department(request, slug):
     department = get_object_or_404(Department, slug=slug)
-    clases = Class.objects.filter(department=department)
-    context = {"department": department, "clases": clases}
+    classes = Class.objects.filter(department=department)
+    context = {"department": department, "classes": classes}
     if request.htmx:
         template_name = "dashboard/pages/single-department.html"
     else:
@@ -101,7 +101,7 @@ def get_depertment(request, slug):
     return render(request, template_name=template_name, context=context)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def get_class_course(request, slug, id):
     cls = get_object_or_404(Class, department__slug=slug, id=id)
     context = {"class": cls}
@@ -113,7 +113,7 @@ def get_class_course(request, slug, id):
     return render(request, template_name=template_name, context=context)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def upload_classes(request, dept_slug):
     if request.method == "POST":
         department = get_object_or_404(Department, slug=dept_slug)
@@ -131,7 +131,7 @@ def upload_classes(request, dept_slug):
         return redirect("get_department", department.slug)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def upload_departments(request):
     if request.method == "POST":
         data = request.FILES.get("file")
@@ -147,7 +147,7 @@ def upload_departments(request):
         return redirect("department")
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def halls(request):
     if request.htmx:
         template_name = "dashboard/pages/halls.html"
@@ -157,7 +157,7 @@ def halls(request):
     return render(request, template_name=template_name)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def timetable(request):
     if request.htmx:
         template_name = "dashboard/pages/timetable.html"
@@ -167,7 +167,7 @@ def timetable(request):
     return render(request, template_name=template_name)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def distribution(request):
     if request.htmx:
         template_name = "dashboard/pages/distribution.html"
@@ -177,7 +177,7 @@ def distribution(request):
     return render(request, template_name=template_name)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def allocation(request):
     if request.htmx:
         template_name = "dashboard/pages/allocation.html"
@@ -187,7 +187,7 @@ def allocation(request):
     return render(request, template_name=template_name)
 
 
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 def manage_users(request):
     users = User.objects.all()
     department_list = Department.objects.all()
@@ -211,7 +211,7 @@ def manage_users(request):
 
 
 @require_POST
-@login_required(redirect_field_name="login")
+@login_required(login_url="login")
 @admin_required
 def add_user(request):
     first_name = request.POST.get("first_name")
@@ -239,7 +239,7 @@ def add_user(request):
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": "Email alredy exists"},
+            context={"message": "Email already exists"},
         )
 
     user = User.objects.create_user(
@@ -253,5 +253,5 @@ def add_user(request):
     return render(
         request,
         template_name="dashboard/partials/alert-success.html",
-        context={"message": "User created succeesfully"},
+        context={"message": "User created successfully"},
     )
