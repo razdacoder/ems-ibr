@@ -67,7 +67,7 @@
     </thead>
     <tbody>
       {% for department in departments %}
-        <tr hx-get="{% url 'get_department' department.slug %}" hx-target="#main-content" hx-push-url="true" style="cursor: pointer">
+        <tr hx-get="{% url 'get_department' department.slug %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" style="cursor: pointer">
           <td>{{ department.id }}</td>
           <td>{{ department.name }}</td>
           <td>{{ department.slug }}</td>
@@ -78,7 +78,7 @@
 
   <div style="display: flex; justify-content: end" class="mt-3">
     {% if departments.has_previous %}
-      <button hx-get="?page={{ departments.previous_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
+      <button hx-get="?page={{ departments.previous_page_number }}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
     {% else %}
       <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
     {% endif %}
@@ -86,7 +86,7 @@
     <button disabled class="btn btn-icon">{{ departments.number }}</button>
 
     {% if departments.has_next %}
-      <button hx-get="?page={{ departments.next_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
+      <button hx-get="?page={{ departments.next_page_number }}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
     {% else %}
       <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
     {% endif %}

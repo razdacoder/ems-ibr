@@ -46,8 +46,8 @@
       </tr>
     </thead>
     <tbody>
-      {% for class in clases %}
-        <tr hx-get="{% url 'get_class_course' department.slug class.id %}" hx-target="#main-content" hx-push-url="true" style="cursor: pointer;">
+      {% for class in classes %}
+        <tr hx-get="{% url 'get_class_course' department.slug class.id %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" style="cursor: pointer;">
           <td>{{ class.name }}</td>
           <td>{{ class.size }}</td>
           <td>{{ class.courses|length }}</td>
@@ -61,7 +61,6 @@
 
 
 <script>
-
   const fileInput = document.getElementById('clsFile')
   const fileName = document.getElementById('fileName')
   
