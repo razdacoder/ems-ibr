@@ -27,4 +27,9 @@ urlpatterns = [
         name="get_class_course",
     ),
     path("add-user/", view=views.add_user, name="add-user"),
+    path(
+        "upload-class-courses/<int:id>/",
+        view=views.upload_class_courses,
+        name="upload_class_courses",
+    ),
 ]

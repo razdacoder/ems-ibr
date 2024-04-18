@@ -1,7 +1,10 @@
 <div class="page-header">
   <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> {{ class.department.name }} - {{ class.name }}</h3>
   <nav aria-label="breadcrumb">
-    <ul class="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <button hx-get="{% url 'get_class_course' class.department.slug class.id %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
+      </li>
       <li class="breadcrumb-item active" aria-current="page">
         <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-cloud-upload"></i> Upload Data</button>
 
@@ -10,11 +13,15 @@
           <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ department.name }} data</h5>
+                <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ class.name }} data</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
-              <form  hx-target="#main-content" hx-encoding="multipart/form-data">
+              
+              <form hx-post="{% url 'upload_class_courses' class.id %}" hx-target="#alert" hx-encoding="multipart/form-data">
                 <div class="modal-body">
+                  <div id="alert">
+                    
+                  </div>
                   <input name="file" required style="display: none;" type="file" id="clsFile" />
                   <label style="border: 2px dotted #333333; height: 150px; display: flex; justify-content: center; align-items: center; cursor: pointer;" for="clsFile" class="w-100">
                     <div style="display: flex; flex-direction: column; row-gap: 8px; align-items: center;">
@@ -25,7 +32,7 @@
                 </div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                  <button type="submit" data-bs-dismiss="modal" class="btn btn-primary d-flex gap-3 align-items-center">Uplaod{% include 'dashboard/partials/loader.html' %}</button>
+                  <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">Uplaod {% include 'dashboard/partials/loader.html' %}</button>
                 </div>
               </form>
             </div>
@@ -36,21 +43,22 @@
   </nav>
 </div>
 
-{% if clases.courses|length %}
+{% if courses|length %}
+
   <table class="table table-hover bg-white">
     <thead>
       <tr class="p-3">
-        <th>Class Name</th>
-        <th>Class Population</th>
-        <th>No. of Courses</th>
+        <th>Course Title</th>
+        <th>Course Code</th>
+        <th>Course Exam Type</th>
       </tr>
     </thead>
     <tbody>
-      {% for class in clases %}
-        <tr hx-get="{% url 'get_class_course' department.slug class.id %}" hx-target="#main-content" hx-push-url="true" style="cursor: pointer;">
-          <td>{{ class.name }}</td>
-          <td>{{ class.size }}</td>
-          <td>{{ class.courses|length }}</td>
+      {% for course in courses %}
+        <tr>
+          <td>{{ course.name }}</td>
+          <td>{{ course.code }}</td>
+          <td>{{ course.exam_type|length }}</td>
         </tr>
       {% endfor %}
     </tbody>
@@ -61,10 +69,12 @@
 
 
 <script>
+
   const fileInput = document.getElementById('clsFile')
   const fileName = document.getElementById('fileName')
   
   fileInput.addEventListener('change', (e) => {
     fileName.textContent = e.target.files[0].name
   })
+
 </script>

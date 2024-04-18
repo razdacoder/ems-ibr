@@ -103,7 +103,7 @@ def get_department(request, slug):
 @login_required(login_url="login")
 def get_class_course(request, slug, id):
     cls = get_object_or_404(Class, department__slug=slug, id=id)
-    context = {"class": cls}
+    context = {"class": cls, "courses": cls.courses.all()}
     if request.htmx:
         template_name = "dashboard/pages/class.html"
     else:
@@ -113,6 +113,7 @@ def get_class_course(request, slug, id):
 
 
 @login_required(login_url="login")
+@admin_required
 def upload_classes(request, dept_slug):
     if request.method == "POST":
         department = get_object_or_404(Department, slug=dept_slug)
@@ -146,6 +147,7 @@ def upload_departments(request):
 
 
 @login_required(login_url="login")
+@admin_required
 def halls(request):
     if request.htmx:
         template_name = "dashboard/pages/halls.html"
@@ -166,6 +168,7 @@ def timetable(request):
 
 
 @login_required(login_url="login")
+@admin_required
 def distribution(request):
     if request.htmx:
         template_name = "dashboard/pages/distribution.html"
@@ -176,6 +179,7 @@ def distribution(request):
 
 
 @login_required(login_url="login")
+@admin_required
 def allocation(request):
     if request.htmx:
         template_name = "dashboard/pages/allocation.html"
@@ -186,6 +190,7 @@ def allocation(request):
 
 
 @login_required(login_url="login")
+@admin_required
 def manage_users(request):
     users = User.objects.all()
     department_list = Department.objects.all()
@@ -252,4 +257,30 @@ def add_user(request):
         request,
         template_name="dashboard/partials/alert-success.html",
         context={"message": "User created successfully"},
+    )
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def upload_class_courses(request, id):
+    cls = get_object_or_404(Class, id=id)
+    data = request.FILES.get("file")
+    courses = pd.read_csv(data).to_dict()
+    for key in courses["COURSE CODE"]:
+        course, created = Course.objects.get_or_create(
+            code=courses["COURSE CODE"][key],
+            defaults={
+                "name": courses["COURSE TITLE"][key],
+                "exam_type": courses["EXAM TYPE"][key],
+            },
+        )
+        if created:
+            course.save()
+        cls.courses.add(course)
+        cls.save()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Courses uploaded successfully"},
     )

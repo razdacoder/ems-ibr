@@ -14451,33 +14451,30 @@ dl {
 /*# sourceMappingURL=style.css.map */
 
 
-.htmx-indicator {
-  
+.spin {
+  display: none;
   opacity: 0;
   
 }
-.htmx-request .htmx-indicator {
- 
+.htmx-request .htmx-indicator .spin {
+ display: inline;
   opacity: 1;
 }
-.htmx-request.htmx-indicator {
- 
+.htmx-request.htmx-indicator.spin {
+ display: inline;
   opacity: 1;
 }
 
 .full-loader {
-  
   opacity: 0;
   z-index: -100;
 }
 
 .htmx-request .htmx-indicator .full-loader {
- 
   opacity: 1;
   z-index: 100;
 }
 .htmx-request.htmx-indicator.full-loader {
-  
   opacity: 1;
   z-index: 100;
 }
