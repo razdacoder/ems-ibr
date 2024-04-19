@@ -7,6 +7,7 @@ urlpatterns = [
     path("logout/", view=views.logout_view, name="logout"),
     path("dashboard/", view=views.dashboard, name="dashboard"),
     path("departments/", view=views.departments, name="department"),
+    path('back/', views.back_view, name='back'),
     path(
         "upload-departments/", view=views.upload_departments, name="upload-departments"
     ),

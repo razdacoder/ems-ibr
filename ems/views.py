@@ -4,14 +4,33 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_POST
 from django.db.models import Q
 import pandas as pd
+from urllib.parse import urlparse, urlunparse
 from django.core.paginator import Paginator
 from django.contrib import messages
 from .forms import LoginForm
 from .models import Department, Hall, Course, Class, User
 
+def back_view(request):
+    # Get the origin uri
+    original_uri = request.META.get('HTTP_REFERER')
+    parsed_uri = urlparse(original_uri)
 
-# Create your views here.
+    # Clean up (remove delimiters and empty strings)
+    path_parts = parsed_uri.path.split('/')
+    path_parts = [path for path in path_parts if path != ""]
+    value = path_parts.pop(-1)
 
+    # Construct the referer uri
+    new_path_parts = [part for part in path_parts if part != value]
+    parsed_uri = parsed_uri._replace(path='/'.join(new_path_parts))
+
+    referer = urlunparse(parsed_uri)
+
+    # redirect to the referer uri
+    if referer:
+        return redirect(referer)
+    else:
+        return redirect('dashboard/')
 
 def admin_required(view_func):
     decorated_view_func = user_passes_test(lambda user: user.is_staff)(view_func)
