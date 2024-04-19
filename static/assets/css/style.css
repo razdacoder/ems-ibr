@@ -14451,18 +14451,18 @@ dl {
 /*# sourceMappingURL=style.css.map */
 
 
-.spin {
+ .spin {
   display: none;
-  opacity: 0;
+  
   
 }
-.htmx-request .htmx-indicator .spin {
+.htmx-request .spin {
  display: inline;
-  opacity: 1;
+ 
 }
-.htmx-request.htmx-indicator.spin {
+.htmx-request.spin {
  display: inline;
-  opacity: 1;
+
 }
 
 .full-loader {

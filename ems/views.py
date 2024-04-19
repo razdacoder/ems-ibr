@@ -149,12 +149,17 @@ def upload_departments(request):
 @login_required(login_url="login")
 @admin_required
 def halls(request):
+    halls_list = Hall.objects.all()
+    paginator = Paginator(halls_list, 10)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {"halls": page_obj}
     if request.htmx:
         template_name = "dashboard/pages/halls.html"
     else:
         template_name = "dashboard/halls.html"
 
-    return render(request, template_name=template_name)
+    return render(request, template_name=template_name, context=context)
 
 
 @login_required(login_url="login")
@@ -283,4 +288,30 @@ def upload_class_courses(request, id):
         request,
         template_name="dashboard/partials/alert-success.html",
         context={"message": "Courses uploaded successfully"},
+    )
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def upload_halls(request):
+    data = request.FILES.get("file")
+    halls = pd.read_csv(data).to_dict()
+    for key in halls["EXAM VENUE"]:
+        hall, created = Hall.objects.get_or_create(
+            name=halls["EXAM VENUE"][key],
+            defaults={
+                "capacity": halls["CAPACITY"][key],
+                "max_students": halls["MAX STUDENTS"][key],
+                "min_courses": halls["MIN COURSES"][key],
+                "class_x": halls["X AXIS"][key],
+                "class_y": halls["Y AXIS"][key],
+            },
+        )
+        if created:
+            hall.save()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Halls uploaded successfully"},
     )

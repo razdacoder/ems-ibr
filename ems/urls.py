@@ -32,4 +32,5 @@ urlpatterns = [
         view=views.upload_class_courses,
         name="upload_class_courses",
     ),
+    path("upload-halls/", view=views.upload_halls, name="upload_halls"),
 ]

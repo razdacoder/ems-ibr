@@ -1,9 +1,10 @@
 <div class="page-header">
   <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-key"></i></span> Manage Users</h3>
+
   <nav aria-label="breadcrumb">
     <ul class="breadcrumb flex gap-3 align-items-center">
       <li>
-        <button hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
+        <button hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
       <li class="breadcrumb-item active" aria-current="page">
         <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-account-plus"></i>Add User</button>

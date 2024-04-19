@@ -4,7 +4,10 @@
     Departments
   </h3>
   <nav aria-label="breadcrumb">
-    <ul class="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <button hx-get="{% url 'department' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
+      </li>
       <li class="breadcrumb-item active" aria-current="page">
         <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-cloud-upload"></i> Upload Data</button>
 
@@ -16,7 +19,7 @@
                 <h5 class="modal-title" id="exampleModalCenterTitle">Upload Department Data</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
-              <form hx-post="{% url 'upload-departments' %}" hx-target="#main-content" hx-encoding="multipart/form-data">
+              <form hx-post="{% url 'upload-departments' %}" hx-indicator="#htmx-indicator" hx-target="#main-content" hx-encoding="multipart/form-data">
                 <div class="modal-body">
                   <input name="file" required style="display: none" type="file" id="departmentFile" />
                   <label style="
