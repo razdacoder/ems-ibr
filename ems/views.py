@@ -43,7 +43,6 @@ def admin_required(view_func):
 def index(request):
     return render(request, template_name="site/index.html")
 
-@require_POST
 def login_view(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
