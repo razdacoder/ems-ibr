@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 from .forms import LoginForm
 from .models import Department, Hall, Course, Class, User
+from .utils import split_courses, schedule_prev, schedule_next
 
 def back_view(request):
     # Get the origin uri
@@ -53,7 +54,7 @@ def login_view(request):
             login(request, user)
             return redirect("dashboard")
         messages.error(request, "Invalid email or password.")
-        return redirect("login")
+        return redirect("dashboard")
 
     return render(
         request,
@@ -267,18 +268,18 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 
     for cls in classes:
         # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
-        # sc_courses, nc_courses = split_courses(
-        #     cl.courses.exclude(exam_type="NAN"))
+        sc_courses, nc_courses = split_courses(cls.courses.all())
+        print(sc_courses, nc_courses)
         dates = ["01-02-2023", "02-02-2023", "03-02-2023", "04-02-2023", "05-02-2023", "06-02-2023", "07-02-2023",
                  "08-02-2023", "09-02-2023", "10-02-2023", "11-02-2023", "12-02-2023", "13-02-2023", "14-02-2023", "15-02-2023", "16-02-2023", "17-02-2023", "18-02-2023", "19-02-2023", "20-02-2023"]
 
         # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
-        # schedule_prev(sc_courses, cl, dates)
+        schedule_prev(sc_courses, cls, dates)
 
         # # SCHEDULE THE AWAITING COURSES FOR A CLASS
-        # schedule_next(nc_courses, cl, dates)
+        schedule_next(nc_courses, cls, dates)
 
-    return redirect("")
+    return redirect("timetable")
 
 
 # ----------------------------

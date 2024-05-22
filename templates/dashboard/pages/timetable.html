@@ -1,1 +1,18 @@
-Timetables Page
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span>
+    Timetale
+  </h3>
+  <nav aria-label="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <button hx-get="{% url 'department' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">
+        <button hx-post="{% url "generate_timetable" %}" hx-target="#main-content" hx-indicator="#htmx-indicator-full" hx-push-url="true"  class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-lightning-bolt-circle"></i> Generate Timetale</button>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+
