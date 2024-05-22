@@ -2,7 +2,7 @@
   <h3 class="page-title"><span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-account-multiple"></i></span> {{ department.name }}</h3>
   <nav aria-label="breadcrumb">
     <ul class="breadcrumb flex gap-3 align-items-center">
-      <a href="{% url 'back' %}" class="btn btn-success text-white align-items-center mx-2" ><i class="mdi mdi-arrow-left"></i> Back</a>
+      <button onclick="goBack()" type="button" class="btn btn-success text-white align-items-center mx-2" ><i class="mdi mdi-arrow-left"></i> Back</button>
       <li>
         <button hx-get="{% url 'get_department' department.slug %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
@@ -71,5 +71,9 @@
   fileInput.addEventListener('change', (e) => {
     fileName.textContent = e.target.files[0].name
   })
+
+  function goBack() {
+    window.history.back();
+  }
 
 </script>
