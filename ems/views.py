@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import HttpRequest, HttpResponse
+from django.db.models import Sum
 from django.views.decorators.http import require_POST
 from django.db.models import Q
 import pandas as pd
@@ -41,7 +42,7 @@ def admin_required(view_func):
 def index(request):
     return render(request, template_name="site/index.html")
 
-
+@require_POST
 def login_view(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
@@ -72,11 +73,13 @@ def dashboard(request):
     departments = Department.objects.all().count()
     halls = Hall.objects.all().count()
     courses = Course.objects.all().count()
+    students = Class.objects.aggregate(total_size=Sum('size'))['total_size']
 
     context = {
         "departments_count": departments,
         "halls_count": halls,
         "courses_count": courses,
+        "students": students,
     }
     if request.htmx:
         template_name = "dashboard/pages/dashboard.html"
@@ -148,7 +151,7 @@ def halls(request):
 
     return render(request, template_name=template_name, context=context)
 
-
+@require_POST
 @login_required(login_url="login")
 def timetable(request):
     if request.htmx:
@@ -303,7 +306,7 @@ def upload_classes(request, dept_slug):
                 cls.save()
         return redirect("get_department", department.slug)
 
-
+@require_POST
 @require_POST
 @login_required(login_url="login")
 @admin_required
