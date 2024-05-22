@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Q
 import pandas as pd
@@ -131,39 +132,6 @@ def get_class_course(request, slug, id):
     return render(request, template_name=template_name, context=context)
 
 
-@login_required(login_url="login")
-@admin_required
-def upload_classes(request, dept_slug):
-    if request.method == "POST":
-        department = get_object_or_404(Department, slug=dept_slug)
-        data = request.FILES.get("file")
-        dept = pd.read_csv(data)
-        dept = dept.to_dict()
-        for key in dept["Name"]:
-            cls, created = Class.objects.get_or_create(
-                name=dept["Name"][key],
-                defaults={"size": dept["Size"][key], "department": department},
-            )
-            if created:
-                cls.save()
-        return redirect("get_department", department.slug)
-
-
-@login_required(login_url="login")
-def upload_departments(request):
-    if request.method == "POST":
-        data = request.FILES.get("file")
-        dept = pd.read_csv(data)
-        dept = dept.to_dict()
-        for key in dept["Code"]:
-            department, created = Department.objects.get_or_create(
-                slug=dept["Code"][key],
-                defaults={"name": dept["Name"][key]},
-            )
-            if created:
-                department.save()
-        return redirect("department")
-
 
 @login_required(login_url="login")
 @admin_required
@@ -282,6 +250,76 @@ def add_user(request):
         template_name="dashboard/partials/alert-success.html",
         context={"message": "User created successfully"},
     )
+
+
+
+
+# --------------------------
+#  Generate Views
+# --------------------------
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def generate_timetable(request: HttpRequest) -> HttpResponse:
+    classes = Class.objects.all()
+
+    for cls in classes:
+        # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
+        # sc_courses, nc_courses = split_courses(
+        #     cl.courses.exclude(exam_type="NAN"))
+        dates = ["01-02-2023", "02-02-2023", "03-02-2023", "04-02-2023", "05-02-2023", "06-02-2023", "07-02-2023",
+                 "08-02-2023", "09-02-2023", "10-02-2023", "11-02-2023", "12-02-2023", "13-02-2023", "14-02-2023", "15-02-2023", "16-02-2023", "17-02-2023", "18-02-2023", "19-02-2023", "20-02-2023"]
+
+        # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
+        # schedule_prev(sc_courses, cl, dates)
+
+        # # SCHEDULE THE AWAITING COURSES FOR A CLASS
+        # schedule_next(nc_courses, cl, dates)
+
+    return redirect("")
+
+
+# ----------------------------
+# Upload Views
+# ----------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def upload_classes(request, dept_slug):
+        department = get_object_or_404(Department, slug=dept_slug)
+        data = request.FILES.get("file")
+        dept = pd.read_csv(data)
+        dept = dept.to_dict()
+        for key in dept["Name"]:
+            cls, created = Class.objects.get_or_create(
+                name=dept["Name"][key],
+                department=department,
+                defaults={"size": dept["Size"][key]},
+            )
+            if created:
+                cls.save()
+        return redirect("get_department", department.slug)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def upload_departments(request):
+    if request.method == "POST":
+        data = request.FILES.get("file")
+        dept = pd.read_csv(data)
+        dept = dept.to_dict()
+        for key in dept["Code"]:
+            department, created = Department.objects.get_or_create(
+                slug=dept["Code"][key],
+                defaults={"name": dept["Name"][key]},
+            )
+            if created:
+                department.save()
+        return redirect("department")
 
 
 @require_POST

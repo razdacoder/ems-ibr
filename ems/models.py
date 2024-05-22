@@ -87,3 +87,16 @@ class Hall(models.Model):
 
     def __str__(self) -> str:
         return str(self.name)
+
+
+class TimeTable(models.Model):
+    PERIOD = (('AM', 'AM'), ('PM', 'PM'))
+    course = models.ForeignKey(
+        Course, related_name="timetable_course", on_delete=models.CASCADE)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE,
+                               related_name="timetable_class")
+    period = models.CharField(max_length=50, choices=PERIOD)
+    date = models.DateField()
+
+    def __str__(self) -> str:
+        return f"{self.class_obj.department.name} {self.class_obj.level} | {self.course.code} | {self.day} | {self.period}"
