@@ -5,6 +5,7 @@ from django.http import HttpRequest, HttpResponse
 from django.db.models import Sum
 from django.views.decorators.http import require_POST
 from django.db.models import Q
+from datetime import datetime, timedelta
 import pandas as pd
 from urllib.parse import urlparse, urlunparse
 from django.core.paginator import Paginator
@@ -12,6 +13,7 @@ from django.contrib import messages
 from .forms import LoginForm
 from .models import Department, Hall, Course, Class, User
 from .utils import split_courses, schedule_prev, schedule_next
+
 
 def back_view(request):
     # Get the origin uri
@@ -151,7 +153,7 @@ def halls(request):
 
     return render(request, template_name=template_name, context=context)
 
-@require_POST
+
 @login_required(login_url="login")
 def timetable(request):
     if request.htmx:
@@ -267,19 +269,47 @@ def add_user(request):
 @admin_required
 def generate_timetable(request: HttpRequest) -> HttpResponse:
     classes = Class.objects.all()
+    startDate = request.POST.get("startDate")
+    endDate = request.POST.get("endDate")
+    
+
+    if startDate == "" or endDate == "":
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Please select a start date and end date"},
+        )
+
+    startDate = datetime.strptime(startDate, "%Y-%m-%d").date()
+    endDate = datetime.strptime(endDate, "%Y-%m-%d").date()
+    
+    if startDate > endDate:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "End date must be greater than start date"},
+        )
+    
+    dates = []
+    currentDate = startDate
+    while currentDate <= endDate:
+        if currentDate.weekday() != 6:  # 6 represents Sunday
+            dates.append(currentDate)
+        currentDate += timedelta(days=1)
+    
+   
 
     for cls in classes:
         # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
         sc_courses, nc_courses = split_courses(cls.courses.all())
-        print(sc_courses, nc_courses)
-        dates = ["01-02-2023", "02-02-2023", "03-02-2023", "04-02-2023", "05-02-2023", "06-02-2023", "07-02-2023",
-                 "08-02-2023", "09-02-2023", "10-02-2023", "11-02-2023", "12-02-2023", "13-02-2023", "14-02-2023", "15-02-2023", "16-02-2023", "17-02-2023", "18-02-2023", "19-02-2023", "20-02-2023"]
+        cls_dates = dates
+        
 
         # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
-        schedule_prev(sc_courses, cls, dates)
+        schedule_prev(sc_courses, cls, cls_dates)
 
         # # SCHEDULE THE AWAITING COURSES FOR A CLASS
-        schedule_next(nc_courses, cls, dates)
+        schedule_next(nc_courses, cls, cls_dates)
 
     return redirect("timetable")
 

@@ -8,11 +8,30 @@
       <li>
         <button hx-get="{% url 'department' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
-      <li class="breadcrumb-item active" aria-current="page">
-        <button hx-post="{% url "generate_timetable" %}" hx-target="#main-content" hx-indicator="#htmx-indicator-full" hx-push-url="true"  class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-lightning-bolt-circle"></i> Generate Timetale</button>
-      </li>
     </ul>
   </nav>
 </div>
 
+<div class="row flex-grow">
+  <div class="col-lg-4 mx-auto">
+    <div class="auth-form-light text-center p-5">
+      <div class="brand-logo"></div>
+      <h4>Generate timetable</h4>
+      <div id="alert"></div>
 
+      <form class="pt-3" method="post" hx-post="{% url 'generate_timetable' %}" hx-indicator="#htmx-indicator" hx-target="#alert" hx-swap="outerHTML">
+        <div class="form-group">
+          <label for="startDate">Start Date</label>
+          <input type="date" name="startDate" class="form-control form-control-lg" id="startDate" />
+        </div>
+        <div class="form-group">
+          <label for="endDate">End Date</label>
+          <input type="date" name="endDate" class="form-control form-control-lg" id="endDate" />
+        </div>
+        <div class="mt-3">
+          <button type="submit" class="btn btn-block btn-gradient-primary btn-lg font-weight-medium auth-form-btn d-flex gap-3 align-items-center">{% include 'dashboard/partials/loader.html' %}Generate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
