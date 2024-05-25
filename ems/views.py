@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.db.models import Sum
 from django.views.decorators.http import require_POST
 from django.db.models import Q
@@ -11,8 +11,8 @@ from urllib.parse import urlparse, urlunparse
 from django.core.paginator import Paginator
 from django.contrib import messages
 from .forms import LoginForm
-from .models import Department, Hall, Course, Class, User
-from .utils import split_courses, schedule_prev, schedule_next
+from .models import Department, Hall, Course, Class, User, TimeTable
+from .utils import split_courses, schedule_prev, schedule_next, get_total_no_seats, get_total_no_seats_needed, distribute_classes_to_halls, convert_hall_to_dict, save_to_db
 
 
 def back_view(request):
@@ -318,6 +318,27 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         )
 
 
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def generate_distribution(request: HttpRequest, date: str, period: str) -> HttpResponse:
+    halls = Hall.objects.all()
+    total_hall_capacity = get_total_no_seats(halls=halls)
+    halls = convert_hall_to_dict(halls=halls)
+
+    timetables = TimeTable.objects.filter(period=period, date=date)
+    total_no_seats_needed = get_total_no_seats_needed(timetables=timetables)
+    total_no_cbe = get_total_no_seats_needed(timetables.filter(course__exam_type="CBE"))
+    total_no_of_seats_needed_after_cbe = total_no_seats_needed - total_no_cbe
+    total_no_seats_remaining = total_hall_capacity - total_no_of_seats_needed_after_cbe
+    none_cbe_tt = timetables.exclude(
+        course__exam_type__in=["NAN", "CBE"])
+    res = distribute_classes_to_halls(
+        schedules=none_cbe_tt, halls=halls)
+    save_to_db(res, date, period)
+    
+    return JsonResponse(res)
+    
 # ----------------------------
 # Upload Views
 # ----------------------------

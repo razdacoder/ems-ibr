@@ -100,3 +100,16 @@ class TimeTable(models.Model):
 
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} {self.class_obj.level} | {self.course.code} | {self.day} | {self.period}"
+
+
+
+class DistributionItem(models.Model):
+    schedule = models.ForeignKey(TimeTable, on_delete=models.CASCADE)
+    no_of_students = models.IntegerField()
+
+
+class Distribution(models.Model):
+    hall = models.ForeignKey(Hall, on_delete=models.CASCADE)
+    items = models.ManyToManyField(DistributionItem)
+    date = models.CharField(max_length=15, null=True)
+    period = models.CharField(max_length=2, null=True)
