@@ -80,6 +80,8 @@ def convert_hall_to_dict(halls):
         halls_dict.append(hall_dict)
     return halls_dict
 
+
+
 def make_schedules(timetables):
     tt = []
     for timetable in timetables:
@@ -87,6 +89,7 @@ def make_schedules(timetables):
                   "course": timetable.course.code, "size": timetable.class_obj.size})
     random.shuffle(tt)
     return tt
+
 
 def is_course_in_hall(hall, course_code):
     if len(hall["classes"]) == 0:
