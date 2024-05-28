@@ -10,6 +10,7 @@ import pandas as pd
 from urllib.parse import urlparse, urlunparse
 from django.core.paginator import Paginator
 from django.contrib import messages
+from copy import copy
 from .forms import LoginForm
 from .models import Department, Hall, Course, Class, User, TimeTable
 from .utils import split_courses, schedule_prev, schedule_next, get_total_no_seats, get_total_no_seats_needed, distribute_classes_to_halls, convert_hall_to_dict, save_to_db
@@ -169,6 +170,8 @@ def timetable(request: HttpRequest) -> HttpResponse:
             timetables = TimeTable.objects.filter(date=date, period=period)
         else:
             timetables = TimeTable.objects.filter(date=dates[0], period="AM")
+        if request.user.is_staff == False:
+            timetables.filter(class_obj__department=request.user.department)
         context["dates"] = dates
         context["timetables"] = timetables
 
@@ -285,7 +288,7 @@ def add_user(request):
 @login_required(login_url="login")
 @admin_required
 def generate_timetable(request: HttpRequest) -> HttpResponse:
-    classes = Class.objects.filter(department__slug="CS")
+    classes = Class.objects.all()
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
     
@@ -319,8 +322,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
     for cls in classes:
         # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
         sc_courses, nc_courses = split_courses(cls.courses.all())
-        cls_dates = dates
-        
+        cls_dates = copy(dates)
 
         # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
         schedule_prev(sc_courses, cls, cls_dates)

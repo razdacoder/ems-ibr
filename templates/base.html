@@ -11,18 +11,6 @@
     
     
     <script src="{% static 'assets/js/htmx-min.js' %}"></script>
-
-    <title>
-      {% block title %}
-        This is my Title block
-      {% endblock %}- EMS-IBR
-    </title>
-  </head>
-  <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% block content %}
-      This is the block Content
-    {% endblock %}
-
     <script src="{% static 'assets/vendors/js/vendor.bundle.base.js' %} "></script>
     <!-- endinject -->
     <!-- Plugin js for this page -->
@@ -37,7 +25,17 @@
     <!-- Custom js for this page -->
     <script src="{% static 'assets/js/dashboard.js' %} "></script>
     <script src="{% static 'assets/js/todolist.js' %} "></script>
-   
+
+    <title>
+      {% block title %}
+        This is my Title block
+      {% endblock %}- EMS-IBR
+    </title>
+  </head>
+  <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    {% block content %}
+      This is the block Content
+    {% endblock %}
   
   </body>
 </html>
