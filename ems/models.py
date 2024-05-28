@@ -97,9 +97,10 @@ class TimeTable(models.Model):
                                related_name="timetable_class")
     period = models.CharField(max_length=50, choices=PERIOD)
     date = models.DateField()
+    ll = models.CharField(max_length=255, default="Hi")
 
     def __str__(self) -> str:
-        return f"{self.class_obj.department.name} {self.class_obj.level} | {self.course.code} | {self.day} | {self.period}"
+        return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"
 
 
 

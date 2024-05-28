@@ -268,7 +268,7 @@ def add_user(request):
 @login_required(login_url="login")
 @admin_required
 def generate_timetable(request: HttpRequest) -> HttpResponse:
-    classes = Class.objects.all()
+    classes = Class.objects.filter(department__slug="CS")
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
     
