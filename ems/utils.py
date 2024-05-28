@@ -11,10 +11,6 @@ def get_new_period(cls, course):
     else:
        return "PM"
 
-    
-    
-
-    return period
 
 def split_courses(courses):
     sc_courses = courses.filter(timetable_course__isnull=False)

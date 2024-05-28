@@ -320,15 +320,18 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
    
 
     for cls in classes:
+        if cls.courses.exists():
         # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
-        sc_courses, nc_courses = split_courses(cls.courses.all())
-        cls_dates = copy(dates)
+            courses = cls.courses.all()
+            sc_courses, nc_courses = split_courses(courses=courses)
+            cls_dates = copy(dates)
+            print(cls.department.name, cls.name, len(courses), len(sc_courses), len(nc_courses))
 
         # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
-        schedule_prev(sc_courses, cls, cls_dates)
+            schedule_prev(sc_courses, cls, cls_dates)
 
-        # # SCHEDULE THE AWAITING COURSES FOR A CLASS
-        schedule_next(nc_courses, cls, cls_dates)
+            # # SCHEDULE THE AWAITING COURSES FOR A CLASS
+            schedule_next(nc_courses, cls, cls_dates)
 
     return render(
             request,

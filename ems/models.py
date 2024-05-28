@@ -62,7 +62,7 @@ class Course(models.Model):
     exam_type = models.CharField(max_length=50, default="PBE", choices=COURSE_TYPE)
 
     def __str__(self) -> str:
-        return str(self.name)
+        return f"{self.name} - {self.code}"
 
 
 class Class(models.Model):
