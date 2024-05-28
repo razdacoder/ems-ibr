@@ -13,14 +13,20 @@ def get_new_period(cls, course):
 
 
 def split_courses(courses):
-    sc_courses = courses.filter(timetable_course__isnull=False)
-    nc_courses = courses.filter(timetable_course__isnull=True)
+    sc_courses = []
+    nc_courses = []
+    for course in courses:
+        if TimeTable.objects.filter(course__code=course.code).count() < 1:
+            nc_courses.append(course)
+        else:
+            sc_courses.append(course)
+
     return (sc_courses, nc_courses)
 
 
 
 def schedule_prev(courses, cls, dates):
-    if courses.exists():
+    if len(courses) > 0:
         new_tt = []
         for course in courses:
             timetable = TimeTable.objects.filter(course__code=course.code)[0]
@@ -36,7 +42,7 @@ def schedule_prev(courses, cls, dates):
 
 
 def schedule_next(courses, cls, dates):
-    if courses.exists():
+    if len(courses) > 0:
         new_tt = []
         for nc in courses:
             day = random.choice(dates)
