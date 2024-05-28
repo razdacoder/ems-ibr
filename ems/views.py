@@ -155,13 +155,30 @@ def halls(request):
 
 
 @login_required(login_url="login")
-def timetable(request):
+def timetable(request: HttpRequest) -> HttpResponse:
+    generated = TimeTable.objects.exists()
+    context = {
+        "generated": generated
+    }
+    if generated:
+        dates = TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
+        date = request.GET.get("date")
+        period = request.GET.get("period")
+        print(date)
+        if date != None or period != None:
+            timetables = TimeTable.objects.filter(date=date, period=period)
+        else:
+            timetables = TimeTable.objects.filter(date=dates[0], period="AM")
+        context["dates"] = dates
+        context["timetables"] = timetables
+
+
     if request.htmx:
         template_name = "dashboard/pages/timetable.html"
     else:
         template_name = "dashboard/timetable.html"
 
-    return render(request, template_name=template_name)
+    return render(request, template_name=template_name, context=context)
 
 
 @login_required(login_url="login")
