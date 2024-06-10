@@ -8,7 +8,7 @@
       <li>
         <button hx-get="{% url 'timetable' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
-      {% if generated %}
+      {% if generated and request.user.is_staff is False %}
         <li>
           <button hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary text-white">Export</button>
         </li>

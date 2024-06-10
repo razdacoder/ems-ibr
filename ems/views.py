@@ -1,19 +1,29 @@
-from django.shortcuts import render, redirect, get_object_or_404
+from copy import copy
+from datetime import date, datetime, timedelta
+from urllib.parse import urlparse, urlunparse
+
+import pandas as pd
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.db.models import Sum, Prefetch
-from django.views.decorators.http import require_POST
-from django.db.models import Q
-from datetime import date, datetime, timedelta
-import pandas as pd
-from urllib.parse import urlparse, urlunparse
 from django.core.paginator import Paginator
-from django.contrib import messages
-from copy import copy
+from django.db.models import Prefetch, Q, Sum
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
+
 from .forms import LoginForm
-from .models import Department, Hall, Course, Class, User, TimeTable, Distribution
-from .utils import split_courses, schedule_prev, schedule_next, get_total_no_seats, get_total_no_seats_needed, distribute_classes_to_halls, convert_hall_to_dict, save_to_db
+from .models import Class, Course, Department, Distribution, Hall, TimeTable, User
+from .utils import (
+    convert_hall_to_dict,
+    distribute_classes_to_halls,
+    get_total_no_seats,
+    get_total_no_seats_needed,
+    save_to_db,
+    schedule_next,
+    schedule_prev,
+    split_courses,
+)
 
 
 def back_view(request):
@@ -165,12 +175,12 @@ def timetable(request: HttpRequest) -> HttpResponse:
         dates = TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
         date = request.GET.get("date")
         period = request.GET.get("period")
-        if date != None or period != None:
+        if date is not None or period is not None:
             timetables = TimeTable.objects.filter(date=date, period=period)
         else:
             timetables = TimeTable.objects.filter(date=dates[0], period="AM")
-        if request.user.is_staff == False:
-            timetables.filter(class_obj__department=request.user.department)
+        if request.user.is_staff is False:
+            timetables = timetables.filter(class_obj__department=request.user.department)
         context["dates"] = dates
         context["timetables"] = timetables
 
@@ -471,3 +481,5 @@ def upload_halls(request):
     )
 
 
+def bulk_upload(request: HttpRequest) -> HttpResponse:
+    return render(request, template_name='dashboard/upload.html')
