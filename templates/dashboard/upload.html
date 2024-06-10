@@ -4,9 +4,15 @@
     <title>Upload</title>
   </head>
   <body style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-    <form>
+    <form method="post" action="" enctype="multipart/form-data">
+      {% csrf_token %}
       <label for="file">Bulk Upload data</label>
-      <input id="file" type="file" />
+      <input id="file" type="file" name="file"/>
+      <select name="upload_type">
+        <option>Choose...</option>
+        <option value="courses">Upload Courses</option>
+        <option value="classes">Upload Classes</option>
+      </select>
 
       <button>Upload</button>
     </form>

@@ -23,6 +23,7 @@ from .utils import (
     schedule_next,
     schedule_prev,
     split_courses,
+    handle_uploaded_file,
 )
 
 
@@ -481,5 +482,17 @@ def upload_halls(request):
     )
 
 
-def bulk_upload(request: HttpRequest) -> HttpResponse:
-    return render(request, template_name='dashboard/upload.html')
+def bulk_upload(request):
+    if request.method == 'POST':
+        print("Upload Files Information ")
+        file = request.FILES['file']
+        upload_type = request.POST['upload_type']
+        print("File Name: ", file, '\n Upload Type: ', upload_type)
+        handle_uploaded_file(file, upload_type)
+        return render (
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context = {"message": "Halls uploaded successfully"},
+        )
+    else:
+        return render(request, template_name='dashboard/upload.html')
