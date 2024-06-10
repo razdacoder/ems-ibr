@@ -34,5 +34,6 @@ urlpatterns = [
         name="upload_class_courses",
     ),
     path("upload-halls/", view=views.upload_halls, name="upload_halls"),
-    path("generate-timetable", view=views.generate_timetable, name="generate_timetable")
+    path("generate-timetable", view=views.generate_timetable, name="generate_timetable"),
+    path("distribute-halls", view=views.generate_distribution, name="generate_distribution")
 ]

@@ -1,0 +1,32 @@
+
+
+- Step 1. Get Data, Courses, Halls, Classes, Dates
+
+- Step 2. For Current Date in Dates
+    - Get Total No Of Seat 90% For AM and PM
+        - While Total Seat >= 0 and Courses To Add
+            Pick a Course at Random
+
+                Step 4. Calculate No. Of Seat Required for the course
+                Step 5. If Total No of Seat >= Seat Required
+                    Step 6. Allocate the Course  with th date an Period
+                    Step 7. Remove Seat Required From Total Seat Period
+                    Step 8. Remove Course From Schedules List
+                Step 9. Move To Next Date
+
+
+Data Structure:
+Class:
+    id, name, size
+
+Course:
+    id, code, exam_type, classes: Class
+
+Courses: [Course]
+
+Schedule:
+    course, date, period
+
+Schedules: [Schedule]
+
+Note Split Courses into AM and PM Courses

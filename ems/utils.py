@@ -1,6 +1,6 @@
 import random
-from .models import TimeTable, Hall, Distribution, DistributionItem
 
+from .models import Distribution, DistributionItem, Hall, TimeTable
 
 
 def get_new_period(cls, course):
@@ -83,7 +83,6 @@ def convert_hall_to_dict(halls):
     return halls_dict
 
 
-
 def make_schedules(timetables):
     tt = []
     for timetable in timetables:
@@ -119,7 +118,7 @@ def distribute_classes_to_halls(timetables, halls):
                 res = {"id": schedule["id"], "class": schedule["class"], "course": schedule["course"],
                        "student_range": number_of_students}
                 hall["classes"].append(res)
-                hall["working_capacity"] -= number_of_students
+                hall["capacity"] -= number_of_students
                 schedule["size"] -= number_of_students
     for hall in halls:
         if len(hall["classes"]) == 0:
@@ -130,16 +129,18 @@ def distribute_classes_to_halls(timetables, halls):
 
 
 def save_to_db(res, date, period):
+    print(res)
     for item in res:
         hall = Hall.objects.get(id=item["id"])
-        distribution, _ = Distribution.objects.get_or_create(
+        distribution = Distribution.objects.create(
             hall=hall, date=date, period=period
         )
         for cls in item["classes"]:
             schedule = TimeTable.objects.get(id=cls["id"])
-            dist_item, _ = DistributionItem.objects.get_or_create(
+            dist_item = DistributionItem.objects.create(
                 schedule=schedule, no_of_students=cls["student_range"]
             )
             distribution.items.add(dist_item)
+            distribution.save()
         distribution.save()
     print("Done")

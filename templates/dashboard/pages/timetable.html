@@ -54,7 +54,7 @@
     <tbody>
       {% for timetable in timetables %}
         <tr>
-          <td>{{ timetable.date }}</td>
+          <td>{{ timetable.date|date:'Y-m-d' }}</td>
           <td>{{ timetable.class_obj.department.name }}</td>
           <td>{{ timetable.class_obj.name }}</td>
           <td>{{ timetable.course.name }}</td>

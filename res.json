@@ -1,0 +1,179 @@
+[
+  {
+    "course": {
+      "id": 7,
+      "code": "CSE303",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 7, "name": "Class VII", "size": 35 },
+        { "id": 8, "name": "Class VIII", "size": 20 }
+      ]
+    },
+    "date": "2024-06-10",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 2,
+      "code": "MTH102",
+      "exam_type": "CBE",
+      "classes": [{ "id": 3, "name": "Class III", "size": 35 }]
+    },
+    "date": "2024-06-10",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 4,
+      "code": "CSE202",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 4, "name": "Class IV", "size": 20 },
+        { "id": 5, "name": "Class V", "size": 30 }
+      ]
+    },
+    "date": "2024-06-10",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 6,
+      "code": "PHY204",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 4, "name": "Class IV", "size": 20 },
+        { "id": 6, "name": "Class VI", "size": 25 }
+      ]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 13,
+      "code": "MTH502",
+      "exam_type": "CBE",
+      "classes": [{ "id": 14, "name": "Class XIV", "size": 26 }]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 8,
+      "code": "MTH304",
+      "exam_type": "CBE",
+      "classes": [{ "id": 8, "name": "Class VIII", "size": 20 }]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 15,
+      "code": "CSE601",
+      "exam_type": "PBE",
+      "classes": [{ "id": 15, "name": "Class XV", "size": 31 }]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 1,
+      "code": "CSE101",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 1, "name": "Class I", "size": 30 },
+        { "id": 2, "name": "Class II", "size": 25 }
+      ]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 11,
+      "code": "PHY403",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 9, "name": "Class IX", "size": 28 },
+        { "id": 11, "name": "Class XI", "size": 27 }
+      ]
+    },
+    "date": "2024-06-11",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 10,
+      "code": "MTH402",
+      "exam_type": "CBE",
+      "classes": [{ "id": 11, "name": "Class XI", "size": 27 }]
+    },
+    "date": "2024-06-12",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 12,
+      "code": "CSE501",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 12, "name": "Class XII", "size": 22 },
+        { "id": 13, "name": "Class XIII", "size": 33 }
+      ]
+    },
+    "date": "2024-06-12",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 3,
+      "code": "PHY103",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 1, "name": "Class I", "size": 30 },
+        { "id": 3, "name": "Class III", "size": 35 }
+      ]
+    },
+    "date": "2024-06-12",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 5,
+      "code": "MTH203",
+      "exam_type": "CBE",
+      "classes": [{ "id": 6, "name": "Class VI", "size": 25 }]
+    },
+    "date": "2024-06-12",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 9,
+      "code": "CSE401",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 9, "name": "Class IX", "size": 28 },
+        { "id": 10, "name": "Class X", "size": 32 }
+      ]
+    },
+    "date": "2024-06-13",
+    "period": "AM"
+  },
+  {
+    "course": {
+      "id": 14,
+      "code": "PHY503",
+      "exam_type": "PBE",
+      "classes": [
+        { "id": 12, "name": "Class XII", "size": 22 },
+        { "id": 14, "name": "Class XIV", "size": 26 }
+      ]
+    },
+    "date": "2024-06-13",
+    "period": "AM"
+  }
+]

@@ -1,7 +1,4 @@
-from django.db import models
-
 # Create your models here.
-
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -97,7 +94,6 @@ class TimeTable(models.Model):
                                related_name="timetable_class")
     period = models.CharField(max_length=50, choices=PERIOD)
     date = models.DateField()
-    ll = models.CharField(max_length=255, default="Hi")
 
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"
