@@ -1,10 +1,20 @@
-import random
 import os
-import zipfile
+import random
 import shutil
+import zipfile
+
 import pandas as pd
 from django.conf import settings
-from .models import Distribution, DistributionItem, Hall, TimeTable, Department, Class, Course
+
+from .models import (
+    Class,
+    Course,
+    Department,
+    Distribution,
+    DistributionItem,
+    Hall,
+    TimeTable,
+)
 
 
 def get_new_period(cls, course):
@@ -209,7 +219,7 @@ def process_department_class_file(extracted_dir):
 
 
 def process_class_course_csv(file_path, class_obj):
-    file = df = pd.read_csv(file_path).to_dict()
+    file = pd.read_csv(file_path).to_dict()
     for key in file['COURSE CODE']:
         code = file['COURSE CODE'][key]
         name = file['COURSE TITLE'][key]
