@@ -10,6 +10,7 @@ db.sqlite3
 # Virtual environment
 env/
 .env
+.idea/
 
 # IDE files
 .vscode/

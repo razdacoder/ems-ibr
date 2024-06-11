@@ -19,7 +19,7 @@ from .models import (
 
 def get_new_period(cls, course):
     if course.exam_type == "CBE":
-        return  "AM"
+        return "AM"
     if cls.name.split(" ")[1] == "I":
         return "AM"
     else:
@@ -31,7 +31,7 @@ def get_new_period(cls, course):
 # Get Halls to memory location
 def get_halls():
     """To get all Halls into memory location"""
-    return [{"id": hall.id, "name": hall.name, "capacity": hall.capacity}, for hall in Hall.objects.all()]
+    return [{"id": hall.id, "name": hall.name, "capacity": hall.capacity} for hall in Hall.objects.all()]
 
 
 # Get courses to memory location
@@ -39,18 +39,18 @@ def get_courses():
     """To get courses based on classes object"""
     return [
         {
-            "id": course.id, 
-            "code": course.code, 
-            "exam_type": course.exam_type, 
+            "id": course.id,
+            "code": course.code,
+            "exam_type": course.exam_type,
             "classes": [
                 {
-                    "id": cls.id, 
-                    "name": cls.name, 
+                    "id": cls.id,
+                    "name": cls.name,
                     "size": cls.size
-                } for cls in Class.objects.filter(courses__code = course.code)
+                } for cls in Class.objects.filter(courses__code=course.code)
             ]
         } for course in Course.objects.all()
-    ]		
+    ]
 
 
 # Save timetable to DB
@@ -60,11 +60,11 @@ def save_to_timetable_db(schedules):
     for schedule in schedules:
         for cls in schedule['course']['classes']:
             timetables.append(
-                Timetable(
-                    course = Course.objects.get(id=schedule['course']['id'])
-                    class_obj = Class.object.get(id=cls['id'])
-                    date = schedule['date']
-                    period = schedule['period']
+                TimeTable(
+                    course=Course.objects.get(id=schedule['course']['id']),
+                    class_obj=Class.object.get(id=cls['id']),
+                    date=schedule['date'],
+                    period=schedule['period']
                 )
             )
     TimeTable.objects.bulk_create(timetables)
@@ -80,9 +80,9 @@ def check_course_period(course):
 
 # Split courses into AM And PM periods respectively bases on exam type
 def split_course(courses):
-    AM_courses, PM_courses = [],[]
+    AM_courses, PM_courses = [], []
     for course in courses:
-        if course['exam_type'] == "PBE" and check_course_period(course): 
+        if course['exam_type'] == "PBE" and check_course_period(course):
             PM_courses.append(course)
         else:
             AM_courses.append(course)
@@ -187,11 +187,11 @@ def schedule_next(courses, cls, dates):
         for nc in courses:
             day = random.choice(dates)
             period = get_new_period(cls, nc)
-            new_tt.append(TimeTable(course=nc, date=day, period=period, class_obj=cls))
+            new_tt.append(TimeTable(course=nc, date=day,
+                          period=period, class_obj=cls))
             if day in dates:
                 dates.remove(day)
         TimeTable.objects.bulk_create(new_tt)
-
 
 
 def get_total_no_seats(halls):
@@ -207,6 +207,7 @@ def get_total_no_seats_needed(timetables):
     for timetable in timetables:
         sum += timetable.class_obj.size
     return sum
+
 
 def convert_hall_to_dict(halls):
     halls_dict = []
@@ -227,7 +228,7 @@ def make_schedules(timetables):
     tt = []
     for timetable in timetables:
         tt.append({"id": timetable.id, 'class': timetable.class_obj.name,
-                "course": timetable.course.code, "size": timetable.class_obj.size})
+                   "course": timetable.course.code, "size": timetable.class_obj.size})
     random.shuffle(tt)
     return tt
 
@@ -323,25 +324,31 @@ def process_class_course_files(extracted_dir):
                     if ext == '.csv':
                         class_path = os.path.join(department_path, class_file)
                         try:
-                            class_obj = Class.objects.get(name=class_name, department__slug=department_name)
+                            class_obj = Class.objects.get(
+                                name=class_name, department__slug=department_name)
                             process_class_course_csv(class_path, class_obj)
                         except Class.DoesNotExist:
-                            print(f"Class {class_name} in department {department_name} does not exist in the database.")
+                            print(f"Class {class_name} in department {
+                                  department_name} does not exist in the database.")
 
 
 def process_department_class_file(extracted_dir):
     department_class_path = os.path.join(extracted_dir, 'classes')
     if os.path.isdir(department_class_path):
         for department_name in os.listdir(department_class_path):
-            department_path = os.path.join(department_class_path, department_name)
+            department_path = os.path.join(
+                department_class_path, department_name)
             if os.path.isdir(department_path):
                 class_file_path = os.path.join(department_path, 'classes.csv')
                 if os.path.isfile(class_file_path):
                     try:
-                        department = Department.objects.get(slug=department_name)
-                        process_department_class_csv(class_file_path, department)
+                        department = Department.objects.get(
+                            slug=department_name)
+                        process_department_class_csv(
+                            class_file_path, department)
                     except Department.DoesNotExist:
-                        print(f"Department {department_name} does not exist in the database.")
+                        print(f"Department {
+                              department_name} does not exist in the database.")
 
 
 def process_class_course_csv(file_path, class_obj):
@@ -350,7 +357,8 @@ def process_class_course_csv(file_path, class_obj):
         code = file['COURSE CODE'][key]
         name = file['COURSE TITLE'][key]
         exam_type = file['EXAM TYPE'][key]
-        course, created = Course.objects.get_or_create(name=name, code=code, exam_type=exam_type)
+        course, created = Course.objects.get_or_create(
+            name=name, code=code, exam_type=exam_type)
         class_obj.courses.add(course)
 
 
@@ -358,7 +366,7 @@ def process_department_class_csv(class_file_path, department):
     file = pd.read_csv(class_file_path).to_dict()
     for key in file['Name']:
         Class.objects.update_or_create(
-            name = file['Name'][key],
-            department = department,
-            size = file['Size'][key]
+            name=file['Name'][key],
+            department=department,
+            size=file['Size'][key]
         )
