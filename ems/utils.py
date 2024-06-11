@@ -13,8 +13,135 @@ def get_new_period(cls, course):
     if cls.name.split(" ")[1] == "I":
         return "AM"
     else:
-       return "PM"
+        return "PM"
 
+
+################################################################################################################################################################
+
+# Get Halls to memory location
+def get_halls():
+    """To get all Halls into memory location"""
+    return [{"id": hall.id, "name": hall.name, "capacity": hall.capacity}, for hall in Hall.objects.all()]
+
+
+# Get courses to memory location
+def get_courses():
+    """To get courses based on classes object"""
+    return [
+        {
+            "id": course.id, 
+            "code": course.code, 
+            "exam_type": course.exam_type, 
+            "classes": [
+                {
+                    "id": cls.id, 
+                    "name": cls.name, 
+                    "size": cls.size
+                } for cls in Class.objects.filter(courses__code = course.code)
+            ]
+        } for course in Course.objects.all()
+    ]		
+
+
+# Save timetable to DB
+def save_to_timetable_db(schedules):
+    """Save schedule into the timetable in DB"""
+    timetables = []
+    for schedule in schedules:
+        for cls in schedule['course']['classes']:
+            timetables.append(
+                Timetable(
+                    course = Course.objects.get(id=schedule['course']['id'])
+                    class_obj = Class.object.get(id=cls['id'])
+                    date = schedule['date']
+                    period = schedule['period']
+                )
+            )
+    TimeTable.objects.bulk_create(timetables)
+
+
+# Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM")
+def check_course_period(course):
+    for item in course['classes']:
+        if item['name'].endsWith('II'):
+            return True
+    return False
+
+
+# Split courses into AM And PM periods respectively bases on exam type
+def split_course(courses):
+    AM_courses, PM_courses = [],[]
+    for course in courses:
+        if course['exam_type'] == "PBE" and check_course_period(course): 
+            PM_courses.append(course)
+        else:
+            AM_courses.append(course)
+    return (AM_courses, PM_courses)
+
+
+# Helper function to check if a class is scheduled on a given date
+def is_class_scheduled(class_obj, date, Schedules):
+    for schedule in Schedules:
+        if schedule["date"] == date and class_obj in schedule["course"]["classes"]:
+            return True
+    return False
+
+
+# Helper function to check if timetable can still be scheduled based on the number of seats remaining
+def can_continue(date, seat_remaining, courses, Schedules):
+    for course in courses:
+        Seat_Required = sum([Class["size"] for Class in course["classes"]])
+        if seat_remaining >= Seat_Required and all(not is_class_scheduled(cls, date, Schedules) for cls in course["classes"]):
+            return True
+    return False
+
+
+# Helper function to get total available seats per period
+def get_total_seats(Halls):
+    return sum([Hall["capacity"] * 0.9 for Hall in Halls])
+
+
+# Function to generate the timetable and save it to the DB
+def generate(dates, courses_AM, courses_PM, Halls):
+    # Initialize schedules list
+    Schedules = []
+    # Loop through the dates
+    for Date in dates:
+        Total_Seats_AM = get_total_seats(Halls)
+        Total_Seats_PM = get_total_seats(Halls)
+        # While there are still seats available and courses to add
+        while Total_Seats_AM > 0 and len(courses_AM) > 0:
+            if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
+                break
+            # Pick a course at random
+            Course = random.choice(courses_AM)
+            # Step 4: Calculate seat required
+            Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+            # Step 5: Check if total seats available and no class has an exam on the same date
+            if Total_Seats_AM >= Seat_Required and all(not is_class_scheduled(cls, Date, Schedules) for cls in Course["classes"]):
+                # Step 6: Allocate course with date and period
+                Schedule = {"course": Course, "date": Date, "period": "AM"}
+                Schedules.append(Schedule)
+                # Step 7: Remove seat required from total seats
+                Total_Seats_AM -= Seat_Required
+                # Step 8: Remove course from schedules list
+                courses_AM.remove(Course)
+
+        while Total_Seats_PM > 0 and len(courses_PM) > 0:
+            if not can_continue(Date, Total_Seats_PM, courses_PM):
+                break
+            Course = random.choice(courses_PM)
+            Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+            if Total_Seats_PM >= Seat_Required and all(not is_class_scheduled(cls, Date) for cls in Course["classes"]):
+                Schedule = {"course": Course, "date": Date, "period": "PM"}
+                Schedules.append(Schedule)
+                Total_Seats_PM -= Seat_Required
+                courses_PM.remove(Course)
+
+    save_to_timetable_db(Schedules)
+
+
+################################################################################################################################################################
 
 def split_courses(courses):
     sc_courses = []
@@ -26,7 +153,6 @@ def split_courses(courses):
             sc_courses.append(course)
 
     return (sc_courses, nc_courses)
-
 
 
 def schedule_prev(courses, cls, dates):
@@ -91,7 +217,7 @@ def make_schedules(timetables):
     tt = []
     for timetable in timetables:
         tt.append({"id": timetable.id, 'class': timetable.class_obj.name,
-                  "course": timetable.course.code, "size": timetable.class_obj.size})
+                "course": timetable.course.code, "size": timetable.class_obj.size})
     random.shuffle(tt)
     return tt
 

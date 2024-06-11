@@ -121,6 +121,20 @@ Courses = [
     {"id": 15, "code": "CSE601", "exam_type": "PBE", "classes": [Classes[14]]},
 ]
 
+
+
+def split_course(courses):
+    cbe_courses, pbe_courses = [],[]
+    for course in courses:
+        if course['exam_type'] == "PBE":
+            pbe_courses.append(course)
+        else:
+            cbe_courses.append(course)
+
+    return (cbe_courses, pbe_courses)
+
+
+
 Halls = [
     {"id": 1, "name": "Hall 1", "capacity": 100},
     {"id": 2, "name": "Hall 2", "capacity": 120},
@@ -130,11 +144,11 @@ Halls = [
 ]
 
 
-Dates = ["2024-06-10", "2024-06-11", "2024-06-12", "2024-06-13", "2024-06-14", "2024-06-15", "2024-06-16", "2024-06-17", "2024-06-18", "2024-06-19", "2024-06-20"]
+Dates = ["2024-06-10", "2024-06-11", "2024-06-12", "2024-06-13", "2024-06-14", "2024-06-15",
+        "2024-06-16", "2024-06-17", "2024-06-18", "2024-06-19", "2024-06-20"]
 
 # Initialize schedules list
 Schedules = []
-
 # Helper function to check if a class is scheduled on a given date
 def is_class_scheduled(class_obj, date):
     for schedule in Schedules:
@@ -142,50 +156,69 @@ def is_class_scheduled(class_obj, date):
             return True
     return False
 
+# Helper function to check if timetable can still be scheduled based on the number of seats remaining
+def can_continue(date, seat_remaining, courses):
+    for course in courses:
+        Seat_Required = sum([Class["size"] for Class in course["classes"]])
+        if seat_remaining >= Seat_Required and all(not is_class_scheduled(cls, date) for cls in course["classes"]):
+            return True
+    return False
+
 # Step 1: Get data
 Courses_To_Add = Courses.copy()
-
+courses_AM, courses_PM = split_course(Courses_To_Add)
 # Helper function to get total available seats per period
 def get_total_seats():
-    return sum([Hall["capacity"] * 0.9 for Hall in Halls]) // 2
+    return sum([Hall["capacity"] * 0.9 for Hall in Halls])
 
 # Step 2: Loop through dates
 for Date in Dates:
     Total_Seats_AM = get_total_seats()
     Total_Seats_PM = get_total_seats()
-    
     # While there are still seats available and courses to add
-    while (Total_Seats_AM > 0 or Total_Seats_PM > 0) and len(Courses_To_Add) > 0:
+    while Total_Seats_AM > 0 and len(courses_AM) > 0:
+        if not can_continue(Date, Total_Seats_AM, courses_AM):
+            break
         # Pick a course at random
-        Course = random.choice(Courses_To_Add)
-        
+        Course = random.choice(courses_AM)
         # Step 4: Calculate seat required
         Seat_Required = sum([Class["size"] for Class in Course["classes"]])
-        
         # Step 5: Check if total seats available and no class has an exam on the same date
         if Total_Seats_AM >= Seat_Required and all(not is_class_scheduled(cls, Date) for cls in Course["classes"]):
             # Step 6: Allocate course with date and period
             Schedule = {"course": Course, "date": Date, "period": "AM"}
             Schedules.append(Schedule)
-            
             # Step 7: Remove seat required from total seats
             Total_Seats_AM -= Seat_Required
-            
             # Step 8: Remove course from schedules list
-            Courses_To_Add.remove(Course)
-        elif Total_Seats_PM >= Seat_Required and all(not is_class_scheduled(cls, Date) for cls in Course["classes"]):
+            courses_AM.remove(Course)
+        # else:
+        #     # If the course cannot be scheduled, move to the next date/period
+        #     break
+
+    # While there are still seats available and courses to add
+    while Total_Seats_PM > 0 and len(courses_PM) > 0:
+        if not can_continue(Date, Total_Seats_PM, courses_PM):
+            break
+        # Pick a course at random
+        Course = random.choice(courses_PM)
+
+        # Step 4: Calculate seat required
+        Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+
+        # Step 5: Check if total seats available and no class has an exam on the same date
+        if Total_Seats_PM >= Seat_Required and all(not is_class_scheduled(cls, Date) for cls in Course["classes"]):
             # Step 6: Allocate course with date and period
             Schedule = {"course": Course, "date": Date, "period": "PM"}
             Schedules.append(Schedule)
-            
+
             # Step 7: Remove seat required from total seats
             Total_Seats_PM -= Seat_Required
-            
+
             # Step 8: Remove course from schedules list
-            Courses_To_Add.remove(Course)
-        else:
-            # If the course cannot be scheduled, move to the next date/period
-            break
+            courses_PM.remove(Course)
+        # else:
+        #     # If the course cannot be scheduled, move to the next date/period
+        #     break
 
 print(Schedules)
-

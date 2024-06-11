@@ -1,5 +1,4 @@
 from django.urls import path
-
 from . import csv_gen, views
 
 urlpatterns = [

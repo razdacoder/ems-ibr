@@ -24,6 +24,7 @@ from .utils import (
     schedule_prev,
     split_courses,
     handle_uploaded_file,
+    generate, split_course, get_courses, get_halls
 )
 
 
@@ -314,11 +315,9 @@ def add_user(request):
 @login_required(login_url="login")
 @admin_required
 def generate_timetable(request: HttpRequest) -> HttpResponse:
-    classes = Class.objects.all()
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
     
-
     if startDate == "" or endDate == "":
         return render(
             request,
@@ -343,21 +342,24 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
             dates.append(currentDate)
         currentDate += timedelta(days=1)
     
-   
+    halls = get_halls()
+    courses = get_courses()
+    AM_courses, PM_courses = split_course(courses)
+    generate(dates, AM_courses, PM_courses, halls)
 
-    for cls in classes:
-        if cls.courses.exists():
-        # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
-            courses = cls.courses.all()
-            sc_courses, nc_courses = split_courses(courses=courses)
-            cls_dates = copy(dates)
-            print(cls.department.name, cls.name, len(courses), len(sc_courses), len(nc_courses))
+    # for cls in classes:
+    #     if cls.courses.exists():
+    #     # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
+    #         courses = cls.courses.all()
+    #         sc_courses, nc_courses = split_courses(courses=courses)
+    #         cls_dates = copy(dates)
+    #         print(cls.department.name, cls.name, len(courses), len(sc_courses), len(nc_courses))
 
-        # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
-            schedule_prev(sc_courses, cls, cls_dates)
+    #     # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
+    #         schedule_prev(sc_courses, cls, cls_dates)
 
-            # # SCHEDULE THE AWAITING COURSES FOR A CLASS
-            schedule_next(nc_courses, cls, cls_dates)
+    #         # # SCHEDULE THE AWAITING COURSES FOR A CLASS
+    #         schedule_next(nc_courses, cls, cls_dates)
 
     return render(
             request,
@@ -484,10 +486,8 @@ def upload_halls(request):
 
 def bulk_upload(request):
     if request.method == 'POST':
-        print("Upload Files Information ")
         file = request.FILES['file']
         upload_type = request.POST['upload_type']
-        print("File Name: ", file, '\n Upload Type: ', upload_type)
         handle_uploaded_file(file, upload_type)
         return render (
             request,
