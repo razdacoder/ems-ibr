@@ -73,7 +73,7 @@ def save_to_timetable_db(schedules):
 # Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM")
 def check_course_period(course):
     for item in course['classes']:
-        if item['name'].endsWith('II'):
+        if item['name'].endswith('II') or item['name'].endswith('2'):
             return True
     return False
 
@@ -90,10 +90,11 @@ def split_course(courses):
 
 
 # Helper function to check if a class is scheduled on a given date
-def is_class_scheduled(class_obj, date, Schedules):
-    for schedule in Schedules:
-        if schedule["date"] == date and class_obj in schedule["course"]["classes"]:
-            return True
+def is_class_scheduled(course, date, Schedules):
+    for cls in course['classes']:
+        for schedule in Schedules:
+            if schedule["date"] == date and cls in schedule["course"]["classes"]:
+                return True
     return False
 
 
@@ -101,52 +102,86 @@ def is_class_scheduled(class_obj, date, Schedules):
 def can_continue(date, seat_remaining, courses, Schedules):
     for course in courses:
         Seat_Required = sum([Class["size"] for Class in course["classes"]])
-        if seat_remaining >= Seat_Required and all(not is_class_scheduled(cls, date, Schedules) for cls in course["classes"]):
+        if seat_remaining >= Seat_Required and not is_class_scheduled(course, date, Schedules):
             return True
     return False
 
 
 # Helper function to get total available seats per period
 def get_total_seats(Halls):
-    return sum([Hall["capacity"] * 0.9 for Hall in Halls])
+    return int(sum([Hall["capacity"] * 0.9 for Hall in Halls]))
+
+
+# Check for CBE Schedule
+def check_for_CBE(schedules, date):
+    schedules_date = filter(lambda schedule: schedule['date'] == date, schedules)
+    for schedule in schedules_date:
+        if schedule['course']['exam_type'] == "CBE":
+            return True
+    return False
 
 
 # Function to generate the timetable and save it to the DB
 def generate(dates, courses_AM, courses_PM, Halls):
     # Initialize schedules list
     Schedules = []
+    
     # Loop through the dates
     for Date in dates:
         Total_Seats_AM = get_total_seats(Halls)
         Total_Seats_PM = get_total_seats(Halls)
         # While there are still seats available and courses to add
         while Total_Seats_AM > 0 and len(courses_AM) > 0:
-            if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
-                break
-            # Pick a course at random
+            
+            print("Numbers of Schedule: ", len(Schedules))
+            print("Total Seat AM: ", Total_Seats_AM)
             Course = random.choice(courses_AM)
-            # Step 4: Calculate seat required
-            Seat_Required = sum([Class["size"] for Class in Course["classes"]])
-            # Step 5: Check if total seats available and no class has an exam on the same date
-            if Total_Seats_AM >= Seat_Required and all(not is_class_scheduled(cls, Date, Schedules) for cls in Course["classes"]):
-                # Step 6: Allocate course with date and period
-                Schedule = {"course": Course, "date": Date, "period": "AM"}
-                Schedules.append(Schedule)
-                # Step 7: Remove seat required from total seats
-                Total_Seats_AM -= Seat_Required
-                # Step 8: Remove course from schedules list
-                courses_AM.remove(Course)
-
+            print("Course AM: ", len(courses_AM))
+            print("Selected COurses: ", Course)
+            if Course['exam_type'] == "CBE":
+                print("Old Schedule: ", len(Schedules))
+                if not check_for_CBE(Schedules, Date):
+                    Schedule = {"course": Course, "date": Date, "period": "AM"}
+                    Schedules.append(Schedule)
+                    print("New Schedule: ", len(Schedules))
+                    courses_AM.remove(Course)
+                    print("Course AM: ", len(courses_AM))
+            else:
+                if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
+                    print("Cannot continue with AM scheduling")
+                    break
+                else :
+                    print("I am Here")
+                    Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                    print("Seat Required AM: ", Seat_Required)
+                    if Total_Seats_AM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
+                        print("Hiiiiiiiiiiiiii")
+                        Schedule = {"course": Course, "date": Date, "period": "AM"}
+                        Schedules.append(Schedule)
+                        print("Schedule: ", len(Schedules))
+                        Total_Seats_AM -= Seat_Required
+                        print("Total Seat AM: ", Total_Seats_AM)
+                        courses_AM.remove(Course)
+                        print("Course AM: ", len(courses_AM))
+        print("\nSEGMENT BETWEEN AM AND PM SCHEDULES\n")
         while Total_Seats_PM > 0 and len(courses_PM) > 0:
-            if not can_continue(Date, Total_Seats_PM, courses_PM):
+            if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
+                print("Cannot continue with AM scheduling")
                 break
-            Course = random.choice(courses_PM)
-            Seat_Required = sum([Class["size"] for Class in Course["classes"]])
-            if Total_Seats_PM >= Seat_Required and all(not is_class_scheduled(cls, Date) for cls in Course["classes"]):
-                Schedule = {"course": Course, "date": Date, "period": "PM"}
-                Schedules.append(Schedule)
-                Total_Seats_PM -= Seat_Required
-                courses_PM.remove(Course)
+            else :
+                print("Total Seat PM: ",Total_Seats_PM)
+                Course = random.choice(courses_PM)
+                print("Course PM: ", len(courses_PM))
+                print("Course Selected: ", Course)
+                Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                print("Seat Required PM: ", Seat_Required)
+                if Total_Seats_PM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
+                    Schedule = {"course": Course, "date": Date, "period": "PM"}
+                    Schedules.append(Schedule)
+                    Total_Seats_PM -= Seat_Required
+                    print("Total Seat PM: ", Total_Seats_PM)
+                    courses_PM.remove(Course)
+                    print("Course PM: ", len(courses_PM))
 
     save_to_timetable_db(Schedules)
 
@@ -328,8 +363,7 @@ def process_class_course_files(extracted_dir):
                                 name=class_name, department__slug=department_name)
                             process_class_course_csv(class_path, class_obj)
                         except Class.DoesNotExist:
-                            print(f"Class {class_name} in department {
-                                  department_name} does not exist in the database.")
+                            print(f"Class {class_name} in department {department_name} does not exist in the database.")
 
 
 def process_department_class_file(extracted_dir):
@@ -347,8 +381,7 @@ def process_department_class_file(extracted_dir):
                         process_department_class_csv(
                             class_file_path, department)
                     except Department.DoesNotExist:
-                        print(f"Department {
-                              department_name} does not exist in the database.")
+                        print(f"Department {department_name} does not exist in the database.")
 
 
 def process_class_course_csv(file_path, class_obj):
