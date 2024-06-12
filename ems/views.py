@@ -17,14 +17,17 @@ from .models import Class, Course, Department, Distribution, Hall, TimeTable, Us
 from .utils import (
     convert_hall_to_dict,
     distribute_classes_to_halls,
+    generate,
+    get_courses,
+    get_halls,
     get_total_no_seats,
     get_total_no_seats_needed,
+    handle_uploaded_file,
     save_to_db,
     schedule_next,
     schedule_prev,
+    split_course,
     split_courses,
-    handle_uploaded_file,
-    generate, split_course, get_courses, get_halls
 )
 
 
@@ -50,13 +53,16 @@ def back_view(request):
     else:
         return redirect('dashboard/')
 
+
 def admin_required(view_func):
-    decorated_view_func = user_passes_test(lambda user: user.is_staff)(view_func)
+    decorated_view_func = user_passes_test(
+        lambda user: user.is_staff)(view_func)
     return decorated_view_func
 
 
 def index(request):
     return render(request, template_name="site/index.html")
+
 
 def login_view(request):
     if request.user.is_authenticated:
@@ -150,7 +156,6 @@ def get_class_course(request, slug, id):
     return render(request, template_name=template_name, context=context)
 
 
-
 @login_required(login_url="login")
 @admin_required
 def halls(request):
@@ -174,7 +179,8 @@ def timetable(request: HttpRequest) -> HttpResponse:
         "generated": generated
     }
     if generated:
-        dates = TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
+        dates = TimeTable.objects.values_list(
+            "date", flat=True).distinct().order_by("date")
         date = request.GET.get("date")
         period = request.GET.get("period")
         if date is not None or period is not None:
@@ -182,10 +188,10 @@ def timetable(request: HttpRequest) -> HttpResponse:
         else:
             timetables = TimeTable.objects.filter(date=dates[0], period="AM")
         if request.user.is_staff is False:
-            timetables = timetables.filter(class_obj__department=request.user.department)
+            timetables = timetables.filter(
+                class_obj__department=request.user.department)
         context["dates"] = dates
         context["timetables"] = timetables
-
 
     if request.htmx:
         template_name = "dashboard/pages/timetable.html"
@@ -199,7 +205,8 @@ def timetable(request: HttpRequest) -> HttpResponse:
 @admin_required
 def distribution(request):
     generated = Distribution.objects.exists()
-    dates = TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
+    dates = TimeTable.objects.values_list(
+        "date", flat=True).distinct().order_by("date")
     context = {
         "generated": generated,
         "dates": dates
@@ -207,13 +214,14 @@ def distribution(request):
     if generated:
         date = request.GET.get("date")
         period = request.GET.get("period")
-        if date != None or period != None:
-            distributions = Distribution.objects.filter(date=date, period=period)
+        if date is not None or period is not None:
+            distributions = Distribution.objects.filter(
+                date=date, period=period)
         else:
-            distributions = Distribution.objects.filter(date=dates[0], period="AM")
+            distributions = Distribution.objects.filter(
+                date=dates[0], period="AM")
         context["distributions"] = distributions
 
-    
     if request.htmx:
         template_name = "dashboard/pages/distribution.html"
     else:
@@ -304,8 +312,6 @@ def add_user(request):
     )
 
 
-
-
 # --------------------------
 #  Generate Views
 # --------------------------
@@ -317,7 +323,7 @@ def add_user(request):
 def generate_timetable(request: HttpRequest) -> HttpResponse:
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
-    
+
     if startDate == "" or endDate == "":
         return render(
             request,
@@ -327,21 +333,21 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 
     startDate = datetime.strptime(startDate, "%Y-%m-%d").date()
     endDate = datetime.strptime(endDate, "%Y-%m-%d").date()
-    
+
     if startDate > endDate:
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
             context={"message": "End date must be greater than start date"},
         )
-    
+
     dates = []
     currentDate = startDate
     while currentDate <= endDate:
         if currentDate.weekday() != 6:  # 6 represents Sunday
             dates.append(currentDate)
         currentDate += timedelta(days=1)
-    
+
     halls = get_halls()
     courses = get_courses()
     AM_courses, PM_courses = split_course(courses)
@@ -362,10 +368,10 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
     #         schedule_next(nc_courses, cls, cls_dates)
 
     return render(
-            request,
-            template_name="dashboard/partials/alert-success.html",
-            context={"message": "Time table generated"},
-        )
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Time table generated"},
+    )
 
 
 @require_POST
@@ -388,30 +394,32 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
     res = distribute_classes_to_halls(
         timetables=none_cbe_tt, halls=halls)
     save_to_db(res, date, period)
-    
+
     return redirect("distribution")
-    
+
 # ----------------------------
 # Upload Views
 # ----------------------------
+
 
 @require_POST
 @login_required(login_url="login")
 @admin_required
 def upload_classes(request, dept_slug):
-        department = get_object_or_404(Department, slug=dept_slug)
-        data = request.FILES.get("file")
-        dept = pd.read_csv(data)
-        dept = dept.to_dict()
-        for key in dept["Name"]:
-            cls, created = Class.objects.get_or_create(
-                name=dept["Name"][key],
-                department=department,
-                defaults={"size": dept["Size"][key]},
-            )
-            if created:
-                cls.save()
-        return redirect("get_department", department.slug)
+    department = get_object_or_404(Department, slug=dept_slug)
+    data = request.FILES.get("file")
+    dept = pd.read_csv(data)
+    dept = dept.to_dict()
+    for key in dept["Name"]:
+        cls, created = Class.objects.get_or_create(
+            name=dept["Name"][key],
+            department=department,
+            defaults={"size": dept["Size"][key]},
+        )
+        if created:
+            cls.save()
+    return redirect("get_department", department.slug)
+
 
 @require_POST
 @require_POST
@@ -489,10 +497,10 @@ def bulk_upload(request):
         file = request.FILES['file']
         upload_type = request.POST['upload_type']
         handle_uploaded_file(file, upload_type)
-        return render (
+        return render(
             request,
             template_name="dashboard/partials/alert-success.html",
-            context = {"message": "Halls uploaded successfully"},
+            context={"message": "Halls uploaded successfully"},
         )
     else:
         return render(request, template_name='dashboard/upload.html')
