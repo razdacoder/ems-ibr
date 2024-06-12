@@ -3,7 +3,7 @@ import random
 import shutil
 import zipfile
 
-import pandas as pd
+import pandas as pd  # type: ignore
 from django.conf import settings
 
 from .models import (
