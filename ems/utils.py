@@ -5,6 +5,7 @@ import zipfile
 
 import pandas as pd  # type: ignore
 from django.conf import settings
+from django.db.models import Prefetch
 
 from .models import (
     Class,
@@ -37,6 +38,10 @@ def get_halls():
 # Get courses to memory location
 def get_courses():
     """To get courses based on classes object"""
+    courses = Course.objects.prefetch_related(
+        Prefetch('courses', queryset=Class.objects.select_related('department'))
+    ).all()
+
     return [
         {
             "id": course.id,
@@ -47,9 +52,9 @@ def get_courses():
                     "id": cls.id,
                     "name": cls.name,
                     "size": cls.size
-                } for cls in Class.objects.filter(courses__code=course.code)
+                } for cls in course.courses.all()
             ]
-        } for course in Course.objects.all()
+        } for course in courses
     ]
 
 
