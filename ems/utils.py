@@ -127,6 +127,14 @@ def can_continue(date, seat_remaining, courses, Schedules):
     return False
 
 
+def can_continue_PM(date, seat_remaining, courses, Schedules):
+    for course in courses:
+        Seat_Required = sum([Class["size"] for Class in course["classes"]])
+        if seat_remaining >= Seat_Required and not is_class_scheduled(course, date, Schedules):
+            return True
+    return False
+
+
 def filter_courses(date, seat_remaining, courses, schedules):
     eligible_courses = []
     for course in courses:
@@ -164,12 +172,10 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 Date, Total_Seats_AM, courses_AM, Schedules)
             print("Selected AM Course Code: ", Course['code'])
             if Course['exam_type'] == "CBE":
-                if not check_for_CBE(Schedules, Date):
-                    Schedule = {"course": Course, "date": Date, "period": "AM"}
-                    Schedules.append(Schedule)
-                    courses_AM.remove(Course)
+                Schedule = {"course": Course, "date": Date, "period": "AM"}
+                Schedules.append(Schedule)
+                courses_AM.remove(Course)
             else:
-
                 Seat_Required = sum([Class["size"]
                                     for Class in Course["classes"]])
                 if Total_Seats_AM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
@@ -185,7 +191,7 @@ def generate(dates, courses_AM, courses_PM, Halls):
                         #  Schedule PM Courses
         PM_scheduling = True
         while PM_scheduling:
-            if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
+            if not can_continue_PM(Date, Total_Seats_PM, courses_PM, Schedules):
                 PM_scheduling = False
             else:
                 print("Number of Schedule: ", len(Schedules))
