@@ -67,7 +67,7 @@ def save_to_timetable_db(schedules):
             timetables.append(
                 TimeTable(
                     course=Course.objects.get(id=schedule['course']['id']),
-                    class_obj=Class.object.get(id=cls['id']),
+                    class_obj=Class.objects.get(id=cls['id']),
                     date=schedule['date'],
                     period=schedule['period']
                 )
