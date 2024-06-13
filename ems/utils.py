@@ -163,14 +163,10 @@ def generate(dates, courses_AM, courses_PM, Halls):
         AM_scheduling = True
         # While there are still seats available and courses to add
         while AM_scheduling:
-            print("Number of Schedule: ", len(Schedules))
-            print("Total Seat AM: ", Total_Seats_AM)
-            print("AM Courses Length: ", len(courses_AM))
             if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
                 AM_scheduling = False
             Course = get_next_course(
                 Date, Total_Seats_AM, courses_AM, Schedules)
-            print("Selected AM Course Code: ", Course['code'])
             if Course['exam_type'] == "CBE":
                 Schedule = {"course": Course, "date": Date, "period": "AM"}
                 Schedules.append(Schedule)
@@ -194,12 +190,8 @@ def generate(dates, courses_AM, courses_PM, Halls):
             if not can_continue_PM(Date, Total_Seats_PM, courses_PM, Schedules):
                 PM_scheduling = False
             else:
-                print("Number of Schedule: ", len(Schedules))
-                print("Total Seat PM: ", Total_Seats_PM)
-                print("PM Courses Length: ", len(courses_PM))
                 Course = get_next_course(
                     Date, Total_Seats_PM, courses_PM, Schedules)
-                print("Selected PM Course Code: ", Course['code'])
                 Seat_Required = sum([Class["size"]
                                     for Class in Course["classes"]])
                 if Total_Seats_PM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
@@ -334,7 +326,7 @@ def distribute_classes_to_halls(timetables, halls):
 
 
 def save_to_db(res, date, period):
-    print(res)
+
     for item in res:
         hall = Hall.objects.get(id=item["id"])
         distribution = Distribution.objects.create(
@@ -348,7 +340,6 @@ def save_to_db(res, date, period):
             distribution.items.add(dist_item)
             distribution.save()
         distribution.save()
-    print("Done")
 
 
 ###################################
