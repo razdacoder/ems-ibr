@@ -127,17 +127,20 @@ def check_for_CBE(schedules, date):
     return False
 
 
+def filter_courses(date, seat_remaining, courses, Schedules):
+    temp_courses = []
+    for course in courses:
+        Seat_Required = sum([cls["size"] for cls in course["classes"]])
+        if seat_remaining >= Seat_Required and not is_class_scheduled(course, date, Schedules):
+            temp_courses.append(course)
+    return temp_courses
+
+
 # Get the next valid course to schedule
 def get_next_course(date, seat_remaining, courses, Schedules):
-    for course in courses:
-        if 'classes' in course:
-            print(
-                f"Skipping course with id {course['id']} as it has no 'classes' key.")
-            continue
-        Seat_Required = sum([cls["size"] for cls in course["classes"]])
-        if seat_remaining >= Seat_Required and all(not is_class_scheduled(cls, date, Schedules) for cls in course["classes"]):
-            return course
-    return None
+    courses_to_select = filter_courses(
+        date, seat_remaining, courses, Schedules)
+    return random.choice(courses_to_select)
 
 
 # Function to generate the timetable and save it to the DB
@@ -150,64 +153,62 @@ def generate(dates, courses_AM, courses_PM, Halls):
         Total_Seats_AM = get_total_seats(Halls)
         Total_Seats_PM = get_total_seats(Halls)
 
-        Course = get_next_course(
-            Date, Total_Seats_AM, courses_AM, Schedules)
-        if Course is None:
-            break
+        AM_scheduling = True
         # While there are still seats available and courses to add
-        while Total_Seats_AM > 0 and len(courses_AM) > 0:
-
-            print("Numbers of Schedule: ", len(Schedules))
+        while AM_scheduling:
+            # Total_Seats_AM > 0 and len(courses_AM) > 0:
+            print("Number of Schedule: ", len(Schedules))
             print("Total Seat AM: ", Total_Seats_AM)
-            print("Course AM: ", len(courses_AM))
-            print("Selected COurses: ", Course)
+            print("AM Courses Lenght: ", len(courses_AM))
+            Course = get_next_course(
+                Date, Total_Seats_AM, courses_AM, Schedules)
+            print("Selected AM Course Code: ", Course['code'])
             if Course['exam_type'] == "CBE":
-                print("Old Schedule: ", len(Schedules))
                 if not check_for_CBE(Schedules, Date):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
-                    print("New Schedule: ", len(Schedules))
                     courses_AM.remove(Course)
-                    print("Course AM: ", len(courses_AM))
             else:
                 if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
-                    print("Cannot continue with AM scheduling")
-                    break
+                    AM_scheduling = False
                 else:
-                    print("I am Here")
                     Seat_Required = sum([Class["size"]
                                         for Class in Course["classes"]])
-                    print("Seat Required AM: ", Seat_Required)
                     if Total_Seats_AM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
-                        print("Hiiiiiiiiiiiiii")
                         Schedule = {"course": Course,
                                     "date": Date, "period": "AM"}
                         Schedules.append(Schedule)
-                        print("Schedule: ", len(Schedules))
                         Total_Seats_AM -= Seat_Required
-                        print("Total Seat AM: ", Total_Seats_AM)
                         courses_AM.remove(Course)
-                        print("Course AM: ", len(courses_AM))
-        print("\nSEGMENT BETWEEN AM AND PM SCHEDULES\n")
-        while Total_Seats_PM > 0 and len(courses_PM) > 0:
+                        if Total_Seats_AM == 0:
+                            AM_scheduling = False
+                        if len(courses_AM) == 0:
+                            AM_scheduling = False
+                            #  Schedule PM Courses
+        PM_scheduling = True
+        while PM_scheduling:
+
             if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
-                print("Cannot continue with AM scheduling")
-                break
+                PM_scheduling = False
             else:
+                print("Number of Schedule: ", len(Schedules))
                 print("Total Seat PM: ", Total_Seats_PM)
-                print("Course PM: ", len(courses_PM))
-                print("Course Selected: ", Course)
+                print("PM Courses Lenght: ", len(courses_PM))
+                Course = get_next_course(
+                    Date, Total_Seats_PM, courses_PM, Schedules)
+                print("Selected PM Course Code: ", Course['code'])
                 Seat_Required = sum([Class["size"]
                                     for Class in Course["classes"]])
-                print("Seat Required PM: ", Seat_Required)
                 if Total_Seats_PM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
                     Schedule = {"course": Course, "date": Date, "period": "PM"}
                     Schedules.append(Schedule)
                     Total_Seats_PM -= Seat_Required
-                    print("Total Seat PM: ", Total_Seats_PM)
                     courses_PM.remove(Course)
-                    print("Course PM: ", len(courses_PM))
-
+                    if Total_Seats_PM == 0:
+                        PM_scheduling = False
+                    if len(courses_PM) == 0:
+                        PM_scheduling = False
+    # Bulk upload schedules to timetable Db
     save_to_timetable_db(Schedules)
 
 
