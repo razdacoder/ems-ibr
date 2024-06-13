@@ -114,28 +114,46 @@ def get_total_seats(Halls):
 
 # Check for CBE Schedule
 def check_for_CBE(schedules, date):
-    schedules_date = filter(lambda schedule: schedule['date'] == date, schedules)
+    schedules_date = filter(
+        lambda schedule: schedule['date'] == date, schedules)
     for schedule in schedules_date:
         if schedule['course']['exam_type'] == "CBE":
             return True
     return False
 
 
+# Get the next valid course to schedule
+def get_next_course(date, seat_remaining, courses, Schedules):
+    for course in courses:
+        if 'classes' in course:
+            print(
+                f"Skipping course with id {course['id']} as it has no 'classes' key.")
+            continue
+        Seat_Required = sum([cls["size"] for cls in course["classes"]])
+        if seat_remaining >= Seat_Required and all(not is_class_scheduled(cls, date, Schedules) for cls in course["classes"]):
+            return course
+    return None
+
+
 # Function to generate the timetable and save it to the DB
 def generate(dates, courses_AM, courses_PM, Halls):
     # Initialize schedules list
     Schedules = []
-    
+
     # Loop through the dates
     for Date in dates:
         Total_Seats_AM = get_total_seats(Halls)
         Total_Seats_PM = get_total_seats(Halls)
+
+        Course = get_next_course(
+            Date, Total_Seats_AM, courses_AM, Schedules)
+        if Course is None:
+            break
         # While there are still seats available and courses to add
         while Total_Seats_AM > 0 and len(courses_AM) > 0:
-            
+
             print("Numbers of Schedule: ", len(Schedules))
             print("Total Seat AM: ", Total_Seats_AM)
-            Course = random.choice(courses_AM)
             print("Course AM: ", len(courses_AM))
             print("Selected COurses: ", Course)
             if Course['exam_type'] == "CBE":
@@ -147,16 +165,18 @@ def generate(dates, courses_AM, courses_PM, Halls):
                     courses_AM.remove(Course)
                     print("Course AM: ", len(courses_AM))
             else:
-                if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
+                if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
                     print("Cannot continue with AM scheduling")
                     break
-                else :
+                else:
                     print("I am Here")
-                    Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                    Seat_Required = sum([Class["size"]
+                                        for Class in Course["classes"]])
                     print("Seat Required AM: ", Seat_Required)
                     if Total_Seats_AM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
                         print("Hiiiiiiiiiiiiii")
-                        Schedule = {"course": Course, "date": Date, "period": "AM"}
+                        Schedule = {"course": Course,
+                                    "date": Date, "period": "AM"}
                         Schedules.append(Schedule)
                         print("Schedule: ", len(Schedules))
                         Total_Seats_AM -= Seat_Required
@@ -168,12 +188,12 @@ def generate(dates, courses_AM, courses_PM, Halls):
             if not can_continue(Date, Total_Seats_PM, courses_PM, Schedules):
                 print("Cannot continue with AM scheduling")
                 break
-            else :
-                print("Total Seat PM: ",Total_Seats_PM)
-                Course = random.choice(courses_PM)
+            else:
+                print("Total Seat PM: ", Total_Seats_PM)
                 print("Course PM: ", len(courses_PM))
                 print("Course Selected: ", Course)
-                Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                Seat_Required = sum([Class["size"]
+                                    for Class in Course["classes"]])
                 print("Seat Required PM: ", Seat_Required)
                 if Total_Seats_PM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
                     Schedule = {"course": Course, "date": Date, "period": "PM"}
@@ -363,7 +383,8 @@ def process_class_course_files(extracted_dir):
                                 name=class_name, department__slug=department_name)
                             process_class_course_csv(class_path, class_obj)
                         except Class.DoesNotExist:
-                            print(f"Class {class_name} in department {department_name} does not exist in the database.")
+                            print(
+                                f"Class {class_name} in department {department_name} does not exist in the database.")
 
 
 def process_department_class_file(extracted_dir):
@@ -381,7 +402,8 @@ def process_department_class_file(extracted_dir):
                         process_department_class_csv(
                             class_file_path, department)
                     except Department.DoesNotExist:
-                        print(f"Department {department_name} does not exist in the database.")
+                        print(
+                            f"Department {department_name} does not exist in the database.")
 
 
 def process_class_course_csv(file_path, class_obj):
