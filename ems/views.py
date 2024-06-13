@@ -20,14 +20,9 @@ from .utils import (
     generate,
     get_courses,
     get_halls,
-    get_total_no_seats,
-    get_total_no_seats_needed,
     handle_uploaded_file,
     save_to_db,
-    schedule_next,
-    schedule_prev,
     split_course,
-    split_courses,
 )
 
 
