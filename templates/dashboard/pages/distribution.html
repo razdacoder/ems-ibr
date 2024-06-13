@@ -45,9 +45,7 @@
       <tr class="p-3">
         <th>Date</th>
         <th>Hall</th>
-        <th>Class</th>
-        <th>Course Title</th>
-        <th>Course Code</th>
+        <th>Distribution</th>
         <th>Period</th>
       </tr>
     </thead>
@@ -58,17 +56,26 @@
           <td>{{ distribution.hall.name }}</td>
 
           <td>
-            {% comment %} {% for item in distribution.items %}
-              <tr>
-                <td>{{ item.schedule.course.code }}</td>
-                <td>{{ item.no_of_students }}</td>
+            <thead>
+              <tr class="p-3">
+                <th>Class Name</th>
+                <th>Course Code</th>
+                <th>Course Title</th>
+                <th>No. Of Students</th>
               </tr>
-              {{ item }}
-            {% endfor %} {% endcomment %}
-            {{ distribution.items|length }}
+            </thead>
+            <table border="2">
+              {% for item in distribution.items.all %}
+                <tr>
+                  <td>{{ item.schedule.class_obj.department.name }} {{ item.schedule.class_obj.name }}</td>
+                  <td>{{ item.schedule.course.code }}</td>
+                  <td>{{ item.schedule.course.name }}</td>
+                  <td>{{ item.no_of_students }}</td>
+                </tr>
+              {% endfor %}
+            </table>
           </td>
-          <td>{{ timetable.course.name }}</td>
-          <td>{{ timetable.course.code }}</td>
+
           <td>{{ distribution.period }}</td>
         </tr>
       {% endfor %}
