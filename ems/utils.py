@@ -17,19 +17,11 @@ from .models import (
     TimeTable,
 )
 
-
-def get_new_period(cls, course):
-    if course.exam_type == "CBE":
-        return "AM"
-    if cls.name.split(" ")[1] == "I":
-        return "AM"
-    else:
-        return "PM"
-
-
 ################################################################################################################################################################
 
 # Get Halls to memory location
+
+
 def get_halls():
     """To get all Halls into memory location"""
     return [{"id": hall.id, "name": hall.name, "capacity": hall.capacity} for hall in Hall.objects.all()]
@@ -75,10 +67,10 @@ def save_to_timetable_db(schedules):
     TimeTable.objects.bulk_create(timetables)
 
 
-# Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM")
+# Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM") for only PBE courses
 def check_course_period(course):
     for item in course['classes']:
-        if item['name'].endswith('II') or item['name'].endswith('2'):
+        if item['name'].endswith('I') or item['name'].endswith('1'):
             return True
     return False
 
@@ -87,8 +79,11 @@ def check_course_period(course):
 def split_course(courses):
     AM_courses, PM_courses = [], []
     for course in courses:
-        if course['exam_type'] == "PBE" and check_course_period(course):
-            PM_courses.append(course)
+        if course['exam_type'] == "PBE":
+            if check_course_period(course):
+                AM_courses.append(course)
+            else:
+                PM_courses.append(course)
         else:
             AM_courses.append(course)
     return (AM_courses, PM_courses)
@@ -168,9 +163,10 @@ def generate(dates, courses_AM, courses_PM, Halls):
             Course = get_next_course(
                 Date, Total_Seats_AM, courses_AM, Schedules)
             if Course['exam_type'] == "CBE":
-                Schedule = {"course": Course, "date": Date, "period": "AM"}
-                Schedules.append(Schedule)
-                courses_AM.remove(Course)
+                if not check_for_CBE(Schedules, Date):
+                    Schedule = {"course": Course, "date": Date, "period": "AM"}
+                    Schedules.append(Schedule)
+                    courses_AM.remove(Course)
             else:
                 Seat_Required = sum([Class["size"]
                                     for Class in Course["classes"]])
@@ -208,46 +204,6 @@ def generate(dates, courses_AM, courses_PM, Halls):
 
 
 ################################################################################################################################################################
-
-def split_courses(courses):
-    sc_courses = []
-    nc_courses = []
-    for course in courses:
-        if TimeTable.objects.filter(course__code=course.code).count() < 1:
-            nc_courses.append(course)
-        else:
-            sc_courses.append(course)
-
-    return (sc_courses, nc_courses)
-
-
-def schedule_prev(courses, cls, dates):
-    if len(courses) > 0:
-        new_tt = []
-        for course in courses:
-            timetable = TimeTable.objects.filter(course__code=course.code)[0]
-            new_tt.append(TimeTable(
-                date=timetable.date,
-                course=timetable.course,
-                class_obj=cls,
-                period=timetable.period
-            ))
-            if timetable.date in dates:
-                dates.remove(timetable.date)
-        TimeTable.objects.bulk_create(new_tt)
-
-
-def schedule_next(courses, cls, dates):
-    if len(courses) > 0:
-        new_tt = []
-        for nc in courses:
-            day = random.choice(dates)
-            period = get_new_period(cls, nc)
-            new_tt.append(TimeTable(course=nc, date=day,
-                          period=period, class_obj=cls))
-            if day in dates:
-                dates.remove(day)
-        TimeTable.objects.bulk_create(new_tt)
 
 
 def get_total_no_seats(halls):

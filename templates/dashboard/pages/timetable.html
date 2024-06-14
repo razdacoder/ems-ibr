@@ -24,17 +24,17 @@
     <form hx-get="{% url 'timetable' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="d-flex align-items-center gap-3">
       <div class="form-group">
         <label for="date" class="form-label">Selcet Day</label>
-        <select class="form-control-sm form-control bg-white" name="date" id="date">
+        <select class="form-control-sm form-control bg-white text-dark" name="date" id="date">
           {% for date in dates %}
-            <option value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
+            <option {% if request.GET.date == date|date:'Y-m-d' %} selected {% endif %}  value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="form-group">
         <label for="period" class="form-label">Selcet Period</label>
-        <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
+        <select class="form-control-sm form-control bg-white py-2 text-dark" name="period" id="period">
+          <option {% if request.GET.period == 'AM' %} selected {% endif %} value="AM">AM</option>
+          <option {% if request.GET.period == 'PM' %} selected {% endif %} value="PM">PM</option>
         </select>
       </div>
       <button type="submit" class="btn bg-gradient-primary text-white">View</button>
@@ -49,6 +49,7 @@
         <th>Course Title</th>
         <th>Course Code</th>
         <th>Period</th>
+        <th>Exam Type</th>
       </tr>
     </thead>
     <tbody>
@@ -60,6 +61,7 @@
           <td>{{ timetable.course.name }}</td>
           <td>{{ timetable.course.code }}</td>
           <td>{{ timetable.period }}</td>
+          <td>{{ timetable.course.exam_type }}</td>
         </tr>
       {% endfor %}
     </tbody>

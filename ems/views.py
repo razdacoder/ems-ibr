@@ -348,20 +348,6 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
     AM_courses, PM_courses = split_course(courses)
     generate(dates, AM_courses, PM_courses, halls)
 
-    # for cls in classes:
-    #     if cls.courses.exists():
-    #     # SPLIT COURSES INTO ALREADY SCHEDULES AND AWAITING SCHEDULES COURSES
-    #         courses = cls.courses.all()
-    #         sc_courses, nc_courses = split_courses(courses=courses)
-    #         cls_dates = copy(dates)
-    #         print(cls.department.name, cls.name, len(courses), len(sc_courses), len(nc_courses))
-
-    #     # RESCHEDULE THE ALREADY SCHEDULE COURSES FOR NEW CLASS
-    #         schedule_prev(sc_courses, cls, cls_dates)
-
-    #         # # SCHEDULE THE AWAITING COURSES FOR A CLASS
-    #         schedule_next(nc_courses, cls, cls_dates)
-
     return render(
         request,
         template_name="dashboard/partials/alert-success.html",
