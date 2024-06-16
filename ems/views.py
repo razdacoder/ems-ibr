@@ -376,14 +376,11 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
     halls = Hall.objects.all()
     # total_hall_capacity = get_total_no_seats(halls=halls)
     halls = convert_hall_to_dict(halls=halls)
-    date = request.POST.get("date")
+    date = request.POST.get("date")  # noqa: F811
     period = request.POST.get("period")
 
     timetables = TimeTable.objects.filter(period=period, date=date)
-    # total_no_seats_needed = get_total_no_seats_needed(timetables=timetables)
-    # total_no_cbe = get_total_no_seats_needed(timetables.filter(course__exam_type="CBE"))
-    # total_no_of_seats_needed_after_cbe = total_no_seats_needed - total_no_cbe
-    # total_no_seats_remaining = total_hall_capacity - total_no_of_seats_needed_after_cbe
+
     none_cbe_tt = timetables.exclude(
         course__exam_type__in=["NAN", "CBE"])
     res = distribute_classes_to_halls(
