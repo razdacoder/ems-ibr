@@ -70,7 +70,7 @@ def save_to_timetable_db(schedules):
 # Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM") for only PBE courses
 def check_course_period(course):
     for item in course['classes']:
-        if item['name'].endswith('I') or item['name'].endswith('1'):
+        if item['name'].endswith('II') or item['name'].endswith('2'):
             return True
     return False
 
@@ -81,9 +81,9 @@ def split_course(courses):
     for course in courses:
         if course['exam_type'] == "PBE":
             if check_course_period(course):
-                AM_courses.append(course)
-            else:
                 PM_courses.append(course)
+            else:
+                AM_courses.append(course)
         else:
             AM_courses.append(course)
     return (AM_courses, PM_courses)
