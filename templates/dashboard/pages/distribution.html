@@ -33,7 +33,7 @@
       <option value="PM">PM</option>
     </select>
   </div>
-  <button type="submit" class="btn bg-gradient-primary text-white">Generate</button>
+  <button type="submit" class="btn bg-gradient-primary text-white">Generate or View</button>
 </form>
 
 {% if generated %}
@@ -56,15 +56,15 @@
           <td>{{ distribution.hall.name }}</td>
 
           <td>
-            <table class="table bg-dark text-white
+            <table class="table bg-dark text-white">
               <thead>
-              <tr class="p-3">
-                <th>Class Name</th>
-                <th>Course Code</th>
-                <th>Course Title</th>
-                <th>Number of Students</th>
-              </tr>
-            </thead>
+                <tr class="p-3">
+                  <th>Class Name</th>
+                  <th>Course Code</th>
+                  <th>Course Title</th>
+                  <th>Number of Students</th>
+                </tr>
+              </thead>
               {% for item in distribution.items.all %}
                 <tr>
                   <td>{{ item.schedule.class_obj.department.name }} {{ item.schedule.class_obj.name }}</td>

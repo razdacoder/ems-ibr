@@ -1,1 +1,45 @@
-Allocation Page
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-chair-school"></i></span>
+    Seat Allocation
+  </h3>
+  <nav aria-label="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <button hx-get="{% url 'timetable' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
+      </li>
+      {% if generated %}
+        <li>
+          <button hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary text-white">Export</button>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+</div>
+
+<form hx-post="{% url 'generate_distribution' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="gap-3 d-flex align-items-center">
+  <div class="w-25 form-group">
+    <label for="date" class="form-label">Selcet Day</label>
+    <select class="form-control-sm form-control bg-white" name="date" id="date">
+      {% for date in dates %}
+        <option value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="w-25 form-group">
+    <label for="period" class="form-label">Selcet Period</label>
+    <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
+      <option value="AM">AM</option>
+      <option value="PM">PM</option>
+    </select>
+  </div>
+  <button type="submit" class="btn bg-gradient-primary text-white">Generate or View</button>
+</form>
+
+{% if generated %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h1>Seat Allocation</h1>
+  </div>
+{% else %}
+  <p class="text-center">No Allocation Yet</p>
+{% endif %}
