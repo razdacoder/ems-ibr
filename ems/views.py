@@ -371,7 +371,7 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
         timetables=none_cbe_tt, halls=halls)
     save_to_db(res, date, period)
 
-    return redirect(reverse('distribution') + f'date={date}&period={period}')
+    return redirect(reverse('distribution') + f'?date={date}&period={period}')
     # return redirect("distribution", )
 
 
