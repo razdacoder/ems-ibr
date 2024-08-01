@@ -381,3 +381,84 @@ def process_department_class_csv(class_file_path, department):
             department=department,
             size=file['Size'][key]
         )
+
+##########################################################################################
+################# Seat Allocation ########################################################
+##########################################################################################
+
+
+def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
+    seats = [[None for _ in range(cols)] for _ in range(rows)]
+    student_positions = {student['name']: None for student in students}
+    attempts = [0]  # use list to allow modification within nested function
+
+    def is_valid_position(student_name, row, col):
+        course = next(student['course']
+                      for student in students if student['name'] == student_name)
+        directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1),
+                      (0, 1), (1, -1), (1, 0), (1, 1)]
+        for dr, dc in directions:
+            r, c = row + dr, col + dc
+            if 0 <= r < rows and 0 <= c < cols and seats[r][c]:
+                adjacent_student = next(
+                    student for student in students if student['name'] == seats[r][c])
+                if adjacent_student['course'] == course:
+                    return False
+        return True
+
+    def try_place_student(student_index):
+        student = students[student_index]
+        for _ in range(100):  # Try 100 random positions
+            row, col = random.randint(0, rows-1), random.randint(0, cols-1)
+            if not seats[row][col] and is_valid_position(student['name'], row, col):
+                seats[row][col] = student['name']
+                student_positions[student['name']] = (row, col)
+                return True
+        return False
+
+    # Shuffle students to add randomness to the allocation
+    random.shuffle(students)
+    for student_index in range(len(students)):
+        if not try_place_student(student_index):
+            return None
+
+    def index_to_seat(row, col):
+        # Convert row and column to a sequential seat number (1-based)
+        return row * cols + col + 1
+
+    # Convert positions to sequential seat numbers
+    seat_positions = {student: index_to_seat(
+        row, col) for student, (row, col) in student_positions.items()}
+    return seat_positions
+
+
+def print_seating_arrangement(students, rows, cols):
+    solution = allocate_students_to_seats(students, rows, cols)
+    if solution:
+        # Group students by course
+        courses = sorted(set(student['course'] for student in students))
+        course_groups = {course: [] for course in courses}
+        for student, seat in solution.items():
+            course = next(s['course']
+                          for s in students if s['name'] == student)
+            course_groups[course].append((student, seat))
+
+        # Print sorted by course
+        for course in courses:
+            # We Can Save the Allocations to DB Here.
+            print(f"\n{course}:")
+            for student, seat in course_groups[course]:
+                print(f"{student}: {seat}")
+    else:
+        print("No valid seating arrangement found.")
+
+
+def generate_seat_allocation(rows: int, cols: int, students):
+    random.seed(0)
+    # Ensure the total number of students does not exceed rows * cols
+    if len(students) > rows * cols:
+        print(
+            f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
+    else:
+        # Print the seating arrangement
+        print_seating_arrangement(students, rows, cols)

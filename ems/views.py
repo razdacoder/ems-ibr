@@ -374,9 +374,30 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
     return redirect(reverse('distribution') + f'date={date}&period={period}')
     # return redirect("distribution", )
 
-# ----------------------------
-# Upload Views
-# ----------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def generate_allocation(request: HttpRequest) -> HttpResponse:
+    date = request.POST.get("date")
+    period = request.POST.get("period")
+    distributions = Distribution.objects.filter(date=date, period=period)
+
+    for distribution in distributions:
+        rows = distribution.hall.class_x  # To be changed to rows
+        cols = distribution.hall.class_y  # TO to changed to cols
+        students = []
+        for item in distribution.items.all():
+            pass
+            # Get the class
+            # Generate Student Id for the number of students
+            # Assigned the course code of the schedule
+            # Save them into a dictionary and append to the students list
+            # Generate the allocation for the distribution
+
+            # ----------------------------
+            # Upload Views
+            # ----------------------------
 
 
 @require_POST
