@@ -1,5 +1,4 @@
-from copy import copy
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
@@ -7,12 +6,11 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
-from django.db.models import Prefetch, Q, Sum
-from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.db.models import Q, Sum
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.views.decorators.http import require_POST
 
-from .forms import LoginForm
 from .models import Class, Course, Department, Distribution, Hall, TimeTable, User
 from .utils import (
     convert_hall_to_dict,
@@ -373,7 +371,8 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
         timetables=none_cbe_tt, halls=halls)
     save_to_db(res, date, period)
 
-    return redirect("distribution")
+    return redirect(reverse('distribution') + f'date={date}&period={period}')
+    # return redirect("distribution", )
 
 # ----------------------------
 # Upload Views
