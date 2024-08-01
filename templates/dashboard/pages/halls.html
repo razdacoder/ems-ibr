@@ -63,7 +63,8 @@
         <th>Hall Capacity</th>
         <th>Min no of courses</th>
         <th>Max no of students</th>
-        <th>Class Structure</th>
+        <th>Rows</th>
+        <th>Columns</th>
       </tr>
     </thead>
     <tbody>
@@ -73,7 +74,8 @@
           <td>{{ hall.capacity }}</td>
           <td>{{ hall.min_courses }}</td>
           <td>{{ hall.max_students }}</td>
-          <td>{{ hall.class_x }} column by {{ hall.class_y }} seats</td>
+          <td>{{ hall.rows }}</td>
+          <td>{{ hall.columns }}</td>
         </tr>
       {% endfor %}
     </tbody>

@@ -31,6 +31,7 @@ class UserManager(BaseUserManager):
 
         return self.create_user(email, password, **extra_fields)
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30, blank=True)
@@ -56,7 +57,8 @@ class Course(models.Model):
     COURSE_TYPE = (("PBE", "PBE"), ("CBE", "CBE"))
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50)
-    exam_type = models.CharField(max_length=50, default="PBE", choices=COURSE_TYPE)
+    exam_type = models.CharField(
+        max_length=50, default="PBE", choices=COURSE_TYPE)
 
     def __str__(self) -> str:
         return f"{self.name} - {self.code}"
@@ -79,8 +81,8 @@ class Hall(models.Model):
     capacity = models.IntegerField()
     max_students = models.IntegerField(default=0)
     min_courses = models.IntegerField(default=0)
-    class_x = models.IntegerField()
-    class_y = models.IntegerField()
+    rows = models.IntegerField()
+    columns = models.IntegerField()
 
     def __str__(self) -> str:
         return str(self.name)
@@ -91,13 +93,12 @@ class TimeTable(models.Model):
     course = models.ForeignKey(
         Course, related_name="timetable_course", on_delete=models.CASCADE)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE,
-                               related_name="timetable_class")
+                                  related_name="timetable_class")
     period = models.CharField(max_length=50, choices=PERIOD)
     date = models.DateField()
 
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"
-
 
 
 class DistributionItem(models.Model):

@@ -477,8 +477,8 @@ def upload_halls(request):
                 "capacity": halls["CAPACITY"][key],
                 "max_students": halls["MAX STUDENTS"][key],
                 "min_courses": halls["MIN COURSES"][key],
-                "class_x": halls["X AXIS"][key],
-                "class_y": halls["Y AXIS"][key],
+                "rows": halls["ROWS"][key],
+                "columns": halls["COLS"][key],
             },
         )
         if created:
