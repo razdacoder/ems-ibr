@@ -357,19 +357,18 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 @admin_required
 def generate_distribution(request: HttpRequest) -> HttpResponse:
-    halls = Hall.objects.all()
-    # total_hall_capacity = get_total_no_seats(halls=halls)
-    halls = convert_hall_to_dict(halls=halls)
     date = request.POST.get("date")  # noqa: F811
     period = request.POST.get("period")
+    if not Distribution.objects.filter(date=date, period=period).exists():
+        halls = Hall.objects.all()
+        halls = convert_hall_to_dict(halls=halls)
+        timetables = TimeTable.objects.filter(period=period, date=date)
 
-    timetables = TimeTable.objects.filter(period=period, date=date)
-
-    none_cbe_tt = timetables.exclude(
-        course__exam_type__in=["NAN", "CBE"])
-    res = distribute_classes_to_halls(
-        timetables=none_cbe_tt, halls=halls)
-    save_to_db(res, date, period)
+        none_cbe_tt = timetables.exclude(
+            course__exam_type__in=["NAN", "CBE"])
+        res = distribute_classes_to_halls(
+            timetables=none_cbe_tt, halls=halls)
+        save_to_db(res, date, period)
 
     return redirect(reverse('distribution') + f'?date={date}&period={period}')
     # return redirect("distribution", )
