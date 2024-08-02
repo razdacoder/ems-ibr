@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
 
@@ -18,7 +19,9 @@ from .utils import (
     generate,
     get_courses,
     get_halls,
+    get_student_number,
     handle_uploaded_file,
+    print_seating_arrangement,
     save_to_db,
     split_course,
 )
@@ -394,13 +397,18 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
         for item in distribution.items.all():
             course_code = item.schedule.course.code
             for i in range(item.no_of_students):
-                students.append({"name": f"{item.schedule.class_obj.department.slug}{
-                    i + 1}", "course": course_code})
-        print(students)
-        # Get the class
-        # Generate Student Id for the number of students
-        # Assigned the course code of the schedule
-        # Save them into a dictionary and append to the students list
+
+                students.append({"name": get_student_number(
+                    item.schedule.class_obj.department.slug, item.schedule.class_obj, i + 1), "course": course_code})
+        random.seed(0)
+        # Ensure the total number of students does not exceed rows * cols
+        if len(students) > rows * cols:
+            print(
+                f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
+        else:
+            print("Hall", distribution.hall.name)
+            print_seating_arrangement(
+                students, rows, cols, distribution.hall.capacity)
         # Generate the allocation for the distribution
     return HttpResponse("Hi")
 

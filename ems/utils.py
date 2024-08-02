@@ -387,7 +387,7 @@ def process_department_class_csv(class_file_path, department):
 ##########################################################################################
 
 
-def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
+def allocate_students_to_seats(students, rows, cols, hall_capacity, max_attempts=10000):
     seats = [[None for _ in range(cols)] for _ in range(rows)]
     student_positions = {student['name']: None for student in students}
     attempts = [0]  # use list to allow modification within nested function
@@ -408,7 +408,7 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
 
     def try_place_student(student_index):
         student = students[student_index]
-        for _ in range(100):  # Try 100 random positions
+        for _ in range(hall_capacity):  # Try 100 random positions
             row, col = random.randint(0, rows-1), random.randint(0, cols-1)
             if not seats[row][col] and is_valid_position(student['name'], row, col):
                 seats[row][col] = student['name']
@@ -432,8 +432,8 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
     return seat_positions
 
 
-def print_seating_arrangement(students, rows, cols):
-    solution = allocate_students_to_seats(students, rows, cols)
+def print_seating_arrangement(students, rows, cols, hall_capacity):
+    solution = allocate_students_to_seats(students, rows, cols, hall_capacity)
     if solution:
         # Group students by course
         courses = sorted(set(student['course'] for student in students))
@@ -462,3 +462,15 @@ def generate_seat_allocation(rows: int, cols: int, students):
     else:
         # Print the seating arrangement
         print_seating_arrangement(students, rows, cols)
+
+
+def get_student_number(dep_slug, cls, num):
+    student_number = ""
+    if cls.name.startswith("N"):
+        student_number += "N/"
+    elif cls.name.startswith("P"):
+        student_number += "PN/"
+    else:
+        student_number += "H/"
+    student_number += f"{dep_slug}/{num:04}"
+    return student_number
