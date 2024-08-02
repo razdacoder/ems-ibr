@@ -1,4 +1,5 @@
 from django.urls import path
+
 from . import csv_gen, views
 
 urlpatterns = [
@@ -16,7 +17,8 @@ urlpatterns = [
     path("distribution/", view=views.distribution, name="distribution"),
     path("allocation/", view=views.allocation, name="allocation"),
     path("manage-users/", view=views.manage_users, name="manage_users"),
-    path("departments/<str:slug>/", view=views.get_department, name="get_department"),
+    path("departments/<str:slug>/",
+         view=views.get_department, name="get_department"),
     path(
         "upload-classes/<str:dept_slug>/",
         view=views.upload_classes,
@@ -34,8 +36,13 @@ urlpatterns = [
         name="upload_class_courses",
     ),
     path("upload-halls/", view=views.upload_halls, name="upload_halls"),
-    path("generate-timetable", view=views.generate_timetable, name="generate_timetable"),
-    path("distribute-halls", view=views.generate_distribution, name="generate_distribution"),
-    path('export-timetable', csv_gen.export_department_timetable, name='export_timetable'),
+    path("generate-timetable", view=views.generate_timetable,
+         name="generate_timetable"),
+    path("distribute-halls", view=views.generate_distribution,
+         name="generate_distribution"),
+    path("generate-allocation", view=views.generate_allocation,
+         name="generate_allocation"),
+    path('export-timetable', csv_gen.export_department_timetable,
+         name='export_timetable'),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload')
 ]

@@ -226,12 +226,17 @@ def distribution(request):
 @login_required(login_url="login")
 @admin_required
 def allocation(request):
+    dates = TimeTable.objects.values_list(
+        "date", flat=True).distinct().order_by("date")
+    context = {
+        "dates": dates
+    }
     if request.htmx:
         template_name = "dashboard/pages/allocation.html"
     else:
         template_name = "dashboard/allocation.html"
 
-    return render(request, template_name=template_name)
+    return render(request, template_name=template_name, context=context)
 
 
 @login_required(login_url="login")
@@ -383,20 +388,25 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
     distributions = Distribution.objects.filter(date=date, period=period)
 
     for distribution in distributions:
-        rows = distribution.hall.class_x  # To be changed to rows
-        cols = distribution.hall.class_y  # TO to changed to cols
+        rows = distribution.hall.rows  # To be changed to rows
+        cols = distribution.hall.columns  # TO to changed to cols
         students = []
         for item in distribution.items.all():
-            pass
-            # Get the class
-            # Generate Student Id for the number of students
-            # Assigned the course code of the schedule
-            # Save them into a dictionary and append to the students list
-            # Generate the allocation for the distribution
+            course_code = item.schedule.course.code
+            for i in range(item.no_of_students):
+                students.append({"name": f"{item.schedule.class_obj.department.slug}{
+                    i + 1}", "course": course_code})
+        print(students)
+        # Get the class
+        # Generate Student Id for the number of students
+        # Assigned the course code of the schedule
+        # Save them into a dictionary and append to the students list
+        # Generate the allocation for the distribution
+    return HttpResponse("Hi")
 
-            # ----------------------------
-            # Upload Views
-            # ----------------------------
+# ----------------------------
+# Upload Views
+# ----------------------------
 
 
 @require_POST
