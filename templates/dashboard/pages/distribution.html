@@ -10,7 +10,7 @@
       </li>
       {% if generated %}
         <li>
-          <button hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary text-white">Export</button>
+          <a href="{% url 'export_distribution' request.GET.date request.GET.period %}" class="btn bg-gradient-primary text-white">Export</a>
         </li>
       {% endif %}
     </ul>
