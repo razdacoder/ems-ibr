@@ -10,7 +10,11 @@
       </li>
       {% if generated %}
         <li>
-          <a href="{% url 'export_distribution' request.GET.date request.GET.period %}" class="btn bg-gradient-primary text-white">Export</a>
+          {% with export_date=request.GET.date|default:dates.0|date:'Y-m-d' %}
+            {% with export_period=request.GET.period|default:'AM' %}
+              <a href="{% url 'export_distribution' export_date export_period %}" class="btn bg-gradient-primary text-white">Export</a>
+            {% endwith %}
+          {% endwith %}
         </li>
       {% endif %}
     </ul>

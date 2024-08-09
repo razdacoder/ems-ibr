@@ -46,5 +46,7 @@ urlpatterns = [
          name='export_timetable'),
     path('export-distribution/<str:date>/<str:period>',
          csv_gen.export_distribution, name="export_distribution"),
+    path('export-arrangement/<str:date>/<str:period>',
+         csv_gen.export_arrangements, name="export_arrangement"),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload')
 ]

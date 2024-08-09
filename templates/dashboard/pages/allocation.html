@@ -10,35 +10,66 @@
       </li>
       {% if generated %}
         <li>
-          <button hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary text-white">Export</button>
+          {% with export_date=request.GET.date|default:dates.0|date:'Y-m-d' %}
+            {% with export_period=request.GET.period|default:'AM' %}
+              <a href="{% url 'export_arrangement' export_date export_period %}" class="btn bg-gradient-primary text-white">Export</a>
+            {% endwith %}
+          {% endwith %}
         </li>
       {% endif %}
     </ul>
   </nav>
 </div>
 
-<form hx-post="{% url 'generate_allocation' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="gap-3 d-flex align-items-center">
-  <div class="w-25 form-group">
-    <label for="date" class="form-label">Selcet Day</label>
-    <select class="form-control-sm form-control bg-white" name="date" id="date">
-      {% for date in dates %}
-        <option value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="w-25 form-group">
-    <label for="period" class="form-label">Selcet Period</label>
-    <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
-      <option value="AM">AM</option>
-      <option value="PM">PM</option>
-    </select>
-  </div>
-  <button type="submit" class="btn bg-gradient-primary text-white">Generate or View</button>
-</form>
+<div class="d-flex justify-content-between align-items-center">
+  <form hx-post="{% url 'generate_allocation' %}" style="flex: 1;" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="gap-3 d-flex align-items-center">
+    <div class="w-25 form-group">
+      <label for="date" class="form-label">Selcet Day</label>
+      <select class="form-control-sm form-control bg-white" name="date" id="date">
+        {% for date in dates %}
+          <option value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="w-25 form-group">
+      <label for="period" class="form-label">Selcet Period</label>
+      <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+    <button type="submit" class="btn bg-gradient-primary text-white">Generate or View</button>
+  </form>
+</div>
 
 {% if generated %}
   <div class="d-flex justify-content-between align-items-center">
-    <h1>Seat Allocation</h1>
+    <h3>
+      Seat Allocation{% if request.GET.date %}
+        {{ request.GET.date }}
+      {% else %}
+        {{ dates|first }}
+      {% endif %}
+    </h3>
+  </div>
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    {% for arrangement in arrangements %}
+      <div class="card" style="width: 15rem;">
+        <div class="card-body">
+          <h5 class="card-title">{{ arrangement.hall__name }}</h5>
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6>Placed</h6>
+              <span>{{ arrangement.placed }}</span>
+            </div>
+            <div>
+              <h6>Not Placed</h6>
+              <span>{{ arrangement.not_placed }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
   </div>
 {% else %}
   <p class="text-center">No Allocation Yet</p>
