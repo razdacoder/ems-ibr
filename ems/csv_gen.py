@@ -27,8 +27,7 @@ def export_department_timetable(request: HttpRequest) -> HttpResponse:
 def export_distribution(request: HttpRequest, date: str, period: str) -> HttpResponse:
     date_obj = datetime.strptime(date, "%Y-%m-%d").date()
     distributions = Distribution.objects.filter(date=date_obj, period=period)
-    filename = f"{date_obj.strftime(
-        '%A %d, %B %Y')} - {period}-Distribution.csv"
+    filename = f"{date_obj.strftime('%A %d, %B %Y')} - {period}-Distribution.csv"
     response = HttpResponse(
         content_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
@@ -38,6 +37,6 @@ def export_distribution(request: HttpRequest, date: str, period: str) -> HttpRes
     for distribution in distributions:
         for item in distribution.items.all():
             cls = item.schedule.class_obj
-            writer.writerow([distribution.hall.name, f"{cls.department.slug} {
-                            cls.name}", item.no_of_students])
+            writer.writerow(
+                [distribution.hall.name, f"{cls.department.slug} {cls.name}", item.no_of_students])
     return response

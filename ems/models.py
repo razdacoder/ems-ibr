@@ -126,4 +126,4 @@ class SeatArrangement(models.Model):
     cls = models.ForeignKey(Class, on_delete=models.CASCADE)
 
     def __str__(self) -> str:
-        return f"{self.student_matric_no} - {self.seat_number or "None"} - Course {self.course.code} - Date {self.date} - Period {self.period}"
+        return f"{self.student_matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"

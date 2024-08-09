@@ -495,7 +495,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         student_matric_no=student,
                         seat_number=seat,
                         hall=Hall.objects.get(id=hall_id),
-                        course=Course.objects.get(code=course),
+                        course=Course.objects.filter(code=course).first(),
                         cls=Class.objects.get(id=cls_id)
                     )
                 )
@@ -524,7 +524,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         period=period,
                         student_matric_no=student,
                         hall=Hall.objects.get(id=hall_id),
-                        course=Course.objects.get(code=course),
+                        course=Course.objects.filter(code=course).first(),
                         cls=Class.objects.get(id=cls_id)
                     )
                 )
