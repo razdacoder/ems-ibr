@@ -88,8 +88,11 @@ class Hall(models.Model):
         return str(self.name)
 
 
+PERIOD = (('AM', 'AM'), ('PM', 'PM'))
+
+
 class TimeTable(models.Model):
-    PERIOD = (('AM', 'AM'), ('PM', 'PM'))
+
     course = models.ForeignKey(
         Course, related_name="timetable_course", on_delete=models.CASCADE)
     class_obj = models.ForeignKey(Class, on_delete=models.CASCADE,
@@ -111,3 +114,16 @@ class Distribution(models.Model):
     items = models.ManyToManyField(DistributionItem)
     date = models.CharField(max_length=15, null=True)
     period = models.CharField(max_length=2, null=True)
+
+
+class SeatArrangement(models.Model):
+    period = models.CharField(max_length=50, choices=PERIOD)
+    date = models.DateField()
+    student_matric_no = models.CharField(max_length=15)
+    seat_number = models.IntegerField(null=True, blank=True)
+    hall = models.ForeignKey(Hall, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    cls = models.ForeignKey(Class, on_delete=models.CASCADE)
+
+    def __str__(self) -> str:
+        return f"{self.student_matric_no} - {self.seat_number or "None"} - Course {self.course.code} - Date {self.date} - Period {self.period}"

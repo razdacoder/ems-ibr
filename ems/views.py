@@ -399,7 +399,7 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             for i in range(item.no_of_students):
 
                 students.append({"name": get_student_number(
-                    item.schedule.class_obj.department.slug, item.schedule.class_obj, i + 1), "course": course_code})
+                    item.schedule.class_obj.department.slug, item.schedule.class_obj, i + 1), "course": course_code, "cls_id": item.schedule.class_obj.id})
         random.seed(0)
         # Ensure the total number of students does not exceed rows * cols
         if len(students) > rows * cols:
@@ -407,8 +407,9 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
                 f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
         else:
             print("Hall", distribution.hall.name)
+
             print_seating_arrangement(
-                students, rows, cols, distribution.hall.capacity)
+                students, rows, cols, datetime.strptime(date, "%Y-%m-%d").date(), period, distribution.hall.id)
         # Generate the allocation for the distribution
     return HttpResponse("Hi")
 

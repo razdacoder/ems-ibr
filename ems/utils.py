@@ -15,6 +15,7 @@ from .models import (
     DistributionItem,
     Hall,
     TimeTable,
+    SeatArrangement
 )
 
 ################################################################################################################################################################
@@ -387,10 +388,12 @@ def process_department_class_csv(class_file_path, department):
 ##########################################################################################
 
 
-def allocate_students_to_seats(students, rows, cols, hall_capacity, max_attempts=10000):
+def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
+    if not students:  # Check if students list is empty
+        return {}, students, 0  # Return all students as unplaced with 0% placement
+
     seats = [[None for _ in range(cols)] for _ in range(rows)]
     student_positions = {student['name']: None for student in students}
-    attempts = [0]  # use list to allow modification within nested function
 
     def is_valid_position(student_name, row, col):
         course = next(student['course']
@@ -408,7 +411,7 @@ def allocate_students_to_seats(students, rows, cols, hall_capacity, max_attempts
 
     def try_place_student(student_index):
         student = students[student_index]
-        for _ in range(hall_capacity):  # Try 100 random positions
+        for _ in range(100):  # Try 100 random positions
             row, col = random.randint(0, rows-1), random.randint(0, cols-1)
             if not seats[row][col] and is_valid_position(student['name'], row, col):
                 seats[row][col] = student['name']
@@ -420,37 +423,113 @@ def allocate_students_to_seats(students, rows, cols, hall_capacity, max_attempts
     random.shuffle(students)
     for student_index in range(len(students)):
         if not try_place_student(student_index):
-            return None
+            # Place failed, stop trying further
+            pass
 
+    # Convert positions to sequential seat numbers
     def index_to_seat(row, col):
         # Convert row and column to a sequential seat number (1-based)
         return row * cols + col + 1
 
-    # Convert positions to sequential seat numbers
-    seat_positions = {student: index_to_seat(
-        row, col) for student, (row, col) in student_positions.items()}
-    return seat_positions
+    seat_positions = {}
+    unplaced_students = []
+
+    for student, position in student_positions.items():
+        if position is None:
+            unplaced_students.append(student)
+        else:
+            row, col = position
+            if row is not None and col is not None:
+                seat_positions[student] = index_to_seat(row, col)
+            else:
+                unplaced_students.append(student)
+
+    # Calculate the percentage of placed students
+    placed_count = len(seat_positions)
+    total_students = len(students)
+    percentage_placed = (placed_count / total_students) * \
+        100 if total_students > 0 else 0
+
+    # Print debug information
+    print(f"Total students: {total_students}")
+    print(f"Placed students count: {placed_count}")
+    print(f"Percentage placed: {percentage_placed:.2f}%")
+
+    if percentage_placed >= 75:
+        return seat_positions, unplaced_students, percentage_placed
+    else:
+        return {}, unplaced_students, percentage_placed
 
 
-def print_seating_arrangement(students, rows, cols, hall_capacity):
-    solution = allocate_students_to_seats(students, rows, cols, hall_capacity)
-    if solution:
+def print_seating_arrangement(students, rows, cols, date, period, hall_id):
+    result = allocate_students_to_seats(students, rows, cols)
+    if result is None:
+        print("Error: allocate_students_to_seats returned None.")
+        return
+
+    seat_positions, unplaced_students, percentage_placed = result
+
+    print(f"Percentage of students placed: {percentage_placed:.2f}%")
+
+    if seat_positions:
         # Group students by course
         courses = sorted(set(student['course'] for student in students))
         course_groups = {course: [] for course in courses}
-        for student, seat in solution.items():
+        for student, seat in seat_positions.items():
             course = next(s['course']
                           for s in students if s['name'] == student)
-            course_groups[course].append((student, seat))
+            cls_id = next(s['cls_id']
+                          for s in students if s['name'] == student)
+            course_groups[course].append((student, seat, cls_id))
 
-        # Print sorted by course
+        # Print sorted by course and create SeatArrangement objects
+        print("\nSeating Arrangement:")
         for course in courses:
-            # We Can Save the Allocations to DB Here.
             print(f"\n{course}:")
-            for student, seat in course_groups[course]:
+            arrangements = []
+            for student, seat, cls_id in sorted(course_groups[course], key=lambda x: x[0]):
+                arrangements.append(
+                    SeatArrangement(
+                        date=date,
+                        period=period,
+                        student_matric_no=student,
+                        seat_number=seat,
+                        hall=Hall.objects.get(id=hall_id),
+                        course=Course.objects.get(code=course),
+                        cls=Class.objects.get(id=cls_id)
+                    )
+                )
                 print(f"{student}: {seat}")
-    else:
-        print("No valid seating arrangement found.")
+            SeatArrangement.objects.bulk_create(arrangements)
+
+    # Group and sort unplaced students by course
+    unplaced_by_course = {}
+    for student in unplaced_students:
+        course = next(s['course'] for s in students if s['name'] == student)
+        cls_id = next(s['cls_id'] for s in students if s['name'] == student)
+        if course not in unplaced_by_course:
+            unplaced_by_course[course] = []
+        unplaced_by_course[course].append((student, cls_id))
+
+    # Print unplaced students sorted by course and create SeatArrangement objects
+    if unplaced_students:
+        print("\nUnplaced Students:")
+        for course in sorted(unplaced_by_course.keys()):
+            print(f"\n{course}:")
+            arrangements = []
+            for student, cls_id in sorted(unplaced_by_course[course]):
+                arrangements.append(
+                    SeatArrangement(
+                        date=date,
+                        period=period,
+                        student_matric_no=student,
+                        hall=Hall.objects.get(id=hall_id),
+                        course=Course.objects.get(code=course),
+                        cls=Class.objects.get(id=cls_id)
+                    )
+                )
+                print(student)
+            SeatArrangement.objects.bulk_create(arrangements)
 
 
 def generate_seat_allocation(rows: int, cols: int, students):
