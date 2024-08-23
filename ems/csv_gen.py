@@ -25,8 +25,21 @@ def export_department_timetable(request: HttpRequest) -> HttpResponse:
     return response
 
 
-def export_distribution(request: HttpRequest, date: str, period: str) -> HttpResponse:
-    date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+def export_distribution(request: HttpRequest) -> HttpResponse:
+    date = request.GET.get("date")
+    period = request.GET.get("period")
+
+    if date is None:
+        date = TimeTable.objects.values_list(
+            "date", flat=True).distinct().order_by("date").first()
+    if period is None:
+        period = "AM"
+
+    print(f"Date: {date}, Period: {period}")
+    if isinstance(date, str):
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+    else:
+        date_obj = date  #
     distributions = Distribution.objects.filter(date=date_obj, period=period)
     filename = f"{date_obj.strftime(
         '%A %d, %B %Y')} - {period}-Distribution.csv"
@@ -44,8 +57,22 @@ def export_distribution(request: HttpRequest, date: str, period: str) -> HttpRes
     return response
 
 
-def export_arrangements(request: HttpRequest, date: str, period: str) -> HttpResponse:
-    date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+def export_arrangements(request: HttpRequest) -> HttpResponse:
+    date = request.GET.get("date")
+    period = request.GET.get("period")
+
+    if date is None:
+        date = TimeTable.objects.values_list(
+            "date", flat=True).distinct().order_by("date").first()
+    if period is None:
+        period = "AM"
+
+    print(f"Date: {date}, Period: {period}")
+    if isinstance(date, str):
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+    else:
+        date_obj = date  #
+    # date_obj = datetime.strptime(date, "%Y-%m-%d").date()
     arrangements = SeatArrangement.objects.filter(date=date_obj, period=period)
 
     # Group arrangements by course and class

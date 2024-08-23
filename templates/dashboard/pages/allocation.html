@@ -10,11 +10,7 @@
       </li>
       {% if generated %}
         <li>
-          {% with export_date=request.GET.date|default:dates.0|date:'Y-m-d' %}
-            {% with export_period=request.GET.period|default:'AM' %}
-              <a href="{% url 'export_arrangement' export_date export_period %}" class="btn bg-gradient-primary text-white">Export</a>
-            {% endwith %}
-          {% endwith %}
+          <a href="{% url 'export_arrangement' %}" class="btn bg-gradient-primary text-white">Export</a>
         </li>
       {% endif %}
     </ul>
@@ -46,9 +42,14 @@
   <div class="d-flex justify-content-between align-items-center">
     <h3>
       Seat Allocation{% if request.GET.date %}
-        {{ request.GET.date }}
+        {{ request.GET.date|date:'dd, mm YYYY' }}
       {% else %}
         {{ dates|first }}
+      {% endif %}
+      {% if request.GET.period %}
+        {{ request.GET.period }}
+      {% else %}
+        AM
       {% endif %}
     </h3>
   </div>

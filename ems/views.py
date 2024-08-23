@@ -210,7 +210,7 @@ def distribution(request):
     if generated:
         date = request.GET.get("date")
         period = request.GET.get("period")
-        if date is not None or period is not None:
+        if date and period:
             distributions = Distribution.objects.filter(
                 date=date, period=period)
         else:
@@ -383,7 +383,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 @admin_required
 def generate_distribution(request: HttpRequest) -> HttpResponse:
-    date = request.POST.get("date")  # noqa: F811
+    date = request.POST.get("date")
     period = request.POST.get("period")
     if not Distribution.objects.filter(date=date, period=period).exists():
         halls = Hall.objects.all()
@@ -397,7 +397,6 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
         save_to_db(res, date, period)
 
     return redirect(reverse('distribution') + f'?date={date}&period={period}')
-    # return redirect("distribution", )
 
 
 @require_POST
@@ -406,30 +405,31 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
 def generate_allocation(request: HttpRequest) -> HttpResponse:
     date = request.POST.get("date")
     period = request.POST.get("period")
-    distributions = Distribution.objects.filter(date=date, period=period)
+    if not SeatArrangement.objects.filter(date=date, period=period).exists():
+        distributions = Distribution.objects.filter(date=date, period=period)
 
-    for distribution in distributions:
-        rows = distribution.hall.rows  # To be changed to rows
-        cols = distribution.hall.columns  # TO to changed to cols
-        students = []
-        for item in distribution.items.all():
-            course_code = item.schedule.course.code
-            for i in range(item.no_of_students):
+        for distribution in distributions:
+            rows = distribution.hall.rows  # To be changed to rows
+            cols = distribution.hall.columns  # TO to changed to cols
+            students = []
+            for item in distribution.items.all():
+                course_code = item.schedule.course.code
+                for i in range(item.no_of_students):
 
-                students.append({"name": get_student_number(
-                    item.schedule.class_obj.department.slug, item.schedule.class_obj, i + 1), "course": course_code, "cls_id": item.schedule.class_obj.id})
-        random.seed(0)
-        # Ensure the total number of students does not exceed rows * cols
-        if len(students) > rows * cols:
-            print(
-                f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
-        else:
-            print("Hall", distribution.hall.name)
+                    students.append({"name": get_student_number(
+                        item.schedule.class_obj.department.slug, item.schedule.class_obj, i + 1), "course": course_code, "cls_id": item.schedule.class_obj.id})
+            random.seed(0)
+            # Ensure the total number of students does not exceed rows * cols
+            if len(students) > rows * cols:
+                print(
+                    f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
+            else:
+                print("Hall", distribution.hall.name)
 
-            print_seating_arrangement(
-                students, rows, cols, datetime.strptime(date, "%Y-%m-%d").date(), period, distribution.hall.id)
+                print_seating_arrangement(
+                    students, rows, cols, datetime.strptime(date, "%Y-%m-%d").date(), period, distribution.hall.id)
         # Generate the allocation for the distribution
-    return HttpResponse("Hi")
+    return redirect(reverse('allocation') + f'?date={date}&period={period}')
 
 # ----------------------------
 # Upload Views
