@@ -42,7 +42,7 @@
   <div class="d-flex justify-content-between align-items-center">
     <h3>
       Seat Allocation{% if request.GET.date %}
-        {{ request.GET.date|date:'dd, mm YYYY' }}
+        {{ request.GET.date }}
       {% else %}
         {{ dates|first }}
       {% endif %}
