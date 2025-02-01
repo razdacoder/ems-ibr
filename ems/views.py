@@ -203,13 +203,16 @@ def distribution(request):
     generated = Distribution.objects.exists()
     dates = TimeTable.objects.values_list(
         "date", flat=True).distinct().order_by("date")
+    date = request.GET.get("date")
+    period = request.GET.get("period")
     context = {
         "generated": generated,
-        "dates": dates
+        "dates": dates,
+        "date": date,
+        "period": period
     }
     if generated:
-        date = request.GET.get("date")
-        period = request.GET.get("period")
+
         if date and period:
             distributions = Distribution.objects.filter(
                 date=date, period=period)
@@ -232,13 +235,16 @@ def allocation(request):
     generated = SeatArrangement.objects.exists()
     dates = TimeTable.objects.values_list(
         "date", flat=True).distinct().order_by("date")
+    date = request.GET.get("date")
+    period = request.GET.get("period")
     context = {
         "generated": generated,
-        "dates": dates
+        "dates": dates,
+        "date": date,
+        "period": period
     }
     if generated:
-        date = request.GET.get("date")
-        period = request.GET.get("period")
+
         if date is not None or period is not None:
             arrangements = SeatArrangement.objects.filter(
                 date=date, period=period)
@@ -399,6 +405,8 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 def generate_distribution(request: HttpRequest) -> HttpResponse:
     date = request.POST.get("date")
     period = request.POST.get("period")
+    print(date)
+    print(period)
     if not Distribution.objects.filter(date=date, period=period).exists():
         halls = Hall.objects.all()
         halls = convert_hall_to_dict(halls=halls)

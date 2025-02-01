@@ -10,7 +10,7 @@
       </li>
       {% if generated %}
         <li>
-          <a href="{% url 'export_distribution' %}" class="btn bg-gradient-primary text-white">Export</a>
+          <a href="{% url 'export_distribution' %}?date={{ date }}&period={{ period }}" class="btn bg-gradient-primary text-white">Export</a>
         </li>
       {% endif %}
     </ul>
@@ -21,16 +21,29 @@
   <div class="w-25 form-group">
     <label for="date" class="form-label">Selcet Day</label>
     <select class="form-control-sm form-control bg-white" name="date" id="date">
-      {% for date in dates %}
-        <option value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
+      {% for d in dates %}
+        {% if d|date:'Y-m-d' == date %}
+          <option value="{{ d|date:'Y-m-d' }}" selected>{{ d }}</option>
+        {% else %}
+          <option value="{{ d|date:'Y-m-d' }}">{{ d }}</option>
+        {% endif %}
       {% endfor %}
     </select>
   </div>
   <div class="w-25 form-group">
     <label for="period" class="form-label">Selcet Period</label>
     <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
-      <option value="AM">AM</option>
-      <option value="PM">PM</option>
+      {% if period == 'AM' %}
+        <option value="AM" selected>AM</option>
+      {% else %}
+        <option value="AM">AM</option>
+      {% endif %}
+
+      {% if period == 'PM' %}
+        <option value="PM" selected>PM</option>
+      {% else %}
+        <option value="PM">PM</option>
+      {% endif %}
     </select>
   </div>
   <button type="submit" class="btn bg-gradient-primary text-white">Generate or View</button>
@@ -52,6 +65,7 @@
     <tbody>
       {% for distribution in distributions %}
         <tr>
+          <!-- TODO -->
           <td>{{ distribution.date }}</td>
           <td>{{ distribution.hall.name }}</td>
 
