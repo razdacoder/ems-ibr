@@ -48,5 +48,6 @@ urlpatterns = [
          csv_gen.export_distribution, name="export_distribution"),
     path('export-arrangement/',
          csv_gen.export_arrangements, name="export_arrangement"),
-    path('bulk-upload', view=views.bulk_upload, name='bulk-upload')
+    path('bulk-upload', view=views.bulk_upload, name='bulk-upload'),
+    path('reset', view=views.reset_system, name="reset-system")
 ]

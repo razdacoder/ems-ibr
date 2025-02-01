@@ -32,17 +32,20 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
     if date is None:
         date = TimeTable.objects.values_list(
             "date", flat=True).distinct().order_by("date").first()
+
     if period is None:
         period = "AM"
 
-    print(f"Date: {date}, Period: {period}")
     if isinstance(date, str):
         date_obj = datetime.strptime(date, "%Y-%m-%d").date()
     else:
-        date_obj = date  #
+        date_obj = date
+
     distributions = Distribution.objects.filter(date=date_obj, period=period)
+
     filename = f"{date_obj.strftime(
         '%A %d, %B %Y')} - {period}-Distribution.csv"
+
     response = HttpResponse(
         content_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
@@ -97,12 +100,18 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
             writer = csv.writer(csv_file)
 
             # Write the headers
-            writer.writerow(['Student Matric No', 'Seat Number'])
+            writer.writerow(['Date', 'Student Matric No', 'Course Title',
+                            'Course Code', 'Venue', 'Period',  'Seat Number'])
 
             # Write the data rows
             for arrangement in course_arrangements:
                 writer.writerow([
+                    arrangement.date,
                     arrangement.student_matric_no,
+                    arrangement.course.name,
+                    arrangement.course.code,
+                    arrangement.hall.name,
+                    arrangement.period,
                     arrangement.seat_number,
                 ])
 

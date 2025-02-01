@@ -12,7 +12,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.views.decorators.http import require_POST
 
-from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement
+from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem
 from .utils import (
     convert_hall_to_dict,
     distribute_classes_to_halls,
@@ -329,6 +329,20 @@ def add_user(request):
         template_name="dashboard/partials/alert-success.html",
         context={"message": "User created successfully"},
     )
+
+
+@login_required(login_url="login")
+@admin_required
+def reset_system(request: HttpRequest) -> HttpResponse:
+    SeatArrangement.objects.all().delete()
+    Distribution.objects.all().delete()
+    DistributionItem.objects.all().delete()
+    TimeTable.objects.all().delete()
+    Hall.objects.all().delete()
+    Course.objects.all().delete()
+    Class.objects.all().delete()
+
+    return redirect("dashboard")
 
 
 # --------------------------
