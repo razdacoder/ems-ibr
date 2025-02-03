@@ -10,7 +10,7 @@
       </li>
       {% if generated and request.user.is_staff is False %}
         <li>
-          <button hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary text-white">Export</button>
+          <a href="{% url 'export_timetable' %}" class="btn bg-gradient-primary text-white">Export</a>
         </li>
       {% endif %}
     </ul>
