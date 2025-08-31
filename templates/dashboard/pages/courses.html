@@ -1,0 +1,215 @@
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-primary text-white me-2">
+      <i class="mdi mdi-account-key"></i>
+    </span> 
+    Courses
+  </h3>
+  <nav aria-label="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <button 
+          hx-get="{% url 'courses' %}" 
+          hx-indicator="#htmx-indicator-full" 
+          hx-target="#main-content" 
+          hx-push-url="true" 
+          class="btn bg-gradient-primary">
+          <i class="mdi mdi-refresh text-white"></i>
+        </button>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">
+        <button 
+          data-bs-toggle="modal" 
+          data-bs-target="#departmentFileUploadModal" 
+          class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" 
+          type="button">
+          <i class="mdi mdi-cloud-upload"></i> Upload Courses
+        </button>
+
+        <!-- Upload Course Modal -->
+        <div class="modal fade" id="departmentFileUploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadCoursesModalTitle" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="uploadCoursesModalTitle">Upload Institutional Courses</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              
+              <form 
+                hx-post="{% url 'upload_courses' %}" 
+                hx-target="#upload-alert"
+                hx-encoding="multipart/form-data"
+                hx-on="htmx:afterRequest: handleUploadComplete(event)">
+                <div class="modal-body">
+                  <div id="upload-alert"></div>
+                  <input 
+                    name="file" 
+                    required 
+                    class="visually-hidden" 
+                    type="file" 
+                    id="clsFile" 
+                    accept=".csv" />
+                  <label 
+                    style="border: 2px dotted #333333; height: 150px; display: flex; justify-content: center; align-items: center; cursor: pointer;" 
+                    for="clsFile" 
+                    class="w-100">
+                    <div style="display: flex; flex-direction: column; row-gap: 8px; align-items: center;">
+                      <span><i class="mdi mdi-cloud-upload icon-lg"></i></span>
+                      <span id="fileName">Click to upload (only .csv file)</span>
+                    </div>
+                  </label>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">
+                    Upload {% include 'dashboard/partials/loader.html' %}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+{% if courses|length %}
+  <form hx-get="{% url 'courses' %}" hx-target="#main-content" hx-push-url="true" class="mb-3 d-flex align-items-center gap-3">
+    <input class="form-control w-25" name="query" type="text" placeholder="Search for course" />
+    <button type="reset" class="btn btn-md btn-secondary">Clear</button>
+  </form>
+
+  <table class="table table-hover bg-white">
+    <thead>
+      <tr class="p-3">
+        <th>#</th>
+        <th>Course Title</th>
+        <th>Course Code</th>
+        <th>Exam Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for course in courses %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ course.name }}</td>
+          <td>{{ course.code }}</td>
+          <td>{{ course.exam_type }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="display: flex; justify-content: end;" class="mt-3">
+    {% if courses.has_previous %}
+      <button hx-get="?page={{ courses.previous_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon" aria-label="Previous page">
+        <i class="mdi mdi-chevron-left"></i>
+      </button>
+    {% else %}
+      <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-left"></i></button>
+    {% endif %}
+
+    <button disabled class="btn btn-icon" aria-current="page">{{ courses.number }}</button>
+
+    {% if courses.has_next %}
+      <button hx-get="?page={{ courses.next_page_number }}" hx-target="#main-content" hx-push-url="true" class="btn btn-icon" aria-label="Next page">
+        <i class="mdi mdi-chevron-right"></i>
+      </button>
+    {% else %}
+      <button disabled class="btn btn-icon"><i class="mdi mdi-chevron-right"></i></button>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="text-center">Sorry, No courses to show</p>
+{% endif %}
+
+<script>
+  // File input handler for courses
+  function initializeFileInput() {
+    const fileInput = document.getElementById('clsFile');
+    const fileNameSpan = document.getElementById('fileName');
+
+    if (fileInput && fileNameSpan) {
+      // Remove existing listener if any
+      fileInput.removeEventListener('change', handleFileChange);
+      // Add new listener
+      fileInput.addEventListener('change', handleFileChange);
+    }
+  }
+
+  function handleFileChange(e) {
+    const fileNameSpan = document.getElementById('fileName');
+    if (e.target.files.length > 0) {
+      fileNameSpan.textContent = e.target.files[0].name;
+    } else {
+      fileNameSpan.textContent = 'Click to upload (only .csv file)';
+    }
+  }
+
+  function handleUploadComplete(event) {
+    const xhr = event.detail.xhr;
+    
+    if (xhr.status >= 200 && xhr.status < 300) {
+      // Success - wait a moment for user to see success message, then close modal and refresh
+      setTimeout(() => {
+        // Close the modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('departmentFileUploadModal'));
+        if (modal) {
+          modal.hide();
+        }
+        
+        // Reset the form
+        const form = event.target;
+        if (form) {
+          form.reset();
+          const fileName = document.getElementById('fileName');
+          if (fileName) {
+            fileName.textContent = 'Click to upload (only .csv file)';
+          }
+        }
+        
+        // Refresh the main content to show new courses
+        htmx.ajax('GET', '{% url "courses" %}', {
+          target: '#main-content',
+          pushUrl: true
+        });
+        
+      }, 1500); // 1.5 second delay to show success message
+    }
+    // For errors, keep modal open to show error message
+  }
+
+  // Initialize when page loads
+  document.addEventListener('DOMContentLoaded', initializeFileInput);
+
+  // Re-initialize after HTMX swaps (when content is refreshed)
+  document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'main-content') {
+      initializeFileInput();
+    }
+  });
+
+  // Reset modal content when it's opened
+  document.addEventListener('show.bs.modal', function (event) {
+    if (event.target.id === 'departmentFileUploadModal') {
+      // Clear any previous alerts
+      const alertDiv = document.getElementById('upload-alert');
+      if (alertDiv) {
+        alertDiv.innerHTML = '';
+      }
+      
+      // Reset file input display
+      const fileName = document.getElementById('fileName');
+      if (fileName) {
+        fileName.textContent = 'Click to upload (only .csv file)';
+      }
+      
+      // Reset file input
+      const fileInput = document.getElementById('clsFile');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    }
+  });
+</script>

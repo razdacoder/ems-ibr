@@ -1,3 +1,4 @@
+from multiprocessing import context
 import random
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -12,7 +13,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.views.decorators.http import require_POST
 
-from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem
+from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem, Student
 from .utils import (
     convert_hall_to_dict,
     distribute_classes_to_halls,
@@ -136,6 +137,50 @@ def get_department(request, slug):
         template_name = "dashboard/pages/single-department.html"
     else:
         template_name = "dashboard/single-department.html"
+
+    return render(request, template_name=template_name, context=context)
+
+
+@login_required(login_url="login")
+def get_courses(request):
+    course_list = Course.objects.all().order_by("id")
+    query = request.GET.get("query")
+    if query:
+        course_list = course_list.filter(
+            Q(name__icontains=query) | Q(code__icontains=query)
+        )
+
+    paginator = Paginator(course_list, 10)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {"courses": page_obj}
+    if request.htmx:
+        template_name = "dashboard/pages/courses.html"
+    else:
+        template_name = "dashboard/courses.html"
+
+    return render(request, template_name=template_name, context=context)
+
+
+@login_required(login_url="login")
+@admin_required
+def get_students(request):
+    students = Student.objects.all().order_by("id")
+    query = request.GET.get("query")
+    if query:
+        students = students.filter(
+            Q(first_name__icontains=query) | Q(
+                last_name__icontains=query) | Q(matric_no__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query)
+        )
+
+    paginator = Paginator(students, 10)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+    context = {"students": page_obj}
+    if request.htmx:
+        template_name = "dashboard/pages/students.html"
+    else:
+        template_name = "dashboard/students.html"
 
     return render(request, template_name=template_name, context=context)
 
@@ -461,6 +506,29 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
 @require_POST
 @login_required(login_url="login")
 @admin_required
+def upload_courses(request):
+    data = request.FILES.get("file")
+    courses = pd.read_csv(data)
+    courses = courses.to_dict()
+    for key in courses["COURSE CODE"]:
+        course, created = Course.objects.get_or_create(
+            code=courses["COURSE CODE"][key],
+            defaults={
+                "name": courses["COURSE TITLE"][key],
+                "exam_type": courses["EXAM TYPE"][key]
+            },
+        )
+        if created:
+            course.save()
+    if created:
+        return HttpResponse('<div class="alert alert-success">Courses uploaded successfully!</div>')
+    else:
+        return HttpResponse('<div class="alert alert-danger">Upload error, please try again.</div>')
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
 def upload_classes(request, dept_slug):
     department = get_object_or_404(Department, slug=dept_slug)
     data = request.FILES.get("file")
@@ -501,6 +569,7 @@ def upload_departments(request):
 @admin_required
 def upload_class_courses(request, id):
     cls = get_object_or_404(Class, id=id)
+    all_courses = Course.objects.all()
     data = request.FILES.get("file")
     courses = pd.read_csv(data).to_dict()
     for key in courses["COURSE CODE"]:
@@ -519,6 +588,36 @@ def upload_class_courses(request, id):
         request,
         template_name="dashboard/partials/alert-success.html",
         context={"message": "Courses uploaded successfully"},
+    )
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def upload_class_students(request, id):
+    cls = get_object_or_404(Class, id=id)
+    data = request.FILES.get("file")
+    students = pd.read_csv(data).to_dict()
+    for key in students["MATRIC NUMBER"]:
+        student, created = Student.objects.get_or_create(
+            matric_number=students["MATRIC NUMBER"][key],
+            defaults={
+                "firstname": students["FIRSTNAME"][key],
+                "lastname": students["LASTNAME"][key],
+                "email": students["EMAIL"][key],
+                "phone": students["PHONE"][key],
+                "department": cls.department.id,
+                "level": cls.id,
+            },
+        )
+        if created:
+            student.save()
+        cls.students.add(student)
+        cls.save()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Students uploaded successfully"},
     )
 
 

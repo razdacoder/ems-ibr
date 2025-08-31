@@ -53,7 +53,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Course(models.Model):
-
     COURSE_TYPE = (("PBE", "PBE"), ("CBE", "CBE"))
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=50)
@@ -116,14 +115,28 @@ class Distribution(models.Model):
     period = models.CharField(max_length=2, null=True)
 
 
+class Student(models.Model):
+    first_name = models.CharField(max_length=255)
+    last_name = models.CharField(max_length=255)
+    matric_no = models.CharField(max_length=15, unique=True)
+    email = models.EmailField(unique=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    level = models.ForeignKey(Class, on_delete=models.CASCADE)
+    phone = models.CharField(max_length=15, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.first_name} {self.last_name}"
+
+
 class SeatArrangement(models.Model):
     period = models.CharField(max_length=50, choices=PERIOD)
     date = models.DateField()
-    student_matric_no = models.CharField(max_length=15)
+    student = models.ForeignKey(
+        Student, on_delete=models.CASCADE, null=True, blank=True)
     seat_number = models.IntegerField(null=True, blank=True)
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     cls = models.ForeignKey(Class, on_delete=models.CASCADE)
 
     def __str__(self) -> str:
-        return f"{self.student_matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"
+        return f"{self.student.matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"
