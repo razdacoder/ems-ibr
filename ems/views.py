@@ -946,21 +946,32 @@ def upload_departments(request):
 @admin_required
 def upload_class_courses(request, id):
     cls = get_object_or_404(Class, id=id)
-    all_courses = Course.objects.all()
+    # Get uploaded file
     data = request.FILES.get("file")
-    courses = pd.read_csv(data).to_dict()
-    for key in courses["COURSE CODE"]:
-        course, created = Course.objects.get_or_create(
-            code=courses["COURSE CODE"][key],
-            defaults={
-                "name": courses["COURSE TITLE"][key],
-                "exam_type": courses["EXAM TYPE"][key],
-            },
+    df = pd.read_csv(data)
+    courses_data = df.to_dict()
+    # Get all existing course codes from the system
+    existing_course_codes = set(Course.objects.values_list('code', flat=True))
+    # Check each course code in the CSV
+    invalid_codes = []
+    for key in courses_data["COURSE CODE"]:
+        course_code = courses_data["COURSE CODE"][key]
+        if course_code not in existing_course_codes:
+            invalid_codes.append(course_code)
+    # If any invalid codes found, return error
+    if invalid_codes:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": f"The following course codes do not exist in the system: {', '.join(invalid_codes)}"},
         )
-        if created:
-            course.save()
+    # All codes are valid, proceed with upload
+    for key in courses_data["COURSE CODE"]:
+        course_code = courses_data["COURSE CODE"][key]
+        course = Course.objects.get(code=course_code)
         cls.courses.add(course)
-        cls.save()
+    cls.save()
     return render(
         request,
         template_name="dashboard/partials/alert-success.html",
