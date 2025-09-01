@@ -462,6 +462,8 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
 
 
 def print_seating_arrangement(students, rows, cols, date, period, hall_id):
+    from .models import Student  # Import here to avoid circular imports
+    
     result = allocate_students_to_seats(students, rows, cols)
     if result is None:
         print("Error: allocate_students_to_seats returned None.")
@@ -475,41 +477,51 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
         # Group students by course
         courses = sorted(set(student['course'] for student in students))
         course_groups = {course: [] for course in courses}
-        for student, seat in seat_positions.items():
-            course = next(s['course']
-                          for s in students if s['name'] == student)
-            cls_id = next(s['cls_id']
-                          for s in students if s['name'] == student)
-            course_groups[course].append((student, seat, cls_id))
+        for student_name, seat in seat_positions.items():
+            student_data = next(s for s in students if s['name'] == student_name)
+            course = student_data['course']
+            cls_id = student_data['cls_id']
+            student_id = student_data.get('student_id')
+            course_groups[course].append((student_name, seat, cls_id, student_id))
 
         # Print sorted by course and create SeatArrangement objects
         print("\nSeating Arrangement:")
         for course in courses:
             print(f"\n{course}:")
             arrangements = []
-            for student, seat, cls_id in sorted(course_groups[course], key=lambda x: x[0]):
+            for student_name, seat, cls_id, student_id in sorted(course_groups[course], key=lambda x: x[0]):
+                # Get the actual Student instance if student_id exists
+                student_instance = None
+                if student_id:
+                    try:
+                        student_instance = Student.objects.get(id=student_id)
+                    except Student.DoesNotExist:
+                        student_instance = None
+                
                 arrangements.append(
                     SeatArrangement(
                         date=date,
                         period=period,
-                        student_matric_no=student,
+                        student=student_instance,  # Use actual Student instance
                         seat_number=seat,
                         hall=Hall.objects.get(id=hall_id),
                         course=Course.objects.filter(code=course).first(),
                         cls=Class.objects.get(id=cls_id)
                     )
                 )
-                print(f"{student}: {seat}")
+                print(f"{student_name}: {seat}")
             SeatArrangement.objects.bulk_create(arrangements)
 
     # Group and sort unplaced students by course
     unplaced_by_course = {}
-    for student in unplaced_students:
-        course = next(s['course'] for s in students if s['name'] == student)
-        cls_id = next(s['cls_id'] for s in students if s['name'] == student)
+    for student_name in unplaced_students:
+        student_data = next(s for s in students if s['name'] == student_name)
+        course = student_data['course']
+        cls_id = student_data['cls_id']
+        student_id = student_data.get('student_id')
         if course not in unplaced_by_course:
             unplaced_by_course[course] = []
-        unplaced_by_course[course].append((student, cls_id))
+        unplaced_by_course[course].append((student_name, cls_id, student_id))
 
     # Print unplaced students sorted by course and create SeatArrangement objects
     if unplaced_students:
@@ -517,18 +529,26 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
         for course in sorted(unplaced_by_course.keys()):
             print(f"\n{course}:")
             arrangements = []
-            for student, cls_id in sorted(unplaced_by_course[course]):
+            for student_name, cls_id, student_id in sorted(unplaced_by_course[course]):
+                # Get the actual Student instance if student_id exists
+                student_instance = None
+                if student_id:
+                    try:
+                        student_instance = Student.objects.get(id=student_id)
+                    except Student.DoesNotExist:
+                        student_instance = None
+                
                 arrangements.append(
                     SeatArrangement(
                         date=date,
                         period=period,
-                        student_matric_no=student,
+                        student=student_instance,  # Use actual Student instance
                         hall=Hall.objects.get(id=hall_id),
                         course=Course.objects.filter(code=course).first(),
                         cls=Class.objects.get(id=cls_id)
                     )
                 )
-                print(student)
+                print(student_name)
             SeatArrangement.objects.bulk_create(arrangements)
 
 

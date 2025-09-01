@@ -100,14 +100,15 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
             writer = csv.writer(csv_file)
 
             # Write the headers
-            writer.writerow(['Date', 'Student Matric No', 'Course Title',
+            writer.writerow(['Date', 'Student Name', 'Student Matric No', 'Course Title',
                             'Course Code', 'Venue', 'Period',  'Seat Number'])
 
             # Write the data rows
             for arrangement in course_arrangements:
                 writer.writerow([
                     arrangement.date,
-                    arrangement.student_matric_no,
+                    f"{arrangement.student.first_name} {arrangement.student.last_name}",
+                    arrangement.student.matric_no,
                     arrangement.course.name,
                     arrangement.course.code,
                     arrangement.hall.name,

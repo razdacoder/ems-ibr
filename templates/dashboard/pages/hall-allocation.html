@@ -1,0 +1,258 @@
+<div class="page-header">
+  <h3 class="page-title">
+    <span class="page-title-icon bg-gradient-primary text-white me-2"><i class="mdi mdi-chair-school"></i></span>
+    Hall Allocation Details
+  </h3>
+  <nav aria-label="breadcrumb">
+    <ul class="breadcrumb flex gap-3 align-items-center">
+      <li>
+        <a hx-get="{% url 'allocation' %}" 
+           hx-vals='{"date": "{{ date }}", "period": "{{ period }}"}' 
+           hx-target="#main-content"
+            hx-push-url="true"
+           class="btn bg-secondary text-white">
+          <i class="mdi mdi-arrow-left"></i> Back to Summary
+        </a>
+      </li>
+      {% if generated and hall_id %}
+        <li>
+          <a href="{% url 'export_arrangement' %}?date={{ date }}&period={{ period }}" class="btn bg-gradient-primary text-white">Export</a>
+        </li>
+        <li>
+          <a href="{% url 'generate_attendance_sheets' %}?date={{ date }}&period={{ period }}&hall_id={{ hall_id }}" class="btn bg-success text-white">Generate Attendance Sheets</a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+</div>
+
+
+
+{% if generated and selected_hall %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h3>
+      {{ selected_hall.name }} - Seat Allocation
+      {% if request.GET.date %}
+        {{ request.GET.date }}
+      {% else %}
+        {{ dates|first }}
+      {% endif %}
+      {% if request.GET.period %}
+        {{ request.GET.period }}
+      {% else %}
+        AM
+      {% endif %}
+    </h3>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <h5>{{ selected_hall.name }} - Seating Arrangement</h5>
+          <small class="text-muted">Capacity: {{ hall_capacity }} seats</small>
+        </div>
+        <div class="card-body">
+          {% if seat_grid %}
+            <!-- Course Legend -->
+            <div class="mb-3">
+              <h6>Course Legend:</h6>
+              <div class="d-flex flex-wrap gap-2" id="course-legend">
+                <!-- Legend items will be populated by JavaScript -->
+              </div>
+            </div>
+            
+            <!-- Hall Layout -->
+            <div class="hall-layout">
+              <div class="hall-orientation mb-2">
+                <div class="text-center">
+                  <small class="text-muted">FRONT OF HALL</small>
+                </div>
+              </div>
+              
+              <div class="seat-grid">
+                {% for row in seat_grid %}
+                  <div class="seat-row d-flex justify-content-center mb-1">
+                    {% for seat in row %}
+                      <div class="seat m-1 p-2 border rounded text-center" 
+                           style="width: 40px; height: 40px; font-size: 10px; {% if not seat.is_occupied %}background-color: white; color: #333;{% endif %}" 
+                           title="{% if seat.is_occupied %}Seat {{ seat.seat_number }}: {{ seat.student.name }} ({{ seat.course.code }}){% else %}Seat {{ seat.seat_number }}: Empty{% endif %}">
+                        {{ seat.seat_number }}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+              
+              <div class="hall-orientation mt-2">
+                <div class="text-center">
+                  <small class="text-muted">BACK OF HALL</small>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <p class="text-muted">No seating arrangement available for this hall.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <!-- Hall Statistics -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6>Hall Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-6">
+              <div class="text-center">
+                <h4 class="text-success">{{ placed_students.count }}</h4>
+                <small>Placed</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center">
+                <h4 class="text-warning">{{ unplaced_students.count }}</h4>
+                <small>Unplaced</small>
+              </div>
+            </div>
+          </div>
+          <hr>
+          <div class="text-center">
+            <h5>{{ hall_capacity }}</h5>
+            <small>Total Capacity</small>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Unplaced Students -->
+      {% if unplaced_students %}
+        <div class="card">
+          <div class="card-header">
+            <h6>Unplaced Students ({{ unplaced_students.count }})</h6>
+          </div>
+          <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+            {% for student in unplaced_students %}
+              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                <div>
+                  <strong>{{ student.student.name }}</strong><br>
+                  <small class="text-muted">{{ student.student.matric_no }}</small><br>
+                  <small class="text-info">{{ student.course.code }}</small>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-info">
+    <i class="mdi mdi-information"></i>
+    No allocation data available. Please generate seat allocation first.
+  </div>
+{% endif %}
+
+<style>
+.seat {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.seat:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.hall-layout {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #dee2e6;
+}
+
+.seat-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 2px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  margin-right: 6px;
+}
+</style>
+
+<script>
+// JavaScript for course legend and seat coloring
+document.addEventListener('DOMContentLoaded', function() {
+    // Define a set of colors for courses
+    const colors = [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+        '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+        '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+    ];
+    
+    // Get all seats and extract unique courses
+    const seats = document.querySelectorAll('.seat[title*=":"]');
+    const courses = new Set();
+    
+    seats.forEach(seat => {
+        const title = seat.getAttribute('title');
+        if (title && title.includes('(') && title.includes(')')) {
+            const courseMatch = title.match(/\(([^)]+)\)/);
+            if (courseMatch) {
+                courses.add(courseMatch[1]);
+            }
+        }
+    });
+    
+    // Create color mapping for courses
+    const courseColors = {};
+    Array.from(courses).forEach((course, index) => {
+        courseColors[course] = colors[index % colors.length];
+    });
+    
+    // Create legend
+    const legend = document.getElementById('course-legend');
+    Object.entries(courseColors).forEach(([course, color]) => {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.style.backgroundColor = color + '20';
+        legendItem.style.border = `1px solid ${color}`;
+        legendItem.innerHTML = `
+            <div class="legend-color" style="background-color: ${color}"></div>
+            <span>${course}</span>
+        `;
+        legend.appendChild(legendItem);
+    });
+    
+    // Apply colors to seats
+    seats.forEach(seat => {
+        const title = seat.getAttribute('title');
+        if (title && title.includes('(') && title.includes(')')) {
+            const courseMatch = title.match(/\(([^)]+)\)/);
+            if (courseMatch) {
+                const course = courseMatch[1];
+                const color = courseColors[course];
+                if (color) {
+                    seat.style.backgroundColor = color;
+                    seat.style.color = 'white';
+                }
+            }
+        }
+    });
+});
+</script>

@@ -29,7 +29,8 @@ urlpatterns = [
         view=views.get_class_course,
         name="get_class_course",
     ),
-    path("courses/", view=views.get_courses, name="courses"),
+    path("courses/", view=views.get_courses_view, name="courses"),
+
     path("students/", view=views.get_students, name="students"),
     path("add-user/", view=views.add_user, name="add-user"),
     path(
@@ -56,6 +57,8 @@ urlpatterns = [
          csv_gen.export_distribution, name="export_distribution"),
     path('export-arrangement/',
          csv_gen.export_arrangements, name="export_arrangement"),
+    path('generate-attendance-sheets/', view=views.generate_attendance_sheets, name="generate_attendance_sheets"),
+    path('hall-allocation/', view=views.hall_allocation, name="hall_allocation"),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload'),
     path('reset', view=views.reset_system, name="reset-system")
 ]

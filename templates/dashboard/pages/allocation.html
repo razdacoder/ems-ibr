@@ -12,6 +12,7 @@
         <li>
           <a href="{% url 'export_arrangement' %}?date={{ date }}&period={{ period }}" class="btn bg-gradient-primary text-white">Export</a>
         </li>
+       
       {% endif %}
     </ul>
   </nav>
@@ -20,7 +21,7 @@
 <div class="d-flex justify-content-between align-items-center">
   <form hx-post="{% url 'generate_allocation' %}" style="flex: 1;" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="gap-3 d-flex align-items-center">
     <div class="w-25 form-group">
-      <label for="date" class="form-label">Selcet Day</label>
+      <label for="date" class="form-label">Select Day</label>
       <select class="form-control-sm form-control bg-white" name="date" id="date">
         {% for d in dates %}
           {% if d == date %}
@@ -32,7 +33,7 @@
       </select>
     </div>
     <div class="w-25 form-group">
-      <label for="period" class="form-label">Selcet Period</label>
+      <label for="period" class="form-label">Select Period</label>
       <select class="form-control-sm form-control bg-white py-2" name="period" id="period">
         {% if period == 'AM' %}
           <option value="AM" selected>AM</option>
@@ -66,25 +67,33 @@
       {% endif %}
     </h3>
   </div>
-  <div class="d-flex align-items-center gap-3 flex-wrap">
-    {% for arrangement in arrangements %}
-      <div class="card" style="width: 15rem;">
-        <div class="card-body">
-          <h5 class="card-title">{{ arrangement.hall__name }}</h5>
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6>Placed</h6>
-              <span>{{ arrangement.placed }}</span>
+  {% if not hall_id %}
+    <!-- Hall Summary View -->
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      {% for arrangement in arrangements %}
+        <div class="card" style="width: 15rem;">
+          <div class="card-body">
+            <h5 class="card-title">{{ arrangement.hall__name }}</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6>Placed</h6>
+                <span>{{ arrangement.placed }}</span>
+              </div>
+              <div>
+                <h6>Not Placed</h6>
+                <span>{{ arrangement.not_placed }}</span>
+              </div>
             </div>
-            <div>
-              <h6>Not Placed</h6>
-              <span>{{ arrangement.not_placed }}</span>
+            <div class="mt-2">
+              <a  
+                 href="{% url 'hall_allocation' %}?date={{ arrangement.date|date:'Y-m-d' }}&period={{ arrangement.period }}&hall_id={{ arrangement.hall__id }}"
+                 class="btn btn-sm bg-info text-white">View Details</a>
             </div>
           </div>
         </div>
-      </div>
-    {% endfor %}
-  </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 {% else %}
   <p class="text-center">No Allocation Yet</p>
 {% endif %}
