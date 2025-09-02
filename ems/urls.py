@@ -39,7 +39,7 @@ urlpatterns = [
         name="upload_class_courses",
     ),
     path(
-        "upload-class-courses/<int:id>/",
+        "upload-class-students/<int:id>/",
         view=views.upload_class_students,
         name="upload_class_students",
     ),
@@ -57,7 +57,10 @@ urlpatterns = [
          csv_gen.export_distribution, name="export_distribution"),
     path('export-arrangement/',
          csv_gen.export_arrangements, name="export_arrangement"),
-    path('generate-attendance-sheets/', view=views.generate_attendance_sheets, name="generate_attendance_sheets"),
+    path('generate-attendance-sheets/', view=views.generate_attendance_sheets,
+         name="generate_attendance_sheets"),
+    path('generate_broadsheet/', view=views.generate_broadsheet,
+         name="generate_broadsheet"),
     path('hall-allocation/', view=views.hall_allocation, name="hall_allocation"),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload'),
     path('reset', view=views.reset_system, name="reset-system")

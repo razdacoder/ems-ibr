@@ -125,7 +125,7 @@ class Student(models.Model):
     phone = models.CharField(max_length=15, blank=True)
 
     def __str__(self) -> str:
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name} - {self.matric_no}"
 
 
 class SeatArrangement(models.Model):

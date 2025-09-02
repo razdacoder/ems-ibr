@@ -131,17 +131,17 @@
 </div>
 
 <!-- Upload Students Modal -->
-<div class="modal fade" id="departmentStudent" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+<div class="modal fade" id="departmentStudent" tabindex="-1" role="dialog" aria-labelledby="departmentModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ class.name }} students</h5>
+        <h5 class="modal-title" id="departmentModalLabel">Upload {{ class.name }} students</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       
-      <form hx-post="{% url 'upload_class_students' class.id %}" hx-target="#alert-student" hx-encoding="multipart/form-data">
+      <form hx-post="{% url 'upload_class_students' class.id %}" hx-target="#alert" hx-encoding="multipart/form-data">
         <div class="modal-body">
-          <div id="alert-student">
+          <div id="alert">
             
           </div>
           <input name="file" required style="display: none;" type="file" id="studentFile" />
