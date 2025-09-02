@@ -21,7 +21,7 @@ SECRET_KEY = "g*@kqr0q625831b)^msptwh#na3wkjbj5@rk9ac7=r+6613k^m"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['ems-ibr.onrender.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
