@@ -20,6 +20,7 @@
   <table class="table table-hover bg-white">
     <thead>
       <tr class="p-3">
+        <th>#</th>
         <th>Firstname</th>
         <th>Lastname</th>
         <th>Matric No</th>
@@ -32,6 +33,7 @@
     <tbody>
       {% for student in students %}
         <tr>
+          <td>{{ forloop.counter }}</td>
           <td>{{ student.first_name }}</td>
           <td>{{ student.last_name }}</td>
           <td>{{ student.matric_no }}</td>

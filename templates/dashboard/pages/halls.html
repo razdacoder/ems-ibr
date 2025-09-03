@@ -59,6 +59,7 @@
   <table class="table table-hover bg-white">
     <thead>
       <tr class="p-3">
+        <th>#</th>
         <th>Hall Name</th>
         <th>Hall Capacity</th>
         <th>Min no of courses</th>
@@ -70,6 +71,7 @@
     <tbody>
       {% for hall in halls %}
         <tr>
+          <td>{{ forloop.counter }}</td>
           <td>{{ hall.name }}</td>
           <td>{{ hall.capacity }}</td>
           <td>{{ hall.min_courses }}</td>
