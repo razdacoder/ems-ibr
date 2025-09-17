@@ -1405,7 +1405,6 @@ def distribution_statistics(request: HttpRequest) -> HttpResponse:
 
 @require_POST
 @login_required(login_url="login")
-@admin_required
 def upload_courses(request):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
@@ -1431,7 +1430,6 @@ def upload_courses(request):
 
 @require_POST
 @login_required(login_url="login")
-@admin_required
 def upload_classes(request, dept_slug):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
