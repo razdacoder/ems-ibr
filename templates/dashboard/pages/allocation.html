@@ -93,7 +93,7 @@
       <h4 class="text-center mb-4">Generate Seat Allocation</h4>
       <p class="text-muted text-center mb-4">Select the date and period to generate or view the seat allocation for examination halls.</p>
       
-      <form hx-post="{% url 'generate_allocation' %}" hx-indicator="#htmx-indicator-full" hx-target="#error-display" hx-push-url="true">
+      <form hx-post="{% url 'generate_allocation' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true">
         <div class="form-group mb-3">
           <label for="date" class="form-label">Select Day</label>
           <select class="form-control bg-white" name="date" id="date" required>

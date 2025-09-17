@@ -81,7 +81,7 @@
     
     <form hx-get="{% url 'timetable' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="d-flex align-items-center gap-3">
       <div class="form-group">
-        <label for="date" class="form-label">Selcet Day</label>
+        <label for="date" class="form-label">Select Day</label>
         <select class="form-control-sm form-control bg-white text-dark" name="date" id="date">
           {% for date in dates %}
             <option {% if request.GET.date == date|date:'Y-m-d' %} selected {% endif %}  value="{{ date|date:'Y-m-d' }}">{{ date }}</option>
