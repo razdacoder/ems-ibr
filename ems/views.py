@@ -1471,7 +1471,6 @@ def upload_departments(request):
 
 @require_POST
 @login_required(login_url="login")
-@admin_required
 def upload_class_courses(request, id):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
@@ -1521,7 +1520,6 @@ def upload_class_courses(request, id):
 
 @require_POST
 @login_required(login_url="login")
-@admin_required
 def upload_class_students(request, id):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
