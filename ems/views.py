@@ -1521,50 +1521,151 @@ def upload_class_courses(request, id):
 @require_POST
 @login_required(login_url="login")
 def upload_class_students(request, id):
+    from django.db import transaction
+    
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Class students upload not allowed again!</div>')
+    
     cls = get_object_or_404(Class, id=id)
     data = request.FILES.get("file")
-    students_df = pd.read_csv(data)
-
-    # Validation: Check if number of students matches class size
-    total_students_in_file = len(students_df)
-    if total_students_in_file != cls.size:
+    
+    try:
+        # Read CSV efficiently with optimized settings
+        students_df = pd.read_csv(
+            data,
+            dtype={
+                'MATRIC NUMBER': 'string',
+                'FIRSTNAME': 'string', 
+                'LASTNAME': 'string',
+                'EMAIL': 'string',
+                'PHONE NUMBER': 'string'
+            },
+            engine='c'  # Use C engine for faster parsing
+        )
+        
+        # Remove any whitespace and convert to string
+        students_df = students_df.astype(str).apply(lambda x: x.str.strip())
+        
+        # Validation: Check if number of students matches class size
+        total_students_in_file = len(students_df)
+        if total_students_in_file != cls.size:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
+                },
+            )
+        
+        # Validate required columns
+        required_columns = ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"]
+        missing_columns = [col for col in required_columns if col not in students_df.columns]
+        if missing_columns:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Missing required columns: {', '.join(missing_columns)}"
+                },
+            )
+        
+        # Check for duplicate matric numbers in the file
+        duplicate_matrics = students_df[students_df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
+        if duplicate_matrics:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Duplicate matric numbers found in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
+                },
+            )
+        
+        # Convert DataFrame to records for faster processing
+        student_records = students_df.to_dict('records')
+        matric_numbers = [record["MATRIC NUMBER"] for record in student_records]
+        
+        # Get existing students in one optimized query
+        existing_students = {}
+        for student in Student.objects.filter(matric_no__in=matric_numbers).only(
+            'id', 'matric_no', 'first_name', 'last_name', 'email', 'phone', 'department_id', 'level_id'
+        ):
+            existing_students[student.matric_no] = student
+        
+        # Process in chunks for better memory management
+        chunk_size = 250
+        total_created = 0
+        total_updated = 0
+        
+        with transaction.atomic():
+            for i in range(0, len(student_records), chunk_size):
+                chunk = student_records[i:i + chunk_size]
+                students_to_create = []
+                students_to_update = []
+                
+                for record in chunk:
+                    matric_no = record["MATRIC NUMBER"]
+                    
+                    if matric_no in existing_students:
+                        # Prepare for bulk update
+                        student = existing_students[matric_no]
+                        student.first_name = record["FIRSTNAME"]
+                        student.last_name = record["LASTNAME"]
+                        student.email = record["EMAIL"]
+                        student.phone = record["PHONE NUMBER"]
+                        student.department = cls.department
+                        student.level = cls
+                        students_to_update.append(student)
+                    else:
+                        # Prepare for bulk create
+                        students_to_create.append(
+                            Student(
+                                matric_no=matric_no,
+                                first_name=record["FIRSTNAME"],
+                                last_name=record["LASTNAME"],
+                                email=record["EMAIL"],
+                                phone=record["PHONE NUMBER"],
+                                department=cls.department,
+                                level=cls,
+                            )
+                        )
+                
+                # Bulk create new students for this chunk
+                if students_to_create:
+                    Student.objects.bulk_create(students_to_create, batch_size=250)
+                    total_created += len(students_to_create)
+                
+                # Bulk update existing students for this chunk
+                if students_to_update:
+                    Student.objects.bulk_update(
+                        students_to_update,
+                        ['first_name', 'last_name', 'email', 'phone', 'department', 'level'],
+                        batch_size=250
+                    )
+                    total_updated += len(students_to_update)
+            
+            created_count = total_created
+            updated_count = total_updated
+            
+            if created_count > 0 or updated_count > 0:
+                message = f"Students processed successfully! Created: {created_count}, Updated: {updated_count}"
+                return render(
+                    request,
+                    template_name="dashboard/partials/alert-success.html",
+                    context={"message": message},
+                )
+            else:
+                return render(
+                    request,
+                    template_name="dashboard/partials/alert-error.html",
+                    context={"message": "No students were processed. Please check your data."},
+                )
+                
+    except Exception as e:
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={
-                "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
-            },
-        )
-
-    students = students_df.to_dict()
-    for key in students["MATRIC NUMBER"]:
-        student, created = Student.objects.get_or_create(
-            matric_no=students["MATRIC NUMBER"][key],
-            defaults={
-                "first_name": students["FIRSTNAME"][key],
-                "last_name": students["LASTNAME"][key],
-                "email": students["EMAIL"][key],
-                "phone": students["PHONE NUMBER"][key],
-                "department": cls.department,
-                "level": cls,
-            },
-        )
-        if created:
-            student.save()
-    if created:
-        return render(
-            request,
-            template_name="dashboard/partials/alert-success.html",
-            context={"message": "Students uploaded successfully!"},
-        )
-    else:
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={"message": "Upload error, please try again."},
+            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 

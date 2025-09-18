@@ -9,11 +9,11 @@
       <li>
         <button hx-get="{% url 'get_class_course' class.department.slug class.id %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
-      <li class="breadcrumb-item active" aria-current="page">
+      <li>
         <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-cloud-upload"></i> Upload Course</button>
       </li>
       
-      <li class="breadcrumb-item active" aria-current="page">
+      <li>
         <button data-bs-toggle="modal" data-bs-target="#departmentStudent" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-cloud-upload"></i> Upload Students</button>
       </li>
     </ul>
