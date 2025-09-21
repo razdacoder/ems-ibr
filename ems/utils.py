@@ -466,6 +466,8 @@ def handle_uploaded_file(file, upload_type):
         process_class_course_files(temp_dir)
     elif upload_type == 'classes':
         process_department_class_file(temp_dir)
+    elif upload_type == 'students':
+        process_student_files(temp_dir)
 
     os.remove(file_path)
     shutil.rmtree(temp_dir)
@@ -838,3 +840,243 @@ def get_student_number(dep_slug, cls, num):
         student_number += "H/"
     student_number += f"{dep_slug}/{num:04}"
     return student_number
+
+
+###################################
+##### STUDENT BULK UPLOAD ########
+###################################
+
+def process_student_files(extracted_dir):
+    """Process student files with comprehensive validation"""
+    from django.db import transaction
+    from .models import Student, Class
+    import re
+    
+    students_dir = os.path.join(extracted_dir, 'students')
+    if not os.path.exists(students_dir):
+        raise ValueError("No 'students' folder found in the uploaded ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names.")
+    
+    csv_files = [f for f in os.listdir(students_dir) if f.endswith('.csv')]
+    if not csv_files:
+        raise ValueError("No CSV files found in the 'students' folder.\nPlease add CSV files named after your class names (e.g., 'ND1 Computer Science.csv').")
+    
+    # Pre-validation phase
+    validation_results = []
+    valid_files = []
+    
+    for csv_file in csv_files:
+        file_path = os.path.join(students_dir, csv_file)
+        try:
+            validation_result = validate_student_csv(file_path)
+            validation_results.append(validation_result)
+            if validation_result['is_valid']:
+                valid_files.append((file_path, validation_result))
+        except Exception as e:
+            validation_results.append({
+                'file_name': csv_file,
+                'is_valid': False,
+                'errors': [f"Failed to validate file: {str(e)}"]
+            })
+    
+    # Check if any files failed validation
+    failed_validations = [r for r in validation_results if not r['is_valid']]
+    if failed_validations:
+        error_messages = []
+        for result in failed_validations:
+            error_messages.append(f"File '{result['file_name']}':")
+            for error in result['errors']:
+                error_messages.append(f"  • {error}")
+        
+        raise ValueError("Validation failed for one or more files:\n\n" + "\n".join(error_messages))
+    
+    # Process all valid files in a single transaction
+    try:
+        with transaction.atomic():
+            total_created = 0
+            total_updated = 0
+            
+            for file_path, validation_result in valid_files:
+                created, updated = process_validated_student_csv(file_path, validation_result)
+                total_created += created
+                total_updated += updated
+            
+            return {
+                'success': True,
+                'message': f"Successfully processed {len(valid_files)} files. Created: {total_created}, Updated: {total_updated} students.",
+                'files_processed': len(valid_files),
+                'students_created': total_created,
+                'students_updated': total_updated
+            }
+    except Exception as e:
+        raise ValueError(f"Failed to process student files: {str(e)}")
+
+
+def validate_student_csv(file_path):
+    """Validate a student CSV file without making database changes"""
+    from .models import Student, Class
+    import re
+    
+    file_name = os.path.basename(file_path)
+    errors = []
+    
+    # Extract class name from filename (remove .csv extension)
+    class_name = file_name.replace('.csv', '')
+    
+    # Check if class exists
+    try:
+        class_obj = Class.objects.get(name=class_name)
+    except Class.DoesNotExist:
+        return {
+            'file_name': file_name,
+            'is_valid': False,
+            'errors': [f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."]
+        }
+    
+    # Try to read CSV
+    try:
+        df = pd.read_csv(
+            file_path,
+            dtype={
+                'MATRIC NUMBER': 'string',
+                'FIRSTNAME': 'string',
+                'LASTNAME': 'string', 
+                'EMAIL': 'string',
+                'PHONE NUMBER': 'string'
+            },
+            engine='c'
+        )
+        df = df.astype(str).apply(lambda x: x.str.strip())
+    except Exception as e:
+        return {
+            'file_name': file_name,
+            'is_valid': False,
+            'errors': [f"Cannot read CSV file: {str(e)}"]
+        }
+    
+    # Check if file is empty
+    if len(df) == 0:
+        errors.append("CSV file is empty")
+    
+    # Check required columns
+    required_columns = ['MATRIC NUMBER', 'FIRSTNAME', 'LASTNAME', 'EMAIL', 'PHONE NUMBER']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        errors.append(f"Missing required columns: {', '.join(missing_columns)}")
+    
+    if errors:  # Return early if basic structure is invalid
+        return {
+            'file_name': file_name,
+            'is_valid': False,
+            'errors': errors,
+            'class_obj': class_obj
+        }
+    
+    # Row-level validation
+    for idx, row in df.iterrows():
+        row_num = idx + 2  # +2 because pandas is 0-indexed and we skip header
+        
+        # Check for empty required fields
+        for col in required_columns:
+            if pd.isna(row[col]) or str(row[col]).strip() in ['', 'nan', 'None']:
+                errors.append(f"Row {row_num}: {col} is empty")
+        
+        # Validate email format
+        email = str(row['EMAIL']).strip()
+        if email and email != 'nan':
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, email):
+                errors.append(f"Row {row_num}: Invalid email format '{email}'")
+    
+    # Check for duplicates within the file
+    duplicate_matrics = df[df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
+    if duplicate_matrics:
+        errors.append(f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}")
+    
+    # Check student count vs class size
+    if len(df) != class_obj.size:
+        errors.append(f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students")
+    
+    # Check for existing students in this class
+    matric_numbers = df['MATRIC NUMBER'].tolist()
+    existing_in_class = Student.objects.filter(
+        matric_no__in=matric_numbers,
+        level=class_obj
+    ).values_list('matric_no', flat=True)
+    
+    if existing_in_class:
+        errors.append(f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}")
+    
+    # Check for existing matric numbers and emails in database
+    existing_matrics = Student.objects.filter(
+        matric_no__in=matric_numbers
+    ).exclude(level=class_obj).values_list('matric_no', flat=True)
+    
+    if existing_matrics:
+        errors.append(f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}")
+    
+    emails = df['EMAIL'].tolist()
+    existing_emails = Student.objects.filter(
+        email__in=emails
+    ).exclude(level=class_obj).values_list('email', flat=True)
+    
+    if existing_emails:
+        errors.append(f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}")
+    
+    return {
+        'file_name': file_name,
+        'is_valid': len(errors) == 0,
+        'errors': errors,
+        'class_obj': class_obj,
+        'student_data': df if len(errors) == 0 else None,
+        'student_count': len(df)
+    }
+
+
+def process_validated_student_csv(file_path, validation_result):
+    """Process a validated student CSV file"""
+    from .models import Student
+    
+    class_obj = validation_result['class_obj']
+    df = validation_result['student_data']
+    
+    # Convert to records for processing
+    student_records = df.to_dict('records')
+    
+    # Process in chunks for better memory management
+    chunk_size = 250
+    total_created = 0
+    total_updated = 0
+    
+    for i in range(0, len(student_records), chunk_size):
+        chunk = student_records[i:i + chunk_size]
+        students_to_create = []
+        
+        for record in chunk:
+            students_to_create.append(
+                Student(
+                    matric_no=record['MATRIC NUMBER'],
+                    first_name=record['FIRSTNAME'],
+                    last_name=record['LASTNAME'],
+                    email=record['EMAIL'],
+                    phone=record['PHONE NUMBER'],
+                    department=class_obj.department,
+                    level=class_obj,
+                )
+            )
+        
+        # Bulk create students for this chunk
+        if students_to_create:
+            Student.objects.bulk_create(students_to_create, batch_size=250)
+            total_created += len(students_to_create)
+    
+    return total_created, total_updated
+
+
+# Legacy function for backward compatibility
+def process_student_csv(file_path, class_obj):
+    """Legacy function - use validate_student_csv and process_validated_student_csv instead"""
+    validation_result = validate_student_csv(file_path)
+    if not validation_result['is_valid']:
+        raise ValueError(f"Validation failed: {'; '.join(validation_result['errors'])}")
+    
+    return process_validated_student_csv(file_path, validation_result)

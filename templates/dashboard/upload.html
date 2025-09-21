@@ -1,20 +1,387 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Upload</title>
-  </head>
-  <body style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-    <form method="post" action="" enctype="multipart/form-data">
-      {% csrf_token %}
-      <label for="file">Bulk Upload data</label>
-      <input id="file" type="file" name="file"/>
-      <select name="upload_type">
-        <option>Choose...</option>
-        <option value="courses">Upload Courses</option>
-        <option value="classes">Upload Classes</option>
-      </select>
+{% extends 'dashboard/base.html' %}
+{% load static %}
 
-      <button>Upload</button>
-    </form>
-  </body>
-</html>
+{% block main %}
+<div class="container-scroller">
+  <div class="main-panel">
+    <div class="content-wrapper">
+      <!-- Breadcrumb -->
+    
+
+      <!-- Main Content -->
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+          
+            <div class="card-body">
+              <!-- Upload Form -->
+              <form 
+                method="post" 
+                action="{% url 'bulk-upload' %}" 
+                enctype="multipart/form-data"
+                id="bulk-upload-form">
+                {% csrf_token %}
+                
+                <!-- Upload Result Area -->
+                <div id="upload-result" class="mb-4">
+                  {% if messages %}
+                    {% for message in messages %}
+                      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message|safe }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+                
+                <!-- Upload Type Selection -->
+                <div class="row mb-4">
+                  <div class="col-12">
+                    <label class="form-label fw-bold">Select Upload Type</label>
+                    <div class="row g-3">
+                      <div class="col-md-4">
+                        <div class="upload-type-card" data-type="courses">
+                          <input type="radio" name="upload_type" value="courses" id="type-courses" class="d-none">
+                          <label for="type-courses" class="upload-type-label">
+                            <div class="upload-type-icon">
+                              <i class="mdi mdi-book-open-page-variant"></i>
+                            </div>
+                            <div class="upload-type-text">
+                              <h6>Courses & Classes</h6>
+                              <small>Upload course and class data</small>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="upload-type-card" data-type="classes">
+                          <input type="radio" name="upload_type" value="classes" id="type-classes" class="d-none">
+                          <label for="type-classes" class="upload-type-label">
+                            <div class="upload-type-icon">
+                              <i class="mdi mdi-account-group"></i>
+                            </div>
+                            <div class="upload-type-text">
+                              <h6>Department Classes</h6>
+                              <small>Upload department class information</small>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="upload-type-card" data-type="students">
+                          <input type="radio" name="upload_type" value="students" id="type-students" class="d-none">
+                          <label for="type-students" class="upload-type-label">
+                            <div class="upload-type-icon">
+                              <i class="mdi mdi-account-multiple"></i>
+                            </div>
+                            <div class="upload-type-text">
+                              <h6>Student Records</h6>
+                              <small>Upload student data by class</small>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- File Upload Area -->
+                <div class="row mb-4">
+                  <div class="col-12">
+                    <label class="form-label fw-bold">Upload ZIP File</label>
+                    <div class="upload-area" id="upload-area">
+                      <input 
+                        type="file" 
+                        name="file" 
+                        id="file-input" 
+                        accept=".zip" 
+                        required 
+                        class="d-none">
+                      <div class="upload-content">
+                        <div class="upload-icon">
+                          <i class="mdi mdi-cloud-upload"></i>
+                        </div>
+                        <div class="upload-text">
+                          <h5 id="upload-title">Drag & Drop ZIP File Here</h5>
+                          <p class="text-muted mb-2">or <span class="text-success cursor-pointer" onclick="document.getElementById('file-input').click()">browse files</span></p>
+                          <small class="text-muted">Only ZIP files are accepted</small>
+                        </div>
+                        <div id="file-info" class="file-info d-none">
+                          <i class="mdi mdi-file-zip text-warning me-2"></i>
+                          <span id="file-name"></span>
+                          <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="resetForm()">
+                            <i class="mdi mdi-close"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Upload Instructions -->
+                <div class="row mb-4">
+                  <div class="col-12">
+                    <div class="alert alert-success">
+                      <h6 class="alert-heading"><i class="mdi mdi-information me-2"></i>Upload Instructions</h6>
+                      <ul class="mb-0 ps-3">
+                        <li><strong>Courses & Classes:</strong> ZIP should contain course and class CSV files</li>
+                        <li><strong>Department Classes:</strong> ZIP should contain department-specific class files</li>
+                        <li><strong>Student Records:</strong> ZIP should contain a 'students' folder with CSV files named after class names</li>
+                        <li>All CSV files must follow the required format with proper headers</li>
+                        <li>Ensure data integrity before uploading - validation will be performed</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="row mb-4">
+                  <div class="col-12">
+                    <div id="upload-progress" class="d-none">
+                      <div class="d-flex align-items-center mb-2">
+                        <div class="spinner-border spinner-border-sm text-success me-2" role="status">
+                          <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="text-success fw-bold">Processing upload...</span>
+                      </div>
+                      <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                             role="progressbar" style="width: 100%"></div>
+                      </div>
+                      <small class="text-muted mt-1 d-block">Validating and processing your data. This may take a few moments.</small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="row">
+                  <div class="col-12">
+                    <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" disabled>
+                      <i class="mdi mdi-upload me-2"></i>
+                      Upload & Process
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-lg ms-2" onclick="resetForm()">
+                      <i class="mdi mdi-refresh me-2"></i>
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.upload-type-card {
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.upload-type-card:hover {
+  border-color: #46c35f;
+  box-shadow: 0 2px 8px rgba(70, 195, 95, 0.15);
+}
+
+.upload-type-card.selected {
+  border-color: #46c35f;
+  background-color: #f0fdf4;
+}
+
+.upload-type-label {
+  display: block;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  margin: 0;
+}
+
+.upload-type-icon {
+  font-size: 2.5rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.upload-type-card.selected .upload-type-icon {
+  color: #46c35f;
+}
+
+.upload-type-text h6 {
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.upload-area {
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 3rem 2rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  background-color: #f8f9fa;
+}
+
+.upload-area:hover {
+  border-color: #46c35f;
+  background-color: #f0fdf4;
+}
+
+.upload-area.dragover {
+  border-color: #46c35f;
+  background-color: #dcfce7;
+  transform: scale(1.02);
+}
+
+.upload-icon {
+  font-size: 4rem;
+  color: #6c757d;
+  margin-bottom: 1rem;
+}
+
+.upload-area.dragover .upload-icon {
+  color: #46c35f;
+}
+
+.file-info {
+  background-color: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.progress {
+  height: 8px;
+}
+
+.progress-bar.bg-success {
+  background-color: #46c35f !important;
+}
+
+@media (max-width: 768px) {
+  .upload-type-card {
+    margin-bottom: 1rem;
+  }
+  
+  .upload-area {
+    padding: 2rem 1rem;
+  }
+}
+</style>
+
+<script>
+// File input handling
+const fileInput = document.getElementById('file-input');
+const uploadArea = document.getElementById('upload-area');
+const fileInfo = document.getElementById('file-info');
+const fileName = document.getElementById('file-name');
+const uploadTitle = document.getElementById('upload-title');
+const submitBtn = document.getElementById('submit-btn');
+
+// Upload type selection
+const uploadTypeCards = document.querySelectorAll('.upload-type-card');
+const uploadTypeInputs = document.querySelectorAll('input[name="upload_type"]');
+
+// Handle upload type selection
+uploadTypeCards.forEach(card => {
+  card.addEventListener('click', function() {
+    const type = this.dataset.type;
+    const input = document.getElementById(`type-${type}`);
+    
+    // Remove selected class from all cards
+    uploadTypeCards.forEach(c => c.classList.remove('selected'));
+    
+    // Add selected class to clicked card
+    this.classList.add('selected');
+    
+    // Check the radio input
+    input.checked = true;
+    
+    // Enable submit button if file is also selected
+    checkFormValidity();
+  });
+});
+
+// File input change handler
+fileInput.addEventListener('change', function(e) {
+  handleFileSelection(e.target.files[0]);
+});
+
+// Drag and drop handlers
+uploadArea.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  this.classList.add('dragover');
+});
+
+uploadArea.addEventListener('dragleave', function(e) {
+  e.preventDefault();
+  this.classList.remove('dragover');
+});
+
+uploadArea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  this.classList.remove('dragover');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const file = files[0];
+    if (file.type === 'application/zip' || file.name.endsWith('.zip')) {
+      fileInput.files = files;
+      handleFileSelection(file);
+    } else {
+      alert('Please select a ZIP file.');
+    }
+  }
+});
+
+// Handle file selection
+function handleFileSelection(file) {
+  if (file) {
+    fileName.textContent = file.name;
+    fileInfo.classList.remove('d-none');
+    uploadTitle.textContent = 'File Selected';
+    checkFormValidity();
+  }
+}
+
+// Check form validity
+function checkFormValidity() {
+  const hasFile = fileInput.files.length > 0;
+  const hasType = document.querySelector('input[name="upload_type"]:checked');
+  
+  submitBtn.disabled = !(hasFile && hasType);
+}
+
+// Reset form
+function resetForm() {
+  fileInput.value = '';
+  fileInfo.classList.add('d-none');
+  uploadTitle.textContent = 'Drag & Drop ZIP File Here';
+  
+  // Clear upload type selection
+  uploadTypeCards.forEach(card => card.classList.remove('selected'));
+  uploadTypeInputs.forEach(input => input.checked = false);
+  
+  // Clear results
+  document.getElementById('upload-result').innerHTML = '';
+  
+  // Disable submit button
+  submitBtn.disabled = true;
+}
+
+// Handle form submission
+document.getElementById('bulk-upload-form').addEventListener('submit', function() {
+  document.getElementById('upload-progress').classList.remove('d-none');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="mdi mdi-loading mdi-spin me-2 text-white"></i>Processing...';
+});
+</script>
+{% endblock %}

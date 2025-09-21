@@ -204,22 +204,142 @@ class TimetableBroadSheet:
             cell.alignment = self.left_alignment
             current_row += 1
 
-    def generate_excel(self, timetables, semester="2ND", academic_year="2024/2025"):
-        """Generate the complete Excel file"""
+    def create_day_period_sheet(self, timetables, semester, academic_year):
+        """Create a new sheet grouped by day and period"""
+        # Create new worksheet
+        day_period_ws = self.wb.create_sheet(title="Day-Period View")
+        
         # Create header section
+        current_row = 1
+        day_period_ws.merge_cells(f'A{current_row}:G{current_row}')
+        title_cell = day_period_ws[f'A{current_row}']
+        title_cell.value = f"EXAMINATION TIMETABLE BY DAY & PERIOD - {semester} SEMESTER {academic_year}"
+        title_cell.font = self.title_font
+        title_cell.alignment = self.center_alignment
+        
+        # Generated date
+        day_period_ws.merge_cells(f'A{current_row + 1}:G{current_row + 1}')
+        date_cell = day_period_ws[f'A{current_row + 1}']
+        date_cell.value = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+        date_cell.alignment = self.center_alignment
+        
+        current_row += 3
+        
+        # Group timetables by date and period
+        day_period_groups = defaultdict(lambda: defaultdict(list))
+        for timetable in timetables:
+            day_key = timetable.date.strftime('%A, %B %d, %Y')
+            day_period_groups[day_key][timetable.period].append(timetable)
+        
+        # Sort dates
+        sorted_dates = sorted(day_period_groups.keys(), key=lambda x: datetime.strptime(x, '%A, %B %d, %Y'))
+        
+        for date_str in sorted_dates:
+            periods = day_period_groups[date_str]
+            
+            # Add date header
+            day_period_ws.merge_cells(f'A{current_row}:G{current_row}')
+            date_header_cell = day_period_ws[f'A{current_row}']
+            date_header_cell.value = date_str.upper()
+            date_header_cell.font = self.sub_header_font
+            date_header_cell.fill = PatternFill(start_color="D1E7DD", end_color="D1E7DD", fill_type="solid")
+            date_header_cell.alignment = self.center_alignment
+            date_header_cell.border = self.thin_border
+            current_row += 1
+            
+            # Process AM and PM periods
+            for period in ['AM', 'PM']:
+                if period in periods:
+                    # Period header
+                    day_period_ws.merge_cells(f'A{current_row}:G{current_row}')
+                    period_header_cell = day_period_ws[f'A{current_row}']
+                    period_header_cell.value = f"{period} PERIOD"
+                    period_header_cell.font = self.sub_header_font
+                    period_header_cell.fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
+                    period_header_cell.alignment = self.center_alignment
+                    period_header_cell.border = self.thin_border
+                    current_row += 1
+                    
+                    # Column headers for this period
+                    headers = ['Course Code', 'Course Name', 'Class', 'Department', 'Exam Type', 'Duration', 'Students']
+                    for col, header in enumerate(headers, 1):
+                        cell = day_period_ws.cell(row=current_row, column=col)
+                        cell.value = header
+                        cell.font = self.header_font
+                        cell.fill = self.header_fill
+                        cell.alignment = self.center_alignment
+                        cell.border = self.thin_border
+                        
+                        # Set column widths
+                        column_letter = get_column_letter(col)
+                        if col == 1:  # Course Code
+                            day_period_ws.column_dimensions[column_letter].width = 15
+                        elif col == 2:  # Course Name
+                            day_period_ws.column_dimensions[column_letter].width = 40
+                        elif col == 3:  # Class
+                            day_period_ws.column_dimensions[column_letter].width = 20
+                        elif col == 4:  # Department
+                            day_period_ws.column_dimensions[column_letter].width = 25
+                        elif col == 5:  # Exam Type
+                            day_period_ws.column_dimensions[column_letter].width = 12
+                        elif col == 6:  # Duration
+                            day_period_ws.column_dimensions[column_letter].width = 12
+                        elif col == 7:  # Students
+                            day_period_ws.column_dimensions[column_letter].width = 12
+                    
+                    current_row += 1
+                    
+                    # Sort period timetables by department, then by course code
+                    period_timetables = sorted(periods[period], key=lambda x: (x.class_obj.department.name, x.course.code))
+                    
+                    # Add timetable data for this period
+                    for i, timetable in enumerate(period_timetables):
+                        # Apply alternating row colors
+                        fill_color = self.alt_fill if i % 2 == 0 else None
+                        
+                        row_data = [
+                            timetable.course.code,
+                            timetable.course.name,
+                            timetable.class_obj.name,
+                            timetable.class_obj.department.name,
+                            timetable.course.exam_type,
+                            "2 Hours",  # Default duration
+                            "TBD"  # Students count - to be determined
+                        ]
+                        
+                        for col, value in enumerate(row_data, 1):
+                            cell = day_period_ws.cell(row=current_row, column=col)
+                            cell.value = value
+                            cell.border = self.thin_border
+                            cell.alignment = self.left_alignment
+                            
+                            if fill_color:
+                                cell.fill = fill_color
+                        
+                        current_row += 1
+                    
+                    # Add space after each period
+                    current_row += 1
+            
+            # Add space between dates
+            current_row += 1
+        
+        return day_period_ws
+    
+    def generate_excel(self, timetables, semester="2ND", academic_year="2024/2025"):
+        """Generate the complete Excel file with both sheets"""
+        # Create original sheet (Department view)
         current_row = self.create_header_section(semester, academic_year)
-
-        # Create column headers
         current_row = self.create_column_headers(current_row)
-
-        # Populate data
         current_row = self.populate_timetable_data(timetables, current_row)
-
-        # Add summary section
         self.add_summary_section(timetables, current_row)
-        current_row += 8  # Space for summary
-
-        # Add footer notes
+        current_row += 8
         self.add_footer_notes(current_row)
-
+        
+        # Rename the first sheet to be more descriptive
+        self.ws.title = "Department View"
+        
+        # Create the new day-period grouped sheet
+        self.create_day_period_sheet(timetables, semester, academic_year)
+        
         return self.wb

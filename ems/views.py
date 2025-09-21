@@ -1522,7 +1522,8 @@ def upload_class_courses(request, id):
 @login_required(login_url="login")
 def upload_class_students(request, id):
     from django.db import transaction
-    
+    print(f"Uploading students for class {id}")
+
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Class students upload not allowed again!</div>')
@@ -1543,12 +1544,15 @@ def upload_class_students(request, id):
             },
             engine='c'  # Use C engine for faster parsing
         )
-        
+        print(f"Uploading students for class {id}")
+
         # Remove any whitespace and convert to string
         students_df = students_df.astype(str).apply(lambda x: x.str.strip())
         
         # Validation: Check if number of students matches class size
         total_students_in_file = len(students_df)
+        print(f"Uploading students for class {id}")
+
         if total_students_in_file != cls.size:
             return render(
                 request,
@@ -1557,7 +1561,7 @@ def upload_class_students(request, id):
                     "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
                 },
             )
-        
+
         # Validate required columns
         required_columns = ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"]
         missing_columns = [col for col in required_columns if col not in students_df.columns]
@@ -1569,7 +1573,7 @@ def upload_class_students(request, id):
                     "message": f"Missing required columns: {', '.join(missing_columns)}"
                 },
             )
-        
+        print(f"Uploading {total_students_in_file} students for class {cls.name}")
         # Check for duplicate matric numbers in the file
         duplicate_matrics = students_df[students_df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
         if duplicate_matrics:
@@ -1586,6 +1590,8 @@ def upload_class_students(request, id):
         matric_numbers = [record["MATRIC NUMBER"] for record in student_records]
         
         # Get existing students in one optimized query
+        print(f"Checking for {len(matric_numbers)} existing students")
+
         existing_students = {}
         for student in Student.objects.filter(matric_no__in=matric_numbers).only(
             'id', 'matric_no', 'first_name', 'last_name', 'email', 'phone', 'department_id', 'level_id'
@@ -1646,6 +1652,7 @@ def upload_class_students(request, id):
             
             created_count = total_created
             updated_count = total_updated
+            print(f"Processed chunk: Created {created_count}, Updated {updated_count}")
             
             if created_count > 0 or updated_count > 0:
                 message = f"Students processed successfully! Created: {created_count}, Updated: {updated_count}"
@@ -1662,6 +1669,8 @@ def upload_class_students(request, id):
                 )
                 
     except Exception as e:
+        print(f"Error in upload_students: {str(e)}")
+
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
@@ -1698,18 +1707,85 @@ def upload_halls(request):
     )
 
 
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def enable_bulk_upload(request):
+    """Enable bulk upload by setting has_timetable to False"""
+    settings = SystemSettings.objects.first()
+    if settings:
+        settings.has_timetable = False
+        settings.save()
+        messages.success(request, 'Bulk upload has been enabled successfully!')
+    else:
+        messages.error(request, 'System settings not found!')
+    return redirect('bulk-upload')
+
+
 def bulk_upload(request):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
-        return HttpResponse('<div class="alert alert-danger">Bulk upload not allowed again!</div>')
-    if request.method == 'POST':
-        file = request.FILES['file']
-        upload_type = request.POST['upload_type']
-        handle_uploaded_file(file, upload_type)
-        return render(
+        messages.warning(
             request,
-            template_name="dashboard/partials/alert-success.html",
-            context={"message": "Halls uploaded successfully"},
+            'Bulk upload is currently disabled because a timetable has been generated. '
+            '<br><small class="text-muted">To enable bulk upload again, you can either:</small><br>'
+            '<a href="#" onclick="enableBulkUpload()" class="btn btn-sm btn-primary mt-2">Enable Bulk Upload</a> '
+            '<a href="/reset/" class="btn btn-sm btn-danger mt-2" onclick="return confirm(\'This will reset the entire system. Are you sure?\')">Reset System</a>'
+            '<br><br><script>function enableBulkUpload(){fetch(\'/enable-bulk-upload/\', {method: \'POST\', headers: {\'X-CSRFToken\': document.querySelector(\'[name=csrfmiddlewaretoken]\').value}}).then(response => response.text()).then(data => {location.reload();});}</script>'
         )
+        return render(request, template_name='dashboard/upload.html')
+        
+    if request.method == 'POST':
+        try:
+            file = request.FILES['file']
+            upload_type = request.POST['upload_type']
+            result = handle_uploaded_file(file, upload_type)
+            
+            # Dynamic success messages based on upload type
+            success_messages = {
+                'courses': 'Course files uploaded and processed successfully!',
+                'classes': 'Class files uploaded and processed successfully!',
+                'students': 'Student files uploaded and processed successfully!',
+                'halls': 'Hall files uploaded and processed successfully!'
+            }
+            
+            message = success_messages.get(upload_type, 'Files uploaded successfully!')
+            
+            # If result contains detailed information (like from student processing)
+            if isinstance(result, dict) and 'message' in result:
+                message = result['message']
+            
+            messages.success(request, message)
+            return redirect('bulk-upload')
+            
+        except ValueError as e:
+            # Handle validation errors with detailed formatting
+            error_message = str(e)
+            
+            # Check if it's a multi-line error message
+            if '\n' in error_message:
+                # Split into main message and details
+                lines = error_message.split('\n')
+                main_message = lines[0]
+                details = '\n'.join(lines[1:]) if len(lines) > 1 else ''
+                
+                formatted_message = f'<strong>{main_message}</strong>'
+                if details.strip():
+                    # Convert newlines to HTML breaks and preserve formatting
+                    formatted_details = details.replace('\n', '<br>').replace('  •', '&nbsp;&nbsp;•')
+                    formatted_message += f'<br><br><div style="font-family: monospace; font-size: 0.9em; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 8px;">{formatted_details}</div>'
+                
+                messages.error(request, formatted_message)
+            else:
+                messages.error(request, f'<strong>Validation Error:</strong><br>{error_message}')
+            return render(request, template_name='dashboard/upload.html')
+            
+        except Exception as e:
+            # Handle unexpected errors
+            messages.error(
+                request, 
+                f'<strong>Upload Error:</strong><br>An unexpected error occurred: {str(e)}<br><small class="text-muted">Please check your file format and try again.</small>'
+            )
+            return render(request, template_name='dashboard/upload.html')
     else:
         return render(request, template_name='dashboard/upload.html')

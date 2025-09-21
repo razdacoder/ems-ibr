@@ -67,6 +67,7 @@ urlpatterns = [
     path('manual-seat-assignment/', view=views.manual_seat_assignment,
          name="manual_seat_assignment"),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload'),
+    path('enable-bulk-upload/', view=views.enable_bulk_upload, name='enable-bulk-upload'),
     path('reset', view=views.reset_system, name="reset-system"),
     path('settings', view=views.setting, name="settings"),
     path("settings/update/", views.update_settings, name="update-settings"),
