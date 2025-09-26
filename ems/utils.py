@@ -256,139 +256,36 @@ def is_course_in_hall(hall, course_code):
 
 
 def distribute_classes_to_halls(timetables, halls):
-    """
-    Optimized distribution algorithm that minimizes hall usage while maximizing student placement.
-    Uses constraint-aware capacity calculations and intelligent packing strategies.
-    """
     class_schedules = make_schedules(timetables=timetables)
-    
-    # Sort halls by capacity (largest first) for optimal packing
-    sorted_halls = sorted(halls, key=lambda h: h["capacity"], reverse=True)
-    
-    # Sort schedules by size (largest first) for better bin packing
-    sorted_schedules = sorted(class_schedules, key=lambda s: s["size"], reverse=True)
-    
     results = []
-    used_halls = []
-    
-    # Calculate constraint factor for realistic capacity (reserve space for course separation)
-    CONSTRAINT_FACTOR = 0.85  # Use 85% of capacity to account for adjacency constraints
-    
-    for schedule in sorted_schedules:
-        if schedule["size"] == 0:
-            continue
-            
-        placed = False
-        
-        # First, try to place in already used halls (minimize hall count)
-        for hall in used_halls:
-            if can_place_in_hall(hall, schedule, CONSTRAINT_FACTOR):
-                place_schedule_in_hall(hall, schedule)
-                placed = True
-                break
-        
-        # If not placed, try new halls
-        if not placed:
-            for hall in sorted_halls:
-                if hall not in used_halls and can_place_in_hall(hall, schedule, CONSTRAINT_FACTOR):
-                    place_schedule_in_hall(hall, schedule)
-                    used_halls.append(hall)
-                    placed = True
-                    break
-        
-        # If still not placed, use fallback strategy (relaxed constraints)
-        if not placed:
-            for hall in sorted_halls:
-                if hall not in used_halls and can_place_in_hall_relaxed(hall, schedule):
-                    place_schedule_in_hall(hall, schedule)
-                    used_halls.append(hall)
-                    break
-    
-    # Return only halls that have classes assigned
-    for hall in used_halls:
-        if len(hall["classes"]) > 0:
+    for hall in halls:
+        for schedule in class_schedules:
+            if is_course_in_hall(hall, schedule["course"]) or len(hall["classes"]) == hall["min_courses"] or schedule["size"] == 0:
+                pass
+            else:
+                number_of_students = hall["max_students"]
+                if number_of_students >= schedule["size"]:
+                    number_of_students = schedule["size"]
+                if schedule["size"] - number_of_students < 5:
+                    number_of_students = schedule["size"]
+
+                res = {"id": schedule["id"], "class": schedule["class"], "course": schedule["course"],
+                       "student_range": number_of_students}
+                hall["classes"].append(res)
+                hall["capacity"] -= number_of_students
+                schedule["size"] -= number_of_students
+    for hall in halls:
+        if len(hall["classes"]) == 0:
+            pass
+        else:
             results.append(hall)
-    
     return results
 
 
-def can_place_in_hall(hall, schedule, constraint_factor):
-    """
-    Check if a schedule can be placed in a hall with constraint-aware capacity.
-    """
-    # Check course conflict
-    if is_course_in_hall(hall, schedule["course"]):
-        return False
-    
-    # Check minimum courses limit
-    if len(hall["classes"]) >= hall["min_courses"]:
-        return False
-    
-    # Calculate effective capacity with constraint factor
-    effective_capacity = int(hall["capacity"] * constraint_factor)
-    
-    # Check if schedule fits in effective capacity
-    students_to_place = min(hall["max_students"], schedule["size"])
-    
-    return effective_capacity >= students_to_place
-
-
-def can_place_in_hall_relaxed(hall, schedule):
-    """
-    Relaxed placement check for fallback scenarios.
-    """
-    if is_course_in_hall(hall, schedule["course"]):
-        return False
-    
-    if len(hall["classes"]) >= hall["min_courses"]:
-        return False
-    
-    students_to_place = min(hall["max_students"], schedule["size"])
-    return hall["capacity"] >= students_to_place
-
-
-def place_schedule_in_hall(hall, schedule):
-    """
-    Place a schedule in a hall and update capacities.
-    """
-    number_of_students = hall["max_students"]
-    if number_of_students >= schedule["size"]:
-        number_of_students = schedule["size"]
-    
-    # If remaining students are less than 5, take all
-    if schedule["size"] - number_of_students < 5:
-        number_of_students = schedule["size"]
-    
-    res = {
-        "id": schedule["id"], 
-        "class": schedule["class"], 
-        "course": schedule["course"],
-        "student_range": number_of_students
-    }
-    
-    hall["classes"].append(res)
-    hall["capacity"] -= number_of_students
-    schedule["size"] -= number_of_students
-
-
 def save_to_db(res, date, period):
-    """
-    Save distribution results to database with optimization statistics.
-    """
-    total_halls_used = len(res)
-    total_students_distributed = 0
-    total_capacity_used = 0
-    total_available_capacity = 0
-    
+
     for item in res:
         hall = Hall.objects.get(id=item["id"])
-        hall_capacity = hall.capacity
-        hall_students = sum(cls["student_range"] for cls in item["classes"])
-        
-        total_students_distributed += hall_students
-        total_capacity_used += hall_students
-        total_available_capacity += hall_capacity
-        
         distribution = Distribution.objects.create(
             hall=hall, date=date, period=period
         )
@@ -400,49 +297,6 @@ def save_to_db(res, date, period):
             distribution.items.add(dist_item)
             distribution.save()
         distribution.save()
-    
-    # Print optimization statistics
-    utilization_rate = (total_capacity_used / total_available_capacity * 100) if total_available_capacity > 0 else 0
-    print(f"\n=== Distribution Optimization Results ===")
-    print(f"Halls used: {total_halls_used}")
-    print(f"Students distributed: {total_students_distributed}")
-    print(f"Total capacity utilization: {utilization_rate:.1f}%")
-    print(f"Average students per hall: {total_students_distributed / total_halls_used:.1f}")
-    print(f"========================================\n")
-
-
-def get_distribution_statistics(date, period):
-    """
-    Get comprehensive statistics for a distribution.
-    """
-    distributions = Distribution.objects.filter(date=date, period=period)
-    
-    stats = {
-        'total_halls': distributions.count(),
-        'total_students': 0,
-        'total_capacity': 0,
-        'halls_data': []
-    }
-    
-    for dist in distributions:
-        hall_students = sum(item.no_of_students for item in dist.items.all())
-        hall_capacity = dist.hall.capacity
-        hall_utilization = (hall_students / hall_capacity * 100) if hall_capacity > 0 else 0
-        
-        stats['total_students'] += hall_students
-        stats['total_capacity'] += hall_capacity
-        
-        stats['halls_data'].append({
-            'hall_name': dist.hall.name,
-            'students': hall_students,
-            'capacity': hall_capacity,
-            'utilization': hall_utilization,
-            'courses': len(set(item.schedule.course.code for item in dist.items.all()))
-        })
-    
-    stats['overall_utilization'] = (stats['total_students'] / stats['total_capacity'] * 100) if stats['total_capacity'] > 0 else 0
-    
-    return stats
 
 
 ###################################

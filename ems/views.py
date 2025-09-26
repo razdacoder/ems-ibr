@@ -1120,70 +1120,22 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 @admin_required
 def generate_distribution(request: HttpRequest) -> HttpResponse:
-    """
-    Generate optimized distribution that minimizes hall usage while maximizing placement.
-    """
     date = request.POST.get("date")
     period = request.POST.get("period")
-
+    print(date)
+    print(period)
     if not Distribution.objects.filter(date=date, period=period).exists():
-        # Get all available halls and convert to dict format
-        # Order by capacity for better optimization
-        halls = Hall.objects.all().order_by('-capacity')
+        halls = Hall.objects.all()
         halls = convert_hall_to_dict(halls=halls)
-
-        # Get timetables for the specified date and period
         timetables = TimeTable.objects.filter(period=period, date=date)
 
-        # Exclude CBE and NAN courses as they may have different requirements
-        none_cbe_tt = timetables.exclude(course__exam_type__in=["NAN", "CBE"])
-
-        if not none_cbe_tt.exists():
-            messages.warning(
-                request, "No eligible courses found for distribution.")
-            return redirect(reverse('distribution') + f'?date={date}&period={period}')
-
-        # Calculate total students to be distributed
-        from .utils import get_total_no_seats_needed
-        total_students_needed = get_total_no_seats_needed(none_cbe_tt)
-        total_available_capacity = sum(hall['capacity'] for hall in halls)
-
-        print(f"\n=== Distribution Planning ===")
-        print(f"Date: {date}, Period: {period}")
-        print(f"Total students to distribute: {total_students_needed}")
-        print(f"Total available capacity: {total_available_capacity}")
-        print(f"Available halls: {len(halls)}")
-
-        if total_students_needed > total_available_capacity:
-            messages.error(request,
-                           f"Insufficient capacity! Need {total_students_needed} seats but only {total_available_capacity} available.")
-            return redirect(reverse('distribution') + f'?date={date}&period={period}')
-
-        # Run the optimized distribution algorithm
-        res = distribute_classes_to_halls(timetables=none_cbe_tt, halls=halls)
-
-        if not res:
-            messages.error(
-                request, "Distribution failed. No suitable hall arrangements found.")
-            return redirect(reverse('distribution') + f'?date={date}&period={period}')
-
-        # Save results to database (includes optimization statistics)
+        none_cbe_tt = timetables.exclude(
+            course__exam_type__in=["NAN", "CBE"])
+        res = distribute_classes_to_halls(
+            timetables=none_cbe_tt, halls=halls)
         save_to_db(res, date, period)
 
-        # Add success message with optimization results
-        halls_used = len(res)
-        students_distributed = sum(
-            sum(cls["student_range"] for cls in hall["classes"]) for hall in res)
-
-        messages.success(request,
-                         f"Distribution completed successfully! Used {halls_used} halls for {students_distributed} students. "
-                         f"Optimization achieved {(students_distributed/total_available_capacity*100):.1f}% capacity utilization.")
-    else:
-        messages.info(
-            request, "Distribution already exists for this date and period.")
-
     return redirect(reverse('distribution') + f'?date={date}&period={period}')
-
 
 @require_POST
 @login_required(login_url="login")
