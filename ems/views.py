@@ -418,7 +418,7 @@ def timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 def distribution(request):
     generated = Distribution.objects.exists()
-    dates = Distribution.objects.values_list(
+    dates = TimeTable.objects.values_list(
         "date", flat=True).distinct().order_by("date")
     date = request.GET.get("date")
     period = request.GET.get("period")
@@ -460,8 +460,9 @@ def distribution(request):
 @login_required(login_url="login")
 def allocation(request):
     generated = SeatArrangement.objects.exists()
-    dates = SeatArrangement.objects.values_list(
+    dates = TimeTable.objects.values_list(
         "date", flat=True).distinct().order_by("date")
+    print(dates)
     date = request.GET.get("date")
     period = request.GET.get("period")
     hall_id = request.GET.get("hall")
