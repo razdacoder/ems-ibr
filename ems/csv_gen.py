@@ -30,11 +30,22 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
     period = request.GET.get("period")
 
     if date is None:
-        date = TimeTable.objects.values_list(
+        date = Distribution.objects.values_list(
             "date", flat=True).distinct().order_by("date").first()
 
     if period is None:
         period = "AM"
+
+    # Handle case where no date is available
+    if date is None:
+        # Return empty CSV with error message
+        response = HttpResponse(
+            content_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="no-distribution-data.csv"'},
+        )
+        writer = csv.writer(response)
+        writer.writerow(["Error: No distribution data available. Please generate distribution first."])
+        return response
 
     if isinstance(date, str):
         date_obj = datetime.strptime(date, "%Y-%m-%d").date()
@@ -65,10 +76,23 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
     period = request.GET.get("period")
 
     if date is None:
-        date = TimeTable.objects.values_list(
+        date = SeatArrangement.objects.values_list(
             "date", flat=True).distinct().order_by("date").first()
     if period is None:
         period = "AM"
+
+    # Handle case where no date is available
+    if date is None:
+        # Return empty zip with error message
+        response = HttpResponse(
+            content_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="no-arrangement-data.zip"'},
+        )
+        in_memory_zip = io.BytesIO()
+        with zipfile.ZipFile(in_memory_zip, 'w') as zip_file:
+            zip_file.writestr("error.txt", "Error: No arrangement data available. Please generate seat arrangements first.")
+        response.write(in_memory_zip.getvalue())
+        return response
 
     print(f"Date: {date}, Period: {period}")
     if isinstance(date, str):

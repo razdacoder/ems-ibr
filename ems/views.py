@@ -418,7 +418,7 @@ def timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 def distribution(request):
     generated = Distribution.objects.exists()
-    dates = TimeTable.objects.values_list(
+    dates = Distribution.objects.values_list(
         "date", flat=True).distinct().order_by("date")
     date = request.GET.get("date")
     period = request.GET.get("period")
@@ -433,8 +433,12 @@ def distribution(request):
             distributions = Distribution.objects.filter(
                 date=date, period=period)
         else:
-            distributions = Distribution.objects.filter(
-                date=dates[0], period="AM")
+            first_date = dates.first() if dates.exists() else None
+            if first_date:
+                distributions = Distribution.objects.filter(
+                    date=first_date, period="AM")
+            else:
+                distributions = Distribution.objects.none()
 
         # Filter distributions based on user role
         if not request.user.is_staff and request.user.department:
@@ -456,7 +460,7 @@ def distribution(request):
 @login_required(login_url="login")
 def allocation(request):
     generated = SeatArrangement.objects.exists()
-    dates = TimeTable.objects.values_list(
+    dates = SeatArrangement.objects.values_list(
         "date", flat=True).distinct().order_by("date")
     date = request.GET.get("date")
     period = request.GET.get("period")
@@ -471,6 +475,7 @@ def allocation(request):
     }
 
     if generated:
+        first_date = dates.first() if dates.exists() else None
         # Determine which date and period to use
         if date and period:  # Check if both date and period are not empty
             try:
@@ -481,17 +486,23 @@ def allocation(request):
                     date=date, period=period)
             except (ValueError, TypeError):
                 # If date is invalid, use default
-                arrangements = SeatArrangement.objects.filter(
-                    date=dates[0], period="AM"
-                )
-                date = dates[0]
-                period = "AM"
+                if first_date:
+                    arrangements = SeatArrangement.objects.filter(
+                        date=first_date, period="AM"
+                    )
+                    date = first_date
+                    period = "AM"
+                else:
+                    arrangements = SeatArrangement.objects.none()
         else:
-            arrangements = SeatArrangement.objects.filter(
-                date=dates[0], period="AM"
-            )
-            date = dates[0]
-            period = "AM"
+            if first_date:
+                arrangements = SeatArrangement.objects.filter(
+                    date=first_date, period="AM"
+                )
+                date = first_date
+                period = "AM"
+            else:
+                arrangements = SeatArrangement.objects.none()
 
         # Filter arrangements based on user role
         if not request.user.is_staff and request.user.department:
@@ -1505,14 +1516,14 @@ def upload_class_students(request, id):
         total_students_in_file = len(students_df)
         print(f"Uploading students for class {id}")
 
-        if total_students_in_file != cls.size:
-            return render(
-                request,
-                template_name="dashboard/partials/alert-error.html",
-                context={
-                    "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
-                },
-            )
+        # if total_students_in_file != cls.size:
+        #     return render(
+        #         request,
+        #         template_name="dashboard/partials/alert-error.html",
+        #         context={
+        #             "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
+        #         },
+        #     )
 
         # Validate required columns
         required_columns = ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"]
