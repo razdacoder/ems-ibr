@@ -1171,6 +1171,9 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
         total_students_unplaced = 0
         halls_processed = 0
 
+        # Track already-used student IDs per class across all halls in this run
+        allocated_ids_by_class = {}
+
         print(f"\n=== Seat Allocation Planning ===")
         print(f"Date: {date}, Period: {period}")
         print(f"Distributions to process: {distributions.count()}")
@@ -1181,52 +1184,72 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             hall_capacity = rows * cols
             students = []
 
+            # Track IDs used within this hall per class to avoid duplicating across items
+            hall_used_ids_by_class = {}
+
             for item in distribution.items.all():
                 course_code = item.schedule.course.code
                 class_obj = item.schedule.class_obj
 
-                # Get real students from the database for this class and course
-                real_students = Student.objects.filter(
+                # Ensure tracking sets exist
+                class_key = class_obj.id
+                if class_key not in allocated_ids_by_class:
+                    allocated_ids_by_class[class_key] = set()
+                if class_key not in hall_used_ids_by_class:
+                    hall_used_ids_by_class[class_key] = set()
+
+                # Build exclusion list for already-used students (previous halls and current hall items)
+                exclude_ids = list(allocated_ids_by_class[class_key] | hall_used_ids_by_class[class_key])
+
+                # Get real students for this class, skipping already allocated ones
+                real_qs = Student.objects.filter(
                     level=class_obj,
                     department=class_obj.department
-                ).order_by('matric_no')[:item.no_of_students]
+                ).exclude(id__in=exclude_ids).order_by('matric_no')
+                real_students = list(real_qs[:item.no_of_students])
 
                 # If we don't have enough real students, fill with available students from the same department
                 if len(real_students) < item.no_of_students:
-                    additional_students = Student.objects.filter(
+                    additional_needed = item.no_of_students - len(real_students)
+                    additional_exclude = exclude_ids + [s.id for s in real_students]
+                    additional_qs = Student.objects.filter(
                         department=class_obj.department
-                    ).exclude(
-                        id__in=[s.id for s in real_students]
-                    ).order_by('matric_no')[:item.no_of_students - len(real_students)]
-                    real_students = list(real_students) + \
-                        list(additional_students)
+                    ).exclude(id__in=additional_exclude).order_by('matric_no')
+                    additional_students = list(additional_qs[:additional_needed])
+                    real_students = list(real_students) + list(additional_students)
 
                 # If still not enough students, create and save new random students
                 remaining_count = item.no_of_students - len(real_students)
                 created_students = []
-                for i in range(remaining_count):
-                    matric_no = get_student_number(
-                        class_obj.department.slug, class_obj, len(
-                            real_students) + i + 1
-                    )
-
-                    # Check if student with this matric_no already exists
-                    existing_student = Student.objects.filter(
-                        matric_no=matric_no).first()
-                    if not existing_student:
-                        # Create new student
-                        new_student = Student.objects.create(
-                            first_name=f"Student",
-                            last_name=f"{len(real_students) + i + 1:04d}",
-                            matric_no=matric_no,
-                            email=f"{matric_no.lower().replace('/', '')}@student.edu",
-                            department=class_obj.department,
-                            level=class_obj,
-                            phone="+1234567890"
+                skip_increment = 0
+                for _ in range(remaining_count):
+                    while True:
+                        # Derive a candidate matric number beyond already selected indices
+                        base_index = len(real_students) + len(hall_used_ids_by_class[class_key]) + len(allocated_ids_by_class[class_key]) + skip_increment + 1
+                        matric_no = get_student_number(
+                            class_obj.department.slug, class_obj, base_index
                         )
-                        created_students.append(new_student)
-                    else:
-                        created_students.append(existing_student)
+
+                        existing_student = Student.objects.filter(matric_no=matric_no).first()
+                        if existing_student:
+                            # If already used anywhere in this session, move to next candidate
+                            if existing_student.id in allocated_ids_by_class[class_key] or existing_student.id in hall_used_ids_by_class[class_key]:
+                                skip_increment += 1
+                                continue
+                            created_students.append(existing_student)
+                            break
+                        else:
+                            new_student = Student.objects.create(
+                                first_name=f"Student",
+                                last_name=f"{base_index:04d}",
+                                matric_no=matric_no,
+                                email=f"{matric_no.lower().replace('/', '')}@student.edu",
+                                department=class_obj.department,
+                                level=class_obj,
+                                phone="+1234567890"
+                            )
+                            created_students.append(new_student)
+                            break
 
                 # Combine all students
                 all_students = list(real_students) + created_students
@@ -1239,6 +1262,9 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
                         "course": course_code,
                         "cls_id": class_obj.id
                     })
+                    # Mark student as used for this class to prevent reuse in later items/halls
+                    hall_used_ids_by_class[class_key].add(student.id)
+                    allocated_ids_by_class[class_key].add(student.id)
 
             random.seed(0)
 
