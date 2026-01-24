@@ -1016,6 +1016,10 @@ def reset_system(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 @admin_required
 def generate_timetable(request: HttpRequest) -> HttpResponse:
+    from .tasks import generate_timetable_task
+    from .models import BackgroundJob
+    import uuid
+    
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
 
@@ -1072,10 +1076,10 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
             },
         )
 
-    startDate = datetime.strptime(startDate, "%Y-%m-%d").date()
-    endDate = datetime.strptime(endDate, "%Y-%m-%d").date()
+    startDate_obj = datetime.strptime(startDate, "%Y-%m-%d").date()
+    endDate_obj = datetime.strptime(endDate, "%Y-%m-%d").date()
 
-    if startDate > endDate:
+    if startDate_obj > endDate_obj:
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
@@ -1083,8 +1087,8 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         )
 
     dates = []
-    currentDate = startDate
-    while currentDate <= endDate:
+    currentDate = startDate_obj
+    while currentDate <= endDate_obj:
         if currentDate.weekday() != 6:  # 6 represents Sunday
             dates.append(currentDate)
         currentDate += timedelta(days=1)
@@ -1109,22 +1113,25 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
                 "message": f"Cannot generate timetable. Selected date range provides {available_days} days but minimum {min_days_needed} days are required (based on class with most courses). Please select a longer date range."},
         )
 
-    # Get courses and halls from utils
-    courses = get_courses()
-    halls = get_halls()
-
-    # Split courses into AM and PM periods
-    AM_courses, PM_courses = split_course(courses)
-
-    generate(dates, AM_courses, PM_courses, halls)
-    settings = SystemSettings.objects.first()
-    settings.has_timetable = True
-    settings.save()
-
+    # Create background job
+    job_id = str(uuid.uuid4())
+    job = BackgroundJob.objects.create(
+        job_id=job_id,
+        job_type='timetable',
+        status='pending',
+        created_by=request.user,
+        params={'start_date': startDate, 'end_date': endDate}
+    )
+    
+    # Trigger async task
+    generate_timetable_task.apply_async(
+        args=[job_id, request.user.id, startDate, endDate]
+    )
+    
     return render(
         request,
-        template_name="dashboard/partials/alert-success.html",
-        context={"message": "Time table generated"},
+        template_name="dashboard/partials/job-started.html",
+        context={"job_id": job_id, "job_type": "Timetable Generation"},
     )
 
 
@@ -1132,20 +1139,34 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 @admin_required
 def generate_distribution(request: HttpRequest) -> HttpResponse:
+    from .tasks import generate_distribution_task
+    from .models import BackgroundJob
+    import uuid
+    
     date = request.POST.get("date")
     period = request.POST.get("period")
-    print(date)
-    print(period)
+    
     if not Distribution.objects.filter(date=date, period=period).exists():
-        halls = Hall.objects.all()
-        halls = convert_hall_to_dict(halls=halls)
-        timetables = TimeTable.objects.filter(period=period, date=date)
-
-        none_cbe_tt = timetables.exclude(
-            course__exam_type__in=["NAN", "CBE"])
-        res = distribute_classes_to_halls(
-            timetables=none_cbe_tt, halls=halls)
-        save_to_db(res, date, period)
+        # Create background job
+        job_id = str(uuid.uuid4())
+        job = BackgroundJob.objects.create(
+            job_id=job_id,
+            job_type='distribution',
+            status='pending',
+            created_by=request.user,
+            params={'date': date, 'period': period}
+        )
+        
+        # Trigger async task
+        generate_distribution_task.apply_async(
+            args=[job_id, request.user.id, date, period]
+        )
+        
+        return render(
+            request,
+            template_name="dashboard/partials/job-started.html",
+            context={"job_id": job_id, "job_type": "Distribution Generation", "redirect_url": reverse('distribution') + f'?date={date}&period={period}'},
+        )
 
     return redirect(reverse('distribution') + f'?date={date}&period={period}')
 
@@ -1156,6 +1177,10 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
     """
     Generate optimized seat allocation with multi-pass strategy and flexible constraints.
     """
+    from .tasks import generate_allocation_task
+    from .models import BackgroundJob
+    import uuid
+    
     date = request.POST.get("date")
     period = request.POST.get("period")
 
@@ -1167,162 +1192,65 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
                 request, f"No distribution found for {date} period {period}.")
             return redirect(reverse('allocation') + f'?date={date}&period={period}')
 
-        total_students_allocated = 0
-        total_students_unplaced = 0
-        halls_processed = 0
-
-        # Track already-used student IDs per class across all halls in this run
-        allocated_ids_by_class = {}
-
-        print(f"\n=== Seat Allocation Planning ===")
-        print(f"Date: {date}, Period: {period}")
-        print(f"Distributions to process: {distributions.count()}")
-
-        for distribution in distributions:
-            rows = distribution.hall.rows
-            cols = distribution.hall.columns
-            hall_capacity = rows * cols
-            students = []
-
-            # Track IDs used within this hall per class to avoid duplicating across items
-            hall_used_ids_by_class = {}
-
-            for item in distribution.items.all():
-                course_code = item.schedule.course.code
-                class_obj = item.schedule.class_obj
-
-                # Ensure tracking sets exist
-                class_key = class_obj.id
-                if class_key not in allocated_ids_by_class:
-                    allocated_ids_by_class[class_key] = set()
-                if class_key not in hall_used_ids_by_class:
-                    hall_used_ids_by_class[class_key] = set()
-
-                # Build exclusion list for already-used students (previous halls and current hall items)
-                exclude_ids = list(allocated_ids_by_class[class_key] | hall_used_ids_by_class[class_key])
-
-                # Get real students for this class, skipping already allocated ones
-                real_qs = Student.objects.filter(
-                    level=class_obj,
-                    department=class_obj.department
-                ).exclude(id__in=exclude_ids).order_by('matric_no')
-                real_students = list(real_qs[:item.no_of_students])
-
-                # If we don't have enough real students, fill with available students from the same department
-                if len(real_students) < item.no_of_students:
-                    additional_needed = item.no_of_students - len(real_students)
-                    additional_exclude = exclude_ids + [s.id for s in real_students]
-                    additional_qs = Student.objects.filter(
-                        department=class_obj.department
-                    ).exclude(id__in=additional_exclude).order_by('matric_no')
-                    additional_students = list(additional_qs[:additional_needed])
-                    real_students = list(real_students) + list(additional_students)
-
-                # If still not enough students, create and save new random students
-                remaining_count = item.no_of_students - len(real_students)
-                created_students = []
-                skip_increment = 0
-                for _ in range(remaining_count):
-                    while True:
-                        # Derive a candidate matric number beyond already selected indices
-                        base_index = len(real_students) + len(hall_used_ids_by_class[class_key]) + len(allocated_ids_by_class[class_key]) + skip_increment + 1
-                        matric_no = get_student_number(
-                            class_obj.department.slug, class_obj, base_index
-                        )
-
-                        existing_student = Student.objects.filter(matric_no=matric_no).first()
-                        if existing_student:
-                            # If already used anywhere in this session, move to next candidate
-                            if existing_student.id in allocated_ids_by_class[class_key] or existing_student.id in hall_used_ids_by_class[class_key]:
-                                skip_increment += 1
-                                continue
-                            created_students.append(existing_student)
-                            break
-                        else:
-                            new_student = Student.objects.create(
-                                first_name=f"Student",
-                                last_name=f"{base_index:04d}",
-                                matric_no=matric_no,
-                                email=f"{matric_no.lower().replace('/', '')}@student.edu",
-                                department=class_obj.department,
-                                level=class_obj,
-                                phone="+1234567890"
-                            )
-                            created_students.append(new_student)
-                            break
-
-                # Combine all students
-                all_students = list(real_students) + created_students
-
-                # Add students to the list with their actual data
-                for student in all_students:
-                    students.append({
-                        "student_id": student.id,
-                        "name": student.matric_no,
-                        "course": course_code,
-                        "cls_id": class_obj.id
-                    })
-                    # Mark student as used for this class to prevent reuse in later items/halls
-                    hall_used_ids_by_class[class_key].add(student.id)
-                    allocated_ids_by_class[class_key].add(student.id)
-
-            random.seed(0)
-
-            print(f"\nProcessing Hall: {distribution.hall.name}")
-            print(f"Hall capacity: {hall_capacity} seats")
-            print(f"Students to allocate: {len(students)}")
-
-            # Ensure the total number of students does not exceed rows * cols
-            if len(students) > hall_capacity:
-                print(
-                    f"Error: Too many students ({len(students)}) for hall capacity ({hall_capacity} seats)")
-                messages.error(request,
-                               f"Cannot allocate {len(students)} students to {distribution.hall.name} (capacity: {hall_capacity})!")
-                continue
-            else:
-                print_seating_arrangement(
-                    students, rows, cols, datetime.strptime(date, "%Y-%m-%d").date(), period, distribution.hall.id)
-
-                # Count allocation results for this hall
-                hall_allocated = SeatArrangement.objects.filter(
-                    date=date, period=period, hall=distribution.hall,
-                    seat_number__isnull=False
-                ).count()
-
-                hall_unplaced = SeatArrangement.objects.filter(
-                    date=date, period=period, hall=distribution.hall,
-                    seat_number__isnull=True
-                ).count()
-
-                total_students_allocated += hall_allocated
-                total_students_unplaced += hall_unplaced
-                halls_processed += 1
-
-                print(
-                    f"Hall {distribution.hall.name}: {hall_allocated} placed, {hall_unplaced} unplaced")
-
-        # Provide comprehensive feedback
-        if halls_processed == 0:
-            messages.error(
-                request, "No halls could be processed for seat allocation.")
-        elif total_students_unplaced == 0:
-            messages.success(request,
-                             f"Perfect allocation! All {total_students_allocated} students successfully placed across {halls_processed} halls.")
-        elif total_students_unplaced <= total_students_allocated * 0.05:  # Less than 5% unplaced
-            messages.success(request,
-                             f"Excellent allocation! {total_students_allocated} students placed, only {total_students_unplaced} unplaced across {halls_processed} halls.")
-        elif total_students_unplaced <= total_students_allocated * 0.1:  # Less than 10% unplaced
-            messages.success(request,
-                             f"Good allocation! {total_students_allocated} students placed, {total_students_unplaced} unplaced across {halls_processed} halls.")
-        else:
-            messages.warning(request,
-                             f"Allocation completed with issues. {total_students_allocated} students placed, {total_students_unplaced} unplaced across {halls_processed} halls. "
-                             "Consider reviewing course conflicts or hall capacities.")
+        # Create background job
+        job_id = str(uuid.uuid4())
+        job = BackgroundJob.objects.create(
+            job_id=job_id,
+            job_type='allocation',
+            status='pending',
+            created_by=request.user,
+            params={'date': date, 'period': period}
+        )
+        
+        # Trigger async task
+        generate_allocation_task.apply_async(
+            args=[job_id, request.user.id, date, period]
+        )
+        
+        return render(
+            request,
+            template_name="dashboard/partials/job-started.html",
+            context={"job_id": job_id, "job_type": "Seat Allocation", "redirect_url": reverse('allocation') + f'?date={date}&period={period}'},
+        )
     else:
         messages.info(
             request, "Seat allocation already exists for this date and period.")
 
     return redirect(reverse('allocation') + f'?date={date}&period={period}')
+
+
+@login_required(login_url="login")
+def check_job_status(request: HttpRequest, job_id: str) -> HttpResponse:
+    """
+    API endpoint to check the status of a background job
+    """
+    from .models import BackgroundJob
+    
+    try:
+        job = BackgroundJob.objects.get(job_id=job_id)
+        
+        context = {
+            'job_id': job.job_id,
+            'job_type': job.get_job_type_display(),
+            'status': job.status,
+            'progress': job.progress_percentage,
+            'error_message': job.error_message,
+        }
+        
+        if job.status == 'success':
+            context['result'] = job.result_data
+        
+        return render(
+            request,
+            template_name="dashboard/partials/job-progress.html",
+            context=context
+        )
+    except BackgroundJob.DoesNotExist:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Job not found"}
+        )
 
 
 @login_required(login_url="login")

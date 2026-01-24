@@ -156,3 +156,50 @@ class SeatArrangement(models.Model):
 
     def __str__(self) -> str:
         return f"{self.student.matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"
+
+
+class BackgroundJob(models.Model):
+    """Track status of long-running background tasks"""
+    JOB_TYPES = (
+        ('timetable', 'Timetable Generation'),
+        ('distribution', 'Distribution Generation'),
+        ('allocation', 'Seat Allocation'),
+    )
+    
+    STATUSES = (
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    )
+    
+    job_id = models.CharField(max_length=255, unique=True, db_index=True)
+    job_type = models.CharField(max_length=50, choices=JOB_TYPES)
+    status = models.CharField(max_length=20, choices=STATUSES, default='pending')
+    progress = models.IntegerField(default=0)
+    total_steps = models.IntegerField(default=100)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    result_data = models.JSONField(default=dict, blank=True)
+    
+    # Job-specific parameters
+    params = models.JSONField(default=dict, blank=True)
+    
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['job_id']),
+            models.Index(fields=['created_by', '-started_at']),
+            models.Index(fields=['status', '-started_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_job_type_display()} - {self.status} ({self.progress}%)"
+    
+    @property
+    def progress_percentage(self):
+        if self.total_steps == 0:
+            return 0
+        return min(100, int((self.progress / self.total_steps) * 100))

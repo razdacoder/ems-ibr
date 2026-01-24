@@ -53,6 +53,8 @@ urlpatterns = [
          name="distribution_statistics"),
     path("generate-allocation", view=views.generate_allocation,
          name="generate_allocation"),
+    path('check-job-status/<str:job_id>/', view=views.check_job_status,
+         name="check_job_status"),
     path('export-timetable', csv_gen.export_department_timetable,
          name='export_timetable'),
     path('export-distribution/',

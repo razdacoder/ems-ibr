@@ -1,0 +1,77 @@
+<!-- Job Progress Update Template -->
+{% load static %} {% if status == 'running' or status == 'pending' %}
+<div
+  id="job-progress-container"
+  hx-get="/check-job-status/{{ job_id }}/"
+  hx-trigger="every 2s"
+  hx-swap="outerHTML"
+>
+  <div class="alert alert-info">
+    <div class="d-flex align-items-center">
+      <div class="spinner-border spinner-border-sm me-3" role="status">
+        <span class="visually-hidden">Processing...</span>
+      </div>
+      <div class="flex-grow-1">
+        <h5 class="alert-heading mb-1">{{ job_type }} In Progress</h5>
+        <p class="mb-0">Processing... Please wait.</p>
+      </div>
+    </div>
+    <div class="progress mt-3" style="height: 25px">
+      <div
+        class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+        role="progressbar"
+        style="width: {{ progress }}%"
+        aria-valuenow="{{ progress }}"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        {{ progress }}%
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif status == 'success' %}
+<div id="job-progress-container">
+  <div class="alert alert-success alert-dismissible fade show">
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <h5 class="alert-heading">
+      <i class="mdi mdi-check-circle me-2"></i>{{ job_type }} Completed
+    </h5>
+    <p class="mb-0">{{ result.message }}</p>
+    {% if result.total_allocated %}
+    <hr />
+    <p class="mb-0">
+      <strong>Students Placed:</strong> {{ result.total_allocated }}<br />
+      {% if result.total_unplaced %}
+      <strong>Unplaced:</strong> {{ result.total_unplaced }}<br />
+      {% endif %} {% if result.halls_processed %}
+      <strong>Halls Processed:</strong> {{ result.halls_processed }} {% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // Redirect after showing success message
+  setTimeout(function () {
+    window.location.reload();
+  }, 2000);
+</script>
+
+{% elif status == 'failed' %}
+<div id="job-progress-container">
+  <div class="alert alert-danger alert-dismissible fade show">
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <h5 class="alert-heading">
+      <i class="mdi mdi-alert-circle me-2"></i>{{ job_type }} Failed
+    </h5>
+    <p class="mb-0">{{ error_message }}</p>
+    <hr />
+    <p class="mb-0 small">
+      Please try again or contact support if the problem persists.
+    </p>
+  </div>
+</div>
+
+{% endif %}
