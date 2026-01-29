@@ -1,0 +1,210 @@
+
+<div class="page-header">
+	<h3 class="page-title">
+		<span class="page-title-icon bg-gradient-primary text-white me-2">
+			<i class="mdi mdi-briefcase-clock"></i>
+		</span>
+		Job Details
+	</h3>
+	<nav aria-label="breadcrumb">
+		<ul class="breadcrumb">
+			<li class="breadcrumb-item">
+				<a href="{% url 'job_monitor' %}">Background Jobs</a>
+			</li>
+			<li class="breadcrumb-item active" aria-current="page">
+				{{ job.job_id|slice:":8" }}...
+			</li>
+		</ul>
+	</nav>
+</div>
+
+<div class="row">
+	<div class="col-lg-8 grid-margin stretch-card">
+		<div class="card">
+			<div class="card-body">
+				<div class="d-flex justify-content-between align-items-center mb-4">
+					<h4 class="card-title mb-0">Job Information</h4>
+					<div class="d-flex gap-2">
+						{% if job.status == 'failed' %}
+						<form method="post" action="{% url 'job_retry' job.job_id %}" style="display: inline;">
+							{% csrf_token %}
+							<button type="submit" 
+							        class="btn btn-warning btn-sm" 
+							        onclick="return confirm('Retry this job?')">
+								<i class="mdi mdi-refresh"></i> Retry
+							</button>
+						</form>
+						{% endif %}
+						{% if job.status in 'success,failed' %}
+						<form method="post" action="{% url 'job_delete' job.job_id %}" style="display: inline;">
+							{% csrf_token %}
+							<button type="submit" 
+							        class="btn btn-danger btn-sm" 
+							        onclick="return confirm('Delete this job? This action cannot be undone.')">
+								<i class="mdi mdi-delete"></i> Delete
+							</button>
+						</form>
+						{% endif %}
+					</div>
+				</div>
+
+				<!-- Auto-refresh for running jobs -->
+				<div id="job-detail-container"
+				     {% if job.status in 'pending,running' %}
+				     hx-get="{% url 'job_detail' job.job_id %}"
+				     hx-trigger="every 3s"
+				     hx-select="#job-detail-content"
+				     hx-swap="innerHTML"
+				     hx-target="#job-detail-content"
+				     {% endif %}>
+					
+					<div id="job-detail-content">
+						<table class="table table-borderless">
+							<tbody>
+								<tr>
+									<td class="text-muted" style="width: 200px;"><strong>Job ID:</strong></td>
+									<td><code>{{ job.job_id }}</code></td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Job Type:</strong></td>
+									<td>
+										<span class="badge badge-info">
+											{% if job.job_type == 'timetable' %}
+												<i class="mdi mdi-calendar-clock"></i> Timetable Generation
+											{% elif job.job_type == 'distribution' %}
+												<i class="mdi mdi-distribute-horizontal-center"></i> Distribution Generation
+											{% elif job.job_type == 'allocation' %}
+												<i class="mdi mdi-seat"></i> Seat Allocation
+											{% endif %}
+										</span>
+									</td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Status:</strong></td>
+									<td>
+										{% if job.status == 'pending' %}
+											<span class="badge badge-warning badge-pill"><i class="mdi mdi-clock-outline"></i> Pending</span>
+										{% elif job.status == 'running' %}
+											<span class="badge badge-primary badge-pill"><i class="mdi mdi-reload mdi-spin"></i> Running</span>
+										{% elif job.status == 'success' %}
+											<span class="badge badge-success badge-pill"><i class="mdi mdi-check-circle"></i> Success</span>
+										{% elif job.status == 'failed' %}
+											<span class="badge badge-danger badge-pill"><i class="mdi mdi-alert-circle"></i> Failed</span>
+										{% endif %}
+									</td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Progress:</strong></td>
+									<td>
+										<div class="progress" style="height: 25px; max-width: 400px;">
+											{% if job.status in 'pending,running' %}
+												<div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+												     role="progressbar" 
+												     style="width: {{ job.progress_percentage }}%;" 
+												     aria-valuenow="{{ job.progress_percentage }}" 
+												     aria-valuemin="0" 
+												     aria-valuemax="100">
+													{{ job.progress_percentage }}%
+												</div>
+											{% elif job.status == 'success' %}
+												<div class="progress-bar bg-success" 
+												     role="progressbar" 
+												     style="width: 100%;" 
+												     aria-valuenow="100" 
+												     aria-valuemin="0" 
+												     aria-valuemax="100">
+													100%
+												</div>
+											{% else %}
+												<div class="progress-bar bg-danger" 
+												     role="progressbar" 
+												     style="width: {{ job.progress_percentage }}%;" 
+												     aria-valuenow="{{ job.progress_percentage }}" 
+												     aria-valuemin="0" 
+												     aria-valuemax="100">
+													{{ job.progress_percentage }}%
+												</div>
+											{% endif %}
+										</div>
+									</td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Created By:</strong></td>
+									<td>{{ job.created_by.first_name }} {{ job.created_by.last_name }} ({{ job.created_by.email }})</td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Started At:</strong></td>
+									<td>{{ job.started_at|date:"F d, Y H:i:s" }}</td>
+								</tr>
+								<tr>
+									<td class="text-muted"><strong>Completed At:</strong></td>
+									<td>
+										{% if job.completed_at %}
+											{{ job.completed_at|date:"F d, Y H:i:s" }}
+											{% if job.started_at and job.completed_at %}
+												<span class="text-muted ms-2">
+													(Duration: {{ job.completed_at|timesince:job.started_at }})
+												</span>
+											{% endif %}
+										{% else %}
+											<span class="text-muted">—</span>
+										{% endif %}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						{% if job.error_message %}
+						<div class="alert alert-danger mt-4" role="alert">
+							<h6 class="alert-heading"><i class="mdi mdi-alert-circle"></i> Error Message</h6>
+							<hr>
+							<pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">{{ job.error_message }}</pre>
+						</div>
+						{% endif %}
+
+						{% if job.result_data and job.status == 'success' %}
+						<div class="alert alert-success mt-4" role="alert">
+							<h6 class="alert-heading"><i class="mdi mdi-check-circle"></i> Result Summary</h6>
+							<hr>
+							<dl class="row mb-0">
+								{% for key, value in job.result_data.items %}
+								<dt class="col-sm-4">{{ key|title }}:</dt>
+								<dd class="col-sm-8">
+									{% if value is True %}
+										<i class="mdi mdi-check text-success"></i> Yes
+									{% elif value is False %}
+										<i class="mdi mdi-close text-danger"></i> No
+									{% else %}
+										{{ value }}
+									{% endif %}
+								</dd>
+								{% endfor %}
+							</dl>
+						</div>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="col-lg-4 grid-margin stretch-card">
+		<div class="card">
+			<div class="card-body">
+				<h4 class="card-title mb-4">Job Parameters</h4>
+				{% if job.params %}
+					<dl class="row">
+						{% for key, value in job.params.items %}
+						<dt class="col-sm-5 text-muted">{{ key|title }}:</dt>
+						<dd class="col-sm-7">
+							<code>{{ value }}</code>
+						</dd>
+						{% endfor %}
+					</dl>
+				{% else %}
+					<p class="text-muted">No parameters recorded</p>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
