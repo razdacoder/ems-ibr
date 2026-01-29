@@ -16,6 +16,10 @@
           Your request is being processed in the background. This page will
           update automatically.
         </p>
+        <small class="text-muted">
+          You can navigate away and check progress in 
+          <a href="{% url 'job_monitor' %}" class="alert-link">Background Jobs</a>
+        </small>
       </div>
     </div>
     <div class="progress mt-3" style="height: 25px">
@@ -32,22 +36,3 @@
     </div>
   </div>
 </div>
-
-<script>
-  document.body.addEventListener('htmx:afterSwap', function(evt) {
-      if (evt.detail.target.id === 'job-progress-container') {
-          var data = JSON.parse(evt.detail.xhr.response);
-
-          if (data.status === 'success') {
-              // Job completed successfully
-              setTimeout(function() {
-                  {% if redirect_url %}
-                  window.location.href = "{{ redirect_url }}";
-                  {% else %}
-                  window.location.reload();
-                  {% endif %}
-              }, 2000);
-          }
-      }
-  });
-</script>

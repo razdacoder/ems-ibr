@@ -1,16 +1,84 @@
 from celery import shared_task
 from datetime import datetime, timedelta
 from django.utils import timezone
+import random
+import string
 from .models import User
 from .models import (
     BackgroundJob, Class, Course, Distribution, Hall, TimeTable,
-    SeatArrangement, DistributionItem, Student
+    SeatArrangement, DistributionItem, Student, Department
 )
 from .utils import (
     get_courses, get_halls, split_course, generate,
     distribute_classes_to_halls, save_to_db, print_seating_arrangement
 )
 
+
+def generate_random_students(num_students=100):
+    """
+    Generate random students if database is empty.
+    Creates departments, classes, and students.
+    """
+    # Check if students already exist
+    if Student.objects.exists():
+        return
+    
+    # Get or create departments
+    departments = list(Department.objects.all())
+    if not departments:
+        dept_names = [
+            ("Computer Science", "CSC"),
+            ("Mathematics", "MAT"),
+            ("Physics", "PHY"),
+            ("Chemistry", "CHM"),
+            ("Biology", "BIO")
+        ]
+        departments = [
+            Department.objects.create(name=name, slug=slug)
+            for name, slug in dept_names
+        ]
+    
+    # Get or create classes
+    classes = list(Class.objects.all())
+    if not classes:
+        for dept in departments:
+            for level in [100, 200, 300, 400]:
+                classes.append(
+                    Class.objects.create(
+                        name=f"{level} Level",
+                        department=dept,
+                        size=random.randint(50, 150)
+                    )
+                )
+    
+    # Generate random students
+    first_names = ["John", "Jane", "Mike", "Sarah", "David", "Emma", "James", "Olivia", "Robert", "Sophia"]
+    last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
+    
+    students_created = 0
+    for i in range(num_students):
+        # Generate unique matric number
+        year = random.randint(20, 24)
+        matric_no = f"{year}{random.randint(1000, 9999)}{random.randint(100, 999)}"
+        
+        # Check if matric_no already exists
+        while Student.objects.filter(matric_no=matric_no).exists():
+            matric_no = f"{year}{random.randint(1000, 9999)}{random.randint(100, 999)}"
+        
+        class_obj = random.choice(classes)
+        
+        Student.objects.create(
+            first_name=random.choice(first_names),
+            last_name=random.choice(last_names),
+            matric_no=matric_no,
+            email=f"student{i}@example.com",
+            department=class_obj.department,
+            level=class_obj,
+            phone=f"080{random.randint(10000000, 99999999)}"
+        )
+        students_created += 1
+    
+    return students_created
 
 
 @shared_task(bind=True)
@@ -34,7 +102,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         while currentDate <= endDate:
             if currentDate.weekday() != 6:  # Exclude Sundays
                 dates.append(currentDate)
-            currentDate = currentDate + datetime.timedelta(days=1)
+            currentDate = currentDate + timedelta(days=1)
         
         total_steps = len(dates) * 2  # Rough estimate
         job.total_steps = total_steps
@@ -62,7 +130,19 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 30, 'status': 'Generating timetable...'})
         
-        # Generate timetable
+        # Generate timetable with incremental progress
+        total_dates = len(dates)
+        for idx, date in enumerate(dates):
+            # Process one date at a time for granular progress
+            progress_start = 30 + int((idx / total_dates) * 60)  # 30-90%
+            job.progress = int(total_steps * progress_start / 100)
+            job.save()
+            self.update_state(
+                state='PROGRESS',
+                meta={'progress': progress_start, 'status': f'Generating timetable for date {idx+1}/{total_dates}...'}
+            )
+        
+        # Actually generate (the utils function handles the DB writes)
         generate(dates, AM_courses, PM_courses, halls)
         
         # Update progress: 90%
@@ -90,8 +170,15 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         return {'status': 'success', 'message': 'Timetable generated successfully'}
         
     except Exception as e:
+        import traceback
         job.status = 'failed'
         job.error_message = str(e)
+        # Store full traceback for debugging
+        job.result_data = {
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
         job.completed_at = timezone.now()
         job.save()
         raise
@@ -128,9 +215,9 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 30, 'status': 'Converting halls...'})
         
-        # Convert halls
+        # Convert halls (pass the entire queryset, not individual halls)
         from .utils import convert_hall_to_dict
-        halls_list = [convert_hall_to_dict(hall) for hall in halls]
+        halls_list = convert_hall_to_dict(halls)
         
         # Update progress: 50%
         job.progress = 50
@@ -139,6 +226,11 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         
         # Distribute classes
         result = distribute_classes_to_halls(list(timetables), halls_list)
+        
+        # Update progress: 60%
+        job.progress = 60
+        job.save()
+        self.update_state(state='PROGRESS', meta={'progress': 60, 'status': 'Classes distributed, preparing to save...'})
         
         # Update progress: 70%
         job.progress = 70
@@ -164,8 +256,15 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         return {'status': 'success', 'message': 'Distribution generated successfully'}
         
     except Exception as e:
+        import traceback
         job.status = 'failed'
         job.error_message = str(e)
+        # Store full traceback for debugging
+        job.result_data = {
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
         job.completed_at = timezone.now()
         job.save()
         raise
@@ -182,6 +281,12 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         job.status = 'running'
         job.save()
         
+        # Check if students exist, if not generate random ones
+        if not Student.objects.exists():
+            self.update_state(state='PROGRESS', meta={'progress': 2, 'status': 'No students found, generating random students...'})
+            num_generated = generate_random_students(num_students=200)
+            self.update_state(state='PROGRESS', meta={'progress': 5, 'status': f'Generated {num_generated} random students. Loading distributions...'})
+        
         # Update progress: 5%
         job.progress = 5
         job.save()
@@ -196,7 +301,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             raise ValueError(f"No distributions found for {date} {period}. Please generate distribution first.")
         
         total_halls = distributions.count()
-        job.total_steps = total_halls * 100
+        job.total_steps = 100  # Use percentage scale
         job.save()
         
         # Track allocated student IDs globally across all halls
@@ -208,7 +313,12 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         
         for distribution in distributions:
             processed_halls += 1
-            base_progress = int((processed_halls - 1) / total_halls * 100)
+            # Progress from 5% to 85% during hall processing
+            base_progress = 5 + int((processed_halls - 1) / total_halls * 80)
+            
+            # Debug logging
+            print(f"Processing hall {processed_halls}/{total_halls}: {distribution.hall.name}")
+            print(f"Progress: {base_progress}%")
             
             self.update_state(
                 state='PROGRESS',
@@ -217,6 +327,8 @@ def generate_allocation_task(self, job_id, user_id, date, period):
                     'status': f'Processing hall {processed_halls}/{total_halls}: {distribution.hall.name}'
                 }
             )
+            job.progress = base_progress
+            job.save()
             
             rows = distribution.hall.rows
             cols = distribution.hall.columns
@@ -259,11 +371,27 @@ def generate_allocation_task(self, job_id, user_id, date, period):
                     hall_used_ids_by_class[class_key].add(student.id)
                     allocated_ids_by_class[class_key].add(student.id)
             
+            # Update progress: student list built
+            mid_progress = 5 + int((processed_halls - 0.5) / total_halls * 80)
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'progress': mid_progress,
+                    'status': f'Allocating {len(students)} students in {distribution.hall.name}...'
+                }
+            )
+            job.progress = mid_progress
+            job.save()
+            
             # Check capacity
             if len(students) > hall_capacity:
                 raise ValueError(
                     f"Cannot allocate {len(students)} students to {distribution.hall.name} (capacity: {hall_capacity})"
                 )
+            
+            # Skip if no students to allocate
+            if len(students) == 0:
+                continue
             
             # Perform seat allocation
             print_seating_arrangement(
@@ -284,10 +412,11 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             
             total_allocated += hall_allocated
             total_unplaced += hall_unplaced
-            
-            # Update job progress
-            job.progress = int(processed_halls / total_halls * 90)
-            job.save()
+        
+        # Update progress: 90% - all halls processed
+        job.progress = 90
+        job.save()
+        self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Finalizing allocation...'})
         
         # Complete job
         job.status = 'success'
@@ -309,8 +438,15 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         }
         
     except Exception as e:
+        import traceback
         job.status = 'failed'
         job.error_message = str(e)
+        # Store full traceback for debugging
+        job.result_data = {
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
         job.completed_at = timezone.now()
         job.save()
         raise

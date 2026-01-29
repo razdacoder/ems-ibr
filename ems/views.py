@@ -20,7 +20,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 import os
 
-from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem, Student, SystemSettings
+from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem, Student, SystemSettings, BackgroundJob
 from .broadsheet import TimetableBroadSheet
 from .utils import (
     convert_hall_to_dict,
@@ -1123,10 +1123,11 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         params={'start_date': startDate, 'end_date': endDate}
     )
     
-    # Trigger async task
-    generate_timetable_task.apply_async(
+    # Force commit to database before triggering task (important for SQLite)
+    from django.db import transaction
+    transaction.on_commit(lambda: generate_timetable_task.apply_async(
         args=[job_id, request.user.id, startDate, endDate]
-    )
+    ))
     
     return render(
         request,
@@ -1157,18 +1158,25 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             params={'date': date, 'period': period}
         )
         
-        # Trigger async task
-        generate_distribution_task.apply_async(
+        # Force commit to database before triggering task (important for SQLite)
+        from django.db import transaction
+        transaction.on_commit(lambda: generate_distribution_task.apply_async(
             args=[job_id, request.user.id, date, period]
-        )
+        ))
         
         return render(
             request,
             template_name="dashboard/partials/job-started.html",
-            context={"job_id": job_id, "job_type": "Distribution Generation", "redirect_url": reverse('distribution') + f'?date={date}&period={period}'},
+            context={"job_id": job_id, "job_type": "Distribution Generation"},
         )
-
-    return redirect(reverse('distribution') + f'?date={date}&period={period}')
+    else:
+        # Distribution already exists - redirect to view it
+        from django.http import HttpResponse
+        return HttpResponse(
+            headers={
+                'HX-Redirect': reverse('distribution') + f'?date={date}&period={period}'
+            }
+        )
 
 @require_POST
 @login_required(login_url="login")
@@ -1188,9 +1196,11 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
         distributions = Distribution.objects.filter(date=date, period=period)
 
         if not distributions.exists():
-            messages.warning(
-                request, f"No distribution found for {date} period {period}.")
-            return redirect(reverse('allocation') + f'?date={date}&period={period}')
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"No distribution found for {date} period {period}. Please generate distribution first."},
+            )
 
         # Create background job
         job_id = str(uuid.uuid4())
@@ -1202,21 +1212,25 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             params={'date': date, 'period': period}
         )
         
-        # Trigger async task
-        generate_allocation_task.apply_async(
+        # Force commit to database before triggering task (important for SQLite)
+        from django.db import transaction
+        transaction.on_commit(lambda: generate_allocation_task.apply_async(
             args=[job_id, request.user.id, date, period]
-        )
+        ))
         
         return render(
             request,
             template_name="dashboard/partials/job-started.html",
-            context={"job_id": job_id, "job_type": "Seat Allocation", "redirect_url": reverse('allocation') + f'?date={date}&period={period}'},
+            context={"job_id": job_id, "job_type": "Seat Allocation"},
         )
     else:
-        messages.info(
-            request, "Seat allocation already exists for this date and period.")
-
-    return redirect(reverse('allocation') + f'?date={date}&period={period}')
+        # Allocation already exists - redirect to view it
+        from django.http import HttpResponse
+        return HttpResponse(
+            headers={
+                'HX-Redirect': reverse('allocation') + f'?date={date}&period={period}'
+            }
+        )
 
 
 @login_required(login_url="login")
@@ -1707,3 +1721,158 @@ def bulk_upload(request):
             return render(request, template_name='dashboard/upload.html')
     else:
         return render(request, template_name='dashboard/upload.html')
+
+
+@login_required(login_url="login")
+@admin_required
+def job_monitor_view(request):
+    """
+    View to monitor all background jobs
+    """
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    job_type_filter = request.GET.get('job_type', '')
+    
+    # Base query - if staff, show all jobs; otherwise, show only user's jobs
+    if request.user.is_staff:
+        jobs = BackgroundJob.objects.all()
+    else:
+        jobs = BackgroundJob.objects.filter(created_by=request.user)
+    
+    # Apply filters
+    if status_filter:
+        jobs = jobs.filter(status=status_filter)
+    if job_type_filter:
+        jobs = jobs.filter(job_type=job_type_filter)
+    
+    # Order by most recent first
+    jobs = jobs.select_related('created_by').order_by('-started_at')
+    
+    # Paginate
+    paginator = Paginator(jobs, 20)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    # Count running jobs for the current user
+    running_jobs_count = BackgroundJob.objects.filter(
+        created_by=request.user,
+        status__in=['pending', 'running']
+    ).count()
+    
+    context = {
+        'page_obj': page_obj,
+        'status_filter': status_filter,
+        'job_type_filter': job_type_filter,
+        'running_jobs_count': running_jobs_count,
+    }
+
+    if request.htmx:
+        template_name = "dashboard/pages/jobs.html"
+    else:
+        template_name = "dashboard/jobs.html"
+    
+    return render(request, template_name, context)
+
+
+@login_required(login_url="login")
+@admin_required
+def job_detail_view(request, job_id):
+    """
+    View detailed information about a specific background job
+    """
+    # Get the job - if staff, can view any job; otherwise, only own jobs
+    if request.user.is_staff:
+        job = get_object_or_404(BackgroundJob, job_id=job_id)
+    else:
+        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
+    
+    context = {
+        'job': job,
+    }
+
+    if request.htmx:
+        template_name = "dashboard/pages/job-details.html"
+    else:
+        template_name = "dashboard/job-detail.html"
+    
+    return render(request, template_name, context)
+
+
+@login_required(login_url="login")
+@admin_required
+@require_POST
+def job_delete_view(request, job_id):
+    """
+    Delete a background job record
+    """
+    # Get the job - if staff, can delete any job; otherwise, only own jobs
+    if request.user.is_staff:
+        job = get_object_or_404(BackgroundJob, job_id=job_id)
+    else:
+        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
+    
+    # Only allow deletion of completed or failed jobs
+    if job.status in ['success', 'failed']:
+        job.delete()
+        messages.success(request, 'Job deleted successfully.')
+    else:
+        messages.error(request, 'Cannot delete a running job.')
+    
+    return redirect('job_monitor')
+
+
+@login_required(login_url="login")
+@admin_required
+@require_POST
+def job_retry_view(request, job_id):
+    """
+    Retry a failed background job
+    """
+    # Get the job - if staff, can retry any job; otherwise, only own jobs
+    if request.user.is_staff:
+        job = get_object_or_404(BackgroundJob, job_id=job_id)
+    else:
+        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
+    
+    # Only allow retry of failed jobs
+    if job.status != 'failed':
+        messages.error(request, 'Can only retry failed jobs.')
+        return redirect('job_monitor')
+    
+    # Import tasks
+    from .tasks import generate_timetable_task, generate_distribution_task, generate_allocation_task
+    from django.db import transaction
+    
+    # Create a new job
+    import uuid
+    new_job_id = str(uuid.uuid4())
+    new_job = BackgroundJob.objects.create(
+        job_id=new_job_id,
+        job_type=job.job_type,
+        status='pending',
+        created_by=request.user,
+        params=job.params
+    )
+    
+    # Trigger the appropriate task based on job type (after commit)
+    def trigger_retry_task():
+        if job.job_type == 'timetable':
+            params = job.params
+            generate_timetable_task.apply_async(
+                args=[new_job_id, request.user.id, params.get('start_date'), params.get('end_date')]
+            )
+        elif job.job_type == 'distribution':
+            params = job.params
+            generate_distribution_task.apply_async(
+                args=[new_job_id, request.user.id, params.get('date'), params.get('period')]
+            )
+        elif job.job_type == 'allocation':
+            params = job.params
+            generate_allocation_task.apply_async(
+                args=[new_job_id, request.user.id, params.get('date'), params.get('period')]
+            )
+    
+    transaction.on_commit(trigger_retry_task)
+    
+    messages.success(request, f'Job retried successfully. New job ID: {new_job_id}')
+    return redirect('job_detail', job_id=new_job_id)

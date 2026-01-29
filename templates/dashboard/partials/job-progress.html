@@ -49,27 +49,35 @@
       <strong>Halls Processed:</strong> {{ result.halls_processed }} {% endif %}
     </p>
     {% endif %}
+    {% if result.distributions_created %}
+    <hr />
+    <p class="mb-0">
+      <strong>Distributions Created:</strong> {{ result.distributions_created }}
+    </p>
+    {% endif %}
+    {% if result.timetables_created %}
+    <hr />
+    <p class="mb-0">
+      <strong>Timetables Created:</strong> {{ result.timetables_created }}<br />
+      <strong>Dates Processed:</strong> {{ result.dates_count }}
+    </p>
+    {% endif %}
   </div>
 </div>
 
-<script>
-  // Redirect after showing success message
-  setTimeout(function () {
-    window.location.reload();
-  }, 2000);
-</script>
-
 {% elif status == 'failed' %}
 <div id="job-progress-container">
-  <div class="alert alert-danger alert-dismissible fade show">
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    <h5 class="alert-heading">
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <h5 class="alert-heading mb-3">
       <i class="mdi mdi-alert-circle me-2"></i>{{ job_type }} Failed
     </h5>
-    <p class="mb-0">{{ error_message }}</p>
+    <div class="mb-3">
+      <strong>Error:</strong> {{ error_message }}
+    </div>
     <hr />
-    <p class="mb-0 small">
-      Please try again or contact support if the problem persists.
+    <p class="mb-0 small text-muted">
+      <i class="mdi mdi-information-outline me-1"></i>Please try again or contact support if the problem persists.
     </p>
   </div>
 </div>
