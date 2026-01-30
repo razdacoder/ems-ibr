@@ -31,6 +31,10 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p staticfiles media
 
+# Collect static files during build (will work when DEBUG=False in Railway)
+# This ensures static files are ready even before the container starts
+RUN python manage.py collectstatic --no-input --clear || true
+
 # Make entrypoint executable
 RUN chmod +x docker-entrypoint.sh
 
