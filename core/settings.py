@@ -139,22 +139,26 @@ STATIC_URL = "/static/"
 # Static files collection directory
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Only use STATICFILES_DIRS in development when we're serving from the source directory
-if DEBUG:
-    STATICFILES_DIRS = [
-        BASE_DIR / "static",
-    ]
+# Directory where source static files are located
+# This is needed for collectstatic to find files in both development and production
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 # Django 5.0+ uses STORAGES instead of deprecated STATICFILES_STORAGE
-# Using CompressedStaticFilesStorage (without Manifest) to avoid 500 errors when manifest is missing
+# Use standard FileSystemStorage - WhiteNoise middleware will handle serving and compression
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+# WhiteNoise configuration for better static file serving
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True if DEBUG else False
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
