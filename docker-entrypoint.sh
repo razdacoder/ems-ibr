@@ -1,0 +1,138 @@
+#!/bin/bash
+
+set -e
+
+echo "Starting EMS-IBR Service..."
+echo "SERVICE_TYPE: ${SERVICE_TYPE:-web}"
+
+# Function to wait for PostgreSQL
+wait_for_postgres() {
+    echo "Waiting for PostgreSQL to be ready..."
+    python << END
+import sys
+import time
+import psycopg2
+from urllib.parse import urlparse
+import os
+
+max_retries = 30
+retry_count = 0
+
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    print("ERROR: DATABASE_URL environment variable is not set")
+    sys.exit(1)
+
+# Parse the database URL
+result = urlparse(database_url)
+username = result.username
+password = result.password
+database = result.path[1:]
+hostname = result.hostname
+port = result.port
+
+while retry_count < max_retries:
+    try:
+        conn = psycopg2.connect(
+            dbname=database,
+            user=username,
+            password=password,
+            host=hostname,
+            port=port
+        )
+        conn.close()
+        print("PostgreSQL is ready!")
+        sys.exit(0)
+    except psycopg2.OperationalError as e:
+        retry_count += 1
+        print(f"PostgreSQL not ready yet (attempt {retry_count}/{max_retries})...")
+        time.sleep(2)
+
+print("ERROR: Could not connect to PostgreSQL after maximum retries")
+sys.exit(1)
+END
+}
+
+# Function to wait for Redis
+wait_for_redis() {
+    echo "Waiting for Redis to be ready..."
+    python << END
+import sys
+import time
+import redis
+from urllib.parse import urlparse
+import os
+
+max_retries = 30
+retry_count = 0
+
+redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+while retry_count < max_retries:
+    try:
+        r = redis.from_url(redis_url)
+        r.ping()
+        print("Redis is ready!")
+        sys.exit(0)
+    except (redis.ConnectionError, redis.TimeoutError) as e:
+        retry_count += 1
+        print(f"Redis not ready yet (attempt {retry_count}/{max_retries})...")
+        time.sleep(2)
+
+print("ERROR: Could not connect to Redis after maximum retries")
+sys.exit(1)
+END
+}
+
+# Check SERVICE_TYPE and execute appropriate commands
+if [ "${SERVICE_TYPE}" = "worker" ]; then
+    echo "Starting Celery Worker..."
+    
+    # Wait for dependencies
+    wait_for_postgres
+    wait_for_redis
+    
+    # Start Celery worker
+    exec celery -A core worker -l info --concurrency=4
+    
+elif [ "${SERVICE_TYPE}" = "beat" ]; then
+    echo "Starting Celery Beat..."
+    
+    # Wait for dependencies
+    wait_for_redis
+    
+    # Start Celery beat
+    exec celery -A core beat -l info
+    
+else
+    # Default: Web service
+    echo "Starting Web Service..."
+    
+    # Wait for PostgreSQL
+    wait_for_postgres
+    
+    # Collect static files
+    echo "Collecting static files..."
+    python manage.py collectstatic --no-input
+    
+    # Run migrations
+    echo "Running database migrations..."
+    python manage.py makemigrations ems --noinput || true
+    python manage.py migrate ems --noinput || true
+    python manage.py migrate --noinput
+    
+    # Create superuser if environment variables are set
+    echo "Creating superuser if needed..."
+    python manage.py create_superuser || true
+    
+    # Start Gunicorn
+    echo "Starting Gunicorn on port ${PORT:-8000}..."
+    exec gunicorn core.wsgi:application \
+        --bind 0.0.0.0:${PORT:-8000} \
+        --workers 4 \
+        --threads 2 \
+        --timeout 120 \
+        --access-logfile - \
+        --error-logfile - \
+        --log-level info
+fi

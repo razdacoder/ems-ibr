@@ -1,0 +1,74 @@
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.pot
+
+# Static and media files (collected during build)
+/staticfiles/
+/static/
+/media/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Testing
+testing/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+*.md
+!README.md
+BACKGROUND_JOB_MONITORING.md
+BACKGROUND_JOBS_SETUP.md
+IMPLEMENTATION_SUMMARY.md
+OPERATIONAL_MANUAL.md
+POSTGRESQL_SETUP.md
+QUICK_START_BACKGROUND_JOBS.md
+
+# Build scripts (not needed in container)
+build.sh
+
+# Misc
+*.bak
+*.tmp
+*.temp
+.cache/

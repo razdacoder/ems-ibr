@@ -61,8 +61,7 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
 
     distributions = Distribution.objects.filter(date=date_obj, period=period)
 
-    filename = f"{date_obj.strftime(
-        '%A %d, %B %Y')} - {period}-Distribution.csv"
+    filename = f"{date_obj.strftime('%A %d, %B %Y')} - {period}-Distribution.csv"
 
     response = HttpResponse(
         content_type="text/csv",
