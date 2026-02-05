@@ -1423,14 +1423,20 @@ def upload_classes(request, dept_slug):
         required_columns = ["Name", "Size"]
         missing_columns = [col for col in required_columns if col not in dept_df.columns]
         if missing_columns:
-            messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
-            return redirect("get_department", department.slug)
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+            )
         
         # Check for duplicate class names in the CSV
         duplicate_names = dept_df[dept_df.duplicated(subset=['Name'], keep=False)]['Name'].tolist()
         if duplicate_names:
-            messages.error(request, f"Duplicate class names found in file: {', '.join(set(duplicate_names))}")
-            return redirect("get_department", department.slug)
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Duplicate class names found in file: {', '.join(set(duplicate_names))}"},
+            )
         
         dept = dept_df.to_dict()
         created_count = 0
@@ -1451,11 +1457,17 @@ def upload_classes(request, dept_slug):
                     cls.save()
                     updated_count += 1
         
-        messages.success(request, f"Classes processed successfully! Created: {created_count}, Updated: {updated_count}")
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": f"Classes processed successfully! Created: {created_count}, Updated: {updated_count}"},
+        )
     except Exception as e:
-        messages.error(request, f"Upload error: {str(e)}. Please check your file format and try again.")
-    
-    return redirect("get_department", department.slug)
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+        )
 
 
 @require_POST
@@ -1477,14 +1489,20 @@ def upload_departments(request):
         required_columns = ["Name", "Code"]
         missing_columns = [col for col in required_columns if col not in dept_df.columns]
         if missing_columns:
-            messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
-            return redirect("department")
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+            )
         
         # Check for duplicate department codes in the CSV
         duplicate_codes = dept_df[dept_df.duplicated(subset=['Code'], keep=False)]['Code'].tolist()
         if duplicate_codes:
-            messages.error(request, f"Duplicate department codes found in file: {', '.join(set(duplicate_codes))}")
-            return redirect("department")
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Duplicate department codes found in file: {', '.join(set(duplicate_codes))}"},
+            )
         
         dept = dept_df.to_dict()
         created_count = 0
@@ -1504,11 +1522,17 @@ def upload_departments(request):
                     department.save()
                     updated_count += 1
         
-        messages.success(request, f"Departments processed successfully! Created: {created_count}, Updated: {updated_count}")
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": f"Departments processed successfully! Created: {created_count}, Updated: {updated_count}"},
+        )
     except Exception as e:
-        messages.error(request, f"Upload error: {str(e)}. Please check your file format and try again.")
-    
-    return redirect("department")
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+        )
 
 
 @require_POST
