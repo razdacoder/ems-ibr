@@ -28,7 +28,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS",
 # CSRF Configuration for production
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
-    default=['ems-ibr.onrender.com', 'localhost', '127.0.0.1']
+    default=['http://localhost:8000']
 )
 
 
