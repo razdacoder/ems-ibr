@@ -8,6 +8,13 @@ urlpatterns = [
     path("logout/", view=views.logout_view, name="logout"),
     path("dashboard/", view=views.dashboard, name="dashboard"),
     path("departments/", view=views.departments, name="department"),
+    # Department CRUD (placed before slug patterns to avoid conflicts)
+    path("departments/create/", view=views.create_department,
+         name="create_department"),
+    path("departments/<str:slug>/edit/",
+         view=views.edit_department, name="edit_department"),
+    path("departments/<str:slug>/delete/",
+         view=views.delete_department, name="delete_department"),
     path('back/', views.back_view, name='back'),
     path(
         "upload-departments/", view=views.upload_departments, name="upload-departments"
@@ -57,7 +64,8 @@ urlpatterns = [
          name="check_job_status"),
     path('jobs/', view=views.job_monitor_view, name='job_monitor'),
     path('jobs/<str:job_id>/', view=views.job_detail_view, name='job_detail'),
-    path('jobs/<str:job_id>/delete/', view=views.job_delete_view, name='job_delete'),
+    path('jobs/<str:job_id>/delete/',
+         view=views.job_delete_view, name='job_delete'),
     path('jobs/<str:job_id>/retry/', view=views.job_retry_view, name='job_retry'),
     path('export-timetable', csv_gen.export_department_timetable,
          name='export_timetable'),
@@ -73,9 +81,47 @@ urlpatterns = [
     path('manual-seat-assignment/', view=views.manual_seat_assignment,
          name="manual_seat_assignment"),
     path('bulk-upload', view=views.bulk_upload, name='bulk-upload'),
-    path('enable-bulk-upload/', view=views.enable_bulk_upload, name='enable-bulk-upload'),
+    path('enable-bulk-upload/', view=views.enable_bulk_upload,
+         name='enable-bulk-upload'),
     path('reset', view=views.reset_system, name="reset-system"),
     path('settings', view=views.setting, name="settings"),
     path("settings/update/", views.update_settings, name="update-settings"),
 
+    # User Management CRUD
+    path("users/<int:user_id>/edit/", view=views.edit_user, name="edit_user"),
+    path("users/<int:user_id>/delete/",
+         view=views.delete_user, name="delete_user"),
+    path("users/<int:user_id>/change-password/",
+         view=views.change_user_password, name="change_user_password"),
+
+    # Class CRUD
+    path("departments/<str:dept_slug>/classes/create/",
+         view=views.create_class, name="create_class"),
+    path("classes/<int:class_id>/edit/",
+         view=views.edit_class, name="edit_class"),
+    path("classes/<int:class_id>/delete/",
+         view=views.delete_class, name="delete_class"),
+
+    # Course CRUD (within class context)
+    path("classes/<int:class_id>/courses/add/",
+         view=views.add_course_to_class, name="add_course_to_class"),
+    path("classes/<int:class_id>/courses/<int:course_id>/edit/",
+         view=views.edit_class_course, name="edit_class_course"),
+    path("classes/<int:class_id>/courses/<int:course_id>/remove/",
+         view=views.remove_course_from_class, name="remove_course_from_class"),
+
+    # Global Course CRUD (for Courses page in sidebar)
+    path("courses/create/", view=views.create_course, name="create_course"),
+    path("courses/<int:course_id>/edit/",
+         view=views.edit_course, name="edit_course"),
+    path("courses/<int:course_id>/delete/",
+         view=views.delete_course, name="delete_course"),
+
+    # Student CRUD (within class context)
+    path("classes/<int:class_id>/students/create/",
+         view=views.create_student, name="create_student"),
+    path("students/<int:student_id>/edit/",
+         view=views.edit_student, name="edit_student"),
+    path("students/<int:student_id>/delete/",
+         view=views.delete_student, name="delete_student"),
 ]

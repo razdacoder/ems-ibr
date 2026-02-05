@@ -7,60 +7,101 @@
         <button hx-get="{% url 'manage_users' %}" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
       <li class="breadcrumb-item active" aria-current="page">
-        <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-account-plus"></i>Add User</button>
-
-        <!-- Modal -->
-        <div class="modal fade" id="departmentFileUploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalCenterTitle">Add New User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <form hx-post="{% url 'add-user' %}" hx-target="#alert" hx-swap="outerHTML">
-                <div class="modal-body">
-                  <div id="alert"></div>
-                  <div class="form-group">
-                    <label for="first_name" class="form-label">Firstname</label>
-                    <input type="text" id="first_name" name="first_name" class="form-control" />
-                  </div>
-                  <div class="form-group">
-                    <label for="last_name" class="form-label">Lastname</label>
-                    <input type="text" id="last_name" name="last_name" class="form-control" />
-                  </div>
-                  <div class="form-group">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" id="email" name="email" class="form-control" />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="department" class="form-label">Department</label>
-                    <select class="form-control-sm form-control" name="department" id="department">
-                      {% for department in departments %}
-                        <option value="{{ department.slug }}">{{ department.name }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" />
-                  </div>
-                  <div class="form-group">
-                    <label for="password-comfirm" class="form-label">Confirm Password</label>
-                    <input type="password" id="password-confirm" name="password-confirm" class="form-control" />
-                  </div>
-                </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                  <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">Add{% include 'dashboard/partials/loader.html' %}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <button data-bs-toggle="modal" data-bs-target="#addUserModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-account-plus"></i>Add User</button>
       </li>
     </ul>
   </nav>
+</div>
+
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1" role="dialog" aria-labelledby="addUserModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addUserModalTitle">Add New User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addUserForm" hx-post="{% url 'add-user' %}" hx-target="#add-user-alert" hx-swap="innerHTML">
+        <div class="modal-body">
+          <div id="add-user-alert"></div>
+          <div class="form-group">
+            <label for="first_name" class="form-label">Firstname</label>
+            <input type="text" id="first_name" name="first_name" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="last_name" class="form-label">Lastname</label>
+            <input type="text" id="last_name" name="last_name" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" id="email" name="email" class="form-control" required />
+          </div>
+
+          <div class="form-group">
+            <label for="department" class="form-label">Department</label>
+            <select class="form-control-sm form-control" name="department" id="department">
+              {% for department in departments %}
+                <option value="{{ department.slug }}">{{ department.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" id="password" name="password" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label for="password-confirm" class="form-label">Confirm Password</label>
+            <input type="password" id="password-confirm" name="password-confirm" class="form-control" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">Add{% include 'dashboard/partials/loader.html' %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-labelledby="editUserModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" id="editUserModalContent">
+      <!-- Content loaded via HTMX -->
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" role="dialog" aria-labelledby="changePasswordModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" id="changePasswordModalContent">
+      <!-- Content loaded via HTMX -->
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" role="dialog" aria-labelledby="deleteUserModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteUserModalTitle">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="delete-user-alert"></div>
+        <p>Are you sure you want to delete user <strong id="deleteUserName"></strong>?</p>
+        <p class="text-danger">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteUserForm" hx-post="#" hx-target="#delete-user-alert" hx-swap="innerHTML">
+          <button type="submit" class="btn btn-danger d-flex gap-3 align-items-center">Delete{% include 'dashboard/partials/loader.html' %}</button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% if users|length %}
@@ -77,6 +118,8 @@
         <th>Lastname</th>
         <th>Email</th>
         <th>Department</th>
+        <th>Role</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -88,10 +131,50 @@
           <td>{{ user.email }}</td>
           <td>
             {% if user.is_staff %}
-              ADMIN
+              -
             {% else %}
-              {{ user.department.name }}
+              {{ user.department.name|default:"-" }}
             {% endif %}
+          </td>
+          <td>
+            {% if user.is_staff %}
+              <span class="badge bg-primary">Admin</span>
+            {% else %}
+              <span class="badge bg-secondary">User</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-primary"
+                hx-get="{% url 'edit_user' user.id %}"
+                hx-target="#editUserModalContent"
+                data-bs-toggle="modal" 
+                data-bs-target="#editUserModal"
+                title="Edit">
+                <i class="mdi mdi-pencil"></i>
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-warning"
+                hx-get="{% url 'change_user_password' user.id %}"
+                hx-target="#changePasswordModalContent"
+                data-bs-toggle="modal" 
+                data-bs-target="#changePasswordModal"
+                title="Change Password">
+                <i class="mdi mdi-key"></i>
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-danger"
+                onclick="setupDeleteUser('{{ user.id }}', '{{ user.first_name }} {{ user.last_name }}')"
+                data-bs-toggle="modal" 
+                data-bs-target="#deleteUserModal"
+                title="Delete">
+                <i class="mdi mdi-delete"></i>
+              </button>
+            </div>
           </td>
         </tr>
       {% endfor %}
@@ -114,5 +197,54 @@
     {% endif %}
   </div>
 {% else %}
-  <p class="text-center">Sorry, No departments to show</p>
+  <p class="text-center">Sorry, No users to show</p>
 {% endif %}
+
+<script>
+  (function() {
+    // Page refresh URL
+    const refreshUrl = "{% url 'manage_users' %}";
+
+    // Setup delete user - must be called BEFORE modal opens
+    window.setupDeleteUser = function(userId, userName) {
+      document.getElementById('deleteUserName').textContent = userName;
+      document.getElementById('delete-user-alert').innerHTML = '';
+      const form = document.getElementById('deleteUserForm');
+      form.setAttribute('hx-post', '/users/' + userId + '/delete/');
+      htmx.process(form);
+    };
+
+    // Auto-refresh after successful operations
+    function handleSuccessAndRefresh(alertElementId, modalId) {
+      const alertElement = document.getElementById(alertElementId);
+      if (alertElement && alertElement.querySelector('.alert-success')) {
+        setTimeout(() => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+          if (modal) modal.hide();
+          htmx.ajax('GET', refreshUrl, {target: '#main-content', swap: 'innerHTML'});
+        }, 1000);
+      }
+    }
+
+    // Handler for HTMX responses
+    function handleUserCrudResponse(event) {
+      const targetId = event.detail.target ? event.detail.target.id : '';
+      
+      if (targetId === 'add-user-alert') {
+        handleSuccessAndRefresh('add-user-alert', 'addUserModal');
+      } else if (targetId === 'delete-user-alert') {
+        handleSuccessAndRefresh('delete-user-alert', 'deleteUserModal');
+      } else if (targetId === 'edit-user-alert') {
+        handleSuccessAndRefresh('edit-user-alert', 'editUserModal');
+      } else if (targetId === 'change-pwd-alert') {
+        handleSuccessAndRefresh('change-pwd-alert', 'changePasswordModal');
+      }
+    }
+
+    // Prevent duplicate event listeners
+    if (!window._userCrudListenerAdded) {
+      document.body.addEventListener('htmx:afterRequest', handleUserCrudResponse);
+      window._userCrudListenerAdded = true;
+    }
+  })();
+</script>

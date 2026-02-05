@@ -5,38 +5,104 @@
       <li>
         <button hx-get="{% url 'get_department' department.slug %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
+      {% if request.user.is_staff %}
+      <li class="breadcrumb-item active" aria-current="page">
+        <button data-bs-toggle="modal" data-bs-target="#createClassModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-plus"></i> Add Class</button>
+      </li>
       <li class="breadcrumb-item active" aria-current="page">
         <button data-bs-toggle="modal" data-bs-target="#departmentFileUploadModal" class="btn bg-gradient-primary text-white d-flex align-items-center gap-3" type="button"><i class="mdi mdi-cloud-upload"></i> Upload Data</button>
-
-        <!-- Modal -->
-        <div class="modal fade" id="departmentFileUploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ department.name }} data</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <form hx-post="{% url 'upload_classes' department.slug %}" hx-target="#main-content" hx-encoding="multipart/form-data">
-                <div class="modal-body">
-                  <input name="file" required style="display: none;" type="file" id="clsFile" />
-                  <label style="border: 2px dotted #333333; height: 150px; display: flex; justify-content: center; align-items: center; cursor: pointer;" for="clsFile" class="w-100">
-                    <div style="display: flex; flex-direction: column; row-gap: 8px; align-items: center;">
-                      <span><i class="mdi mdi-cloud-upload icon-lg"></i></span>
-                      <span id="fileName">Click to upload (only .csv files)</span>
-                    </div>
-                  </label>
-                </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                  <button type="submit" data-bs-dismiss="modal" class="btn btn-primary d-flex gap-3 align-items-center">Uplaod{% include 'dashboard/partials/loader.html' %}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
       </li>
+      {% endif %}
     </ul>
   </nav>
+</div>
+
+<!-- Create Class Modal -->
+<div class="modal fade" id="createClassModal" tabindex="-1" role="dialog" aria-labelledby="createClassModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createClassModalTitle">Create New Class in {{ department.name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="createClassForm" hx-post="{% url 'create_class' department.slug %}" hx-target="#create-class-alert" hx-swap="innerHTML">
+        <div class="modal-body">
+          <div id="create-class-alert"></div>
+          <div class="form-group">
+            <label for="class_name" class="form-label">Class Name</label>
+            <input type="text" id="class_name" name="name" class="form-control" placeholder="e.g. 100 Level, ND1, HND2" required />
+          </div>
+          <div class="form-group">
+            <label for="class_size" class="form-label">Class Size (Number of Students)</label>
+            <input type="number" id="class_size" name="size" class="form-control" value="0" min="0" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">Create{% include 'dashboard/partials/loader.html' %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Classes Modal -->
+<div class="modal fade" id="departmentFileUploadModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalCenterTitle">Upload {{ department.name }} data</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form hx-post="{% url 'upload_classes' department.slug %}" hx-target="#main-content" hx-encoding="multipart/form-data">
+        <div class="modal-body">
+          <input name="file" required style="display: none;" type="file" id="clsFile" />
+          <label style="border: 2px dotted #333333; height: 150px; display: flex; justify-content: center; align-items: center; cursor: pointer;" for="clsFile" class="w-100">
+            <div style="display: flex; flex-direction: column; row-gap: 8px; align-items: center;">
+              <span><i class="mdi mdi-cloud-upload icon-lg"></i></span>
+              <span id="fileName">Click to upload (only .csv files)</span>
+            </div>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" data-bs-dismiss="modal" class="btn btn-primary d-flex gap-3 align-items-center">Upload{% include 'dashboard/partials/loader.html' %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Class Modal -->
+<div class="modal fade" id="editClassModal" tabindex="-1" role="dialog" aria-labelledby="editClassModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" id="editClassModalContent">
+      <!-- Content loaded via HTMX -->
+    </div>
+  </div>
+</div>
+
+<!-- Delete Class Confirmation Modal -->
+<div class="modal fade" id="deleteClassModal" tabindex="-1" role="dialog" aria-labelledby="deleteClassModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteClassModalTitle">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="delete-class-alert"></div>
+        <p>Are you sure you want to delete class <strong id="deleteClassName"></strong>?</p>
+        <p class="text-danger">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="deleteClassForm" hx-post="#" hx-target="#delete-class-alert" hx-swap="innerHTML">
+          <button type="submit" class="btn btn-danger d-flex gap-3 align-items-center">Delete{% include 'dashboard/partials/loader.html' %}</button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% if classes|length %}
@@ -46,14 +112,46 @@
         <th>Class Name</th>
         <th>Class Population</th>
         <th>No. of Courses</th>
+        {% if request.user.is_staff %}
+        <th>Actions</th>
+        {% endif %}
       </tr>
     </thead>
     <tbody>
       {% for class in classes %}
-        <tr hx-get="{% url 'get_class_course' department.slug class.id %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" style="cursor: pointer;">
-          <td>{{ class.name }}</td>
+        <tr>
+          <td>
+            <a href="javascript:void(0)" hx-get="{% url 'get_class_course' department.slug class.id %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="text-decoration-none text-dark">
+              {{ class.name }}
+            </a>
+          </td>
           <td>{{ class.size }}</td>
           <td>{{ class.courses.count }}</td>
+          {% if request.user.is_staff %}
+          <td>
+            <div class="d-flex gap-2">
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-primary"
+                hx-get="{% url 'edit_class' class.id %}"
+                hx-target="#editClassModalContent"
+                data-bs-toggle="modal" 
+                data-bs-target="#editClassModal"
+                title="Edit">
+                <i class="mdi mdi-pencil"></i>
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-danger"
+                onclick="setupDeleteClass('{{ class.id }}', '{{ class.name }}')"
+                data-bs-toggle="modal" 
+                data-bs-target="#deleteClassModal"
+                title="Delete">
+                <i class="mdi mdi-delete"></i>
+              </button>
+            </div>
+          </td>
+          {% endif %}
         </tr>
       {% endfor %}
     </tbody>
@@ -64,15 +162,59 @@
 
 
 <script>
+  // Page refresh URL
+  const refreshUrl = "{% url 'get_department' department.slug %}";
+
   const fileInput = document.getElementById('clsFile')
   const fileName = document.getElementById('fileName')
   
-  fileInput.addEventListener('change', (e) => {
-    fileName.textContent = e.target.files[0].name
-  })
+  if (fileInput && fileName) {
+    fileInput.addEventListener('change', (e) => {
+      fileName.textContent = e.target.files[0].name
+    })
+  }
+
+  // Setup delete class - must be called BEFORE modal opens
+  window.setupDeleteClass = function(classId, className) {
+    document.getElementById('deleteClassName').textContent = className;
+    document.getElementById('delete-class-alert').innerHTML = '';
+    const form = document.getElementById('deleteClassForm');
+    form.setAttribute('hx-post', '/classes/' + classId + '/delete/');
+    htmx.process(form);
+  };
+
+  // Auto-refresh after successful operations
+  function handleClassSuccessAndRefresh(alertElementId, modalId) {
+    const alertElement = document.getElementById(alertElementId);
+    if (alertElement && alertElement.querySelector('.alert-success')) {
+      setTimeout(() => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+        if (modal) modal.hide();
+        htmx.ajax('GET', refreshUrl, {target: '#main-content', swap: 'innerHTML'});
+      }, 1000);
+    }
+  }
+
+  // Handler for HTMX responses
+  function handleClassCrudResponse(event) {
+    const targetId = event.detail.target ? event.detail.target.id : '';
+    
+    if (targetId === 'create-class-alert') {
+      handleClassSuccessAndRefresh('create-class-alert', 'createClassModal');
+    } else if (targetId === 'delete-class-alert') {
+      handleClassSuccessAndRefresh('delete-class-alert', 'deleteClassModal');
+    } else if (targetId === 'edit-class-alert') {
+      handleClassSuccessAndRefresh('edit-class-alert', 'editClassModal');
+    }
+  }
+
+  // Prevent duplicate event listeners
+  if (!window._classCrudListenerAdded) {
+    document.body.addEventListener('htmx:afterRequest', handleClassCrudResponse);
+    window._classCrudListenerAdded = true;
+  }
 
   function goBack() {
     window.history.back();
   }
-
 </script>

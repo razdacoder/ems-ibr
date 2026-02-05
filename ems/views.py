@@ -1,39 +1,40 @@
-import random
+import io
+import os
+import zipfile
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse
-import io
-import zipfile
 
 import pandas as pd
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum, Count
+from django.db.models import Count, Q, Sum
 from django.http import HttpRequest, HttpResponse
-from django.conf import settings
-from django.shortcuts import get_object_or_404, redirect, render, reverse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from docx import Document
-from docx.shared import Inches
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
-import os
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches
 
-from .models import Class, Course, Department, Distribution, Hall, TimeTable, User, SeatArrangement, DistributionItem, Student, SystemSettings, BackgroundJob
 from .broadsheet import TimetableBroadSheet
-from .utils import (
-    convert_hall_to_dict,
-    distribute_classes_to_halls,
-    generate,
-    get_courses,
-    get_halls,
-    get_student_number,
-    handle_uploaded_file,
-    print_seating_arrangement,
-    save_to_db,
-    split_course,
+from .models import (
+    BackgroundJob,
+    Class,
+    Course,
+    Department,
+    Distribution,
+    DistributionItem,
+    Hall,
+    SeatArrangement,
+    Student,
+    SystemSettings,
+    TimeTable,
+    User,
 )
+from .utils import handle_uploaded_file
 
 
 def back_view(request):
@@ -104,31 +105,76 @@ def dashboard(request):
     # Filter statistics based on user role
     if request.user.is_staff:
         # Admin users see all data
-        departments = Department.objects.all().count()
+        departments = Department.objects.all()
+        departments_count = departments.count()
         halls = Hall.objects.all().count()
-        courses = Course.objects.all().count()
+        courses_count = Course.objects.all().count()
+        classes_count = Class.objects.all().count()
         students = Class.objects.aggregate(
-            total_size=Sum('size'))['total_size']
+            total_size=Sum('size'))['total_size'] or 0
+
+        # Courses shared across multiple departments
+        shared_courses = []
+        for course in Course.objects.all():
+            # Get classes offering this course grouped by department
+            classes_with_course = Class.objects.filter(
+                courses=course).select_related('department')
+
+            # Group classes by department
+            dept_classes_map = {}
+            for cls in classes_with_course:
+                dept_name = cls.department.name
+                if dept_name not in dept_classes_map:
+                    dept_classes_map[dept_name] = []
+                dept_classes_map[dept_name].append(cls.name)
+
+            dept_count = len(dept_classes_map)
+            if dept_count > 1:
+                # Build list of departments with their classes
+                dept_with_classes = []
+                for dept_name, class_names in dept_classes_map.items():
+                    dept_with_classes.append({
+                        'name': dept_name,
+                        'classes': class_names
+                    })
+                shared_courses.append({
+                    'code': course.code,
+                    'name': course.name,
+                    'dept_count': dept_count,
+                    'departments': dept_with_classes
+                })
+        # Sort by department count descending
+        shared_courses = sorted(
+            shared_courses, key=lambda x: x['dept_count'], reverse=True)
     else:
         # Non-admin users see only their department data
         if request.user.department:
-            departments = 1  # Only their department
+            departments_count = 1  # Only their department
             halls = Hall.objects.all().count()  # Halls are shared resources
             # Courses from classes in their department
             dept_classes = Class.objects.filter(
                 department=request.user.department)
-            courses = Course.objects.filter(
+            courses_count = Course.objects.filter(
                 courses__in=dept_classes).distinct().count()
+            classes_count = dept_classes.count()
             students = dept_classes.aggregate(
-                total_size=Sum('size'))['total_size']
+                total_size=Sum('size'))['total_size'] or 0
+            # Non-admin users don't see shared courses (single department view)
+            shared_courses = []
         else:
-            departments = halls = courses = students = 0
+            departments_count = courses_count = students = classes_count = 0
+            halls = 0
+            shared_courses = []
 
     context = {
-        "departments_count": departments,
+        "departments_count": departments_count,
         "halls_count": halls,
-        "courses_count": courses,
+        "courses_count": courses_count,
+        "classes_count": classes_count,
         "students": students,
+        "shared_courses": shared_courses,
+        "shared_courses_count": len(shared_courses),
+        "settings": settings,
     }
     if request.htmx:
         template_name = "dashboard/pages/dashboard.html"
@@ -261,7 +307,7 @@ def departments(request):
             Q(name__icontains=query) | Q(slug__icontains=query)
         )
 
-    paginator = Paginator(departments_list, 10)
+    paginator = Paginator(departments_list, 15)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
     context = {"departments": page_obj}
@@ -314,7 +360,7 @@ def get_courses_view(request):
             Q(name__icontains=query) | Q(code__icontains=query)
         )
 
-    paginator = Paginator(course_list, 10)
+    paginator = Paginator(course_list, 15)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
     context = {"courses": page_obj}
@@ -337,7 +383,7 @@ def get_students(request):
                 last_name__icontains=query) | Q(matric_no__icontains=query) | Q(email__icontains=query) | Q(phone__icontains=query)
         )
 
-    paginator = Paginator(students, 10)
+    paginator = Paginator(students, 15)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
     context = {"students": page_obj}
@@ -374,7 +420,7 @@ def get_class_course(request, slug, id):
 @admin_required
 def halls(request):
     halls_list = Hall.objects.all()
-    paginator = Paginator(halls_list, 10)
+    paginator = Paginator(halls_list, 15)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
     context = {"halls": page_obj}
@@ -1019,7 +1065,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
     from .tasks import generate_timetable_task
     from .models import BackgroundJob
     import uuid
-    
+
     startDate = request.POST.get("startDate")
     endDate = request.POST.get("endDate")
 
@@ -1122,13 +1168,13 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         created_by=request.user,
         params={'start_date': startDate, 'end_date': endDate}
     )
-    
+
     # Force commit to database before triggering task (important for SQLite)
     from django.db import transaction
     transaction.on_commit(lambda: generate_timetable_task.apply_async(
         args=[job_id, request.user.id, startDate, endDate]
     ))
-    
+
     return render(
         request,
         template_name="dashboard/partials/job-started.html",
@@ -1143,10 +1189,10 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
     from .tasks import generate_distribution_task
     from .models import BackgroundJob
     import uuid
-    
+
     date = request.POST.get("date")
     period = request.POST.get("period")
-    
+
     if not Distribution.objects.filter(date=date, period=period).exists():
         # Create background job
         job_id = str(uuid.uuid4())
@@ -1157,13 +1203,13 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             created_by=request.user,
             params={'date': date, 'period': period}
         )
-        
+
         # Force commit to database before triggering task (important for SQLite)
         from django.db import transaction
         transaction.on_commit(lambda: generate_distribution_task.apply_async(
             args=[job_id, request.user.id, date, period]
         ))
-        
+
         return render(
             request,
             template_name="dashboard/partials/job-started.html",
@@ -1178,6 +1224,7 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             }
         )
 
+
 @require_POST
 @login_required(login_url="login")
 @admin_required
@@ -1188,7 +1235,7 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
     from .tasks import generate_allocation_task
     from .models import BackgroundJob
     import uuid
-    
+
     date = request.POST.get("date")
     period = request.POST.get("period")
 
@@ -1199,7 +1246,8 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"No distribution found for {date} period {period}. Please generate distribution first."},
+                context={
+                    "message": f"No distribution found for {date} period {period}. Please generate distribution first."},
             )
 
         # Create background job
@@ -1211,13 +1259,13 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             created_by=request.user,
             params={'date': date, 'period': period}
         )
-        
+
         # Force commit to database before triggering task (important for SQLite)
         from django.db import transaction
         transaction.on_commit(lambda: generate_allocation_task.apply_async(
             args=[job_id, request.user.id, date, period]
         ))
-        
+
         return render(
             request,
             template_name="dashboard/partials/job-started.html",
@@ -1239,10 +1287,10 @@ def check_job_status(request: HttpRequest, job_id: str) -> HttpResponse:
     API endpoint to check the status of a background job
     """
     from .models import BackgroundJob
-    
+
     try:
         job = BackgroundJob.objects.get(job_id=job_id)
-        
+
         context = {
             'job_id': job.job_id,
             'job_type': job.get_job_type_display(),
@@ -1250,10 +1298,10 @@ def check_job_status(request: HttpRequest, job_id: str) -> HttpResponse:
             'progress': job.progress_percentage,
             'error_message': job.error_message,
         }
-        
+
         if job.status == 'success':
             context['result'] = job.result_data
-        
+
         return render(
             request,
             template_name="dashboard/partials/job-progress.html",
@@ -1339,39 +1387,43 @@ def distribution_statistics(request: HttpRequest) -> HttpResponse:
 @login_required(login_url="login")
 def upload_courses(request):
     from django.db import transaction
-    
+
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Courses upload not allowed again!</div>')
-    
+
     data = request.FILES.get("file")
-    
+
     try:
         courses_df = pd.read_csv(data)
-        
+
         # Validate required columns
         required_columns = ["COURSE CODE", "COURSE TITLE", "EXAM TYPE"]
-        missing_columns = [col for col in required_columns if col not in courses_df.columns]
+        missing_columns = [
+            col for col in required_columns if col not in courses_df.columns]
         if missing_columns:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+                context={
+                    "message": f"Missing required columns: {', '.join(missing_columns)}"},
             )
-        
+
         # Check for duplicate course codes in the CSV
-        duplicate_codes = courses_df[courses_df.duplicated(subset=['COURSE CODE'], keep=False)]['COURSE CODE'].tolist()
+        duplicate_codes = courses_df[courses_df.duplicated(
+            subset=['COURSE CODE'], keep=False)]['COURSE CODE'].tolist()
         if duplicate_codes:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Duplicate course codes found in file: {', '.join(set(duplicate_codes))}"},
+                context={
+                    "message": f"Duplicate course codes found in file: {', '.join(set(duplicate_codes))}"},
             )
-        
+
         courses = courses_df.to_dict()
         created_count = 0
         updated_count = 0
-        
+
         with transaction.atomic():
             for key in courses["COURSE CODE"]:
                 course, created = Course.objects.get_or_create(
@@ -1389,7 +1441,7 @@ def upload_courses(request):
                     course.exam_type = courses["EXAM TYPE"][key]
                     course.save()
                     updated_count += 1
-        
+
         message = f"Courses processed successfully! Created: {created_count}, Updated: {updated_count}"
         return render(
             request,
@@ -1400,7 +1452,8 @@ def upload_courses(request):
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+            context={
+                "message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 
@@ -1408,40 +1461,44 @@ def upload_courses(request):
 @login_required(login_url="login")
 def upload_classes(request, dept_slug):
     from django.db import transaction
-    
+
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Classes upload not allowed again!</div>')
-    
+
     department = get_object_or_404(Department, slug=dept_slug)
     data = request.FILES.get("file")
-    
+
     try:
         dept_df = pd.read_csv(data)
-        
+
         # Validate required columns
         required_columns = ["Name", "Size"]
-        missing_columns = [col for col in required_columns if col not in dept_df.columns]
+        missing_columns = [
+            col for col in required_columns if col not in dept_df.columns]
         if missing_columns:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+                context={
+                    "message": f"Missing required columns: {', '.join(missing_columns)}"},
             )
-        
+
         # Check for duplicate class names in the CSV
-        duplicate_names = dept_df[dept_df.duplicated(subset=['Name'], keep=False)]['Name'].tolist()
+        duplicate_names = dept_df[dept_df.duplicated(
+            subset=['Name'], keep=False)]['Name'].tolist()
         if duplicate_names:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Duplicate class names found in file: {', '.join(set(duplicate_names))}"},
+                context={
+                    "message": f"Duplicate class names found in file: {', '.join(set(duplicate_names))}"},
             )
-        
+
         dept = dept_df.to_dict()
         created_count = 0
         updated_count = 0
-        
+
         with transaction.atomic():
             for key in dept["Name"]:
                 cls, created = Class.objects.get_or_create(
@@ -1456,17 +1513,19 @@ def upload_classes(request, dept_slug):
                     cls.size = dept["Size"][key]
                     cls.save()
                     updated_count += 1
-        
+
         return render(
             request,
             template_name="dashboard/partials/alert-success.html",
-            context={"message": f"Classes processed successfully! Created: {created_count}, Updated: {updated_count}"},
+            context={
+                "message": f"Classes processed successfully! Created: {created_count}, Updated: {updated_count}"},
         )
     except Exception as e:
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+            context={
+                "message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 
@@ -1475,39 +1534,43 @@ def upload_classes(request, dept_slug):
 @admin_required
 def upload_departments(request):
     from django.db import transaction
-    
+
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Departments upload not allowed again!</div>')
-    
+
     data = request.FILES.get("file")
-    
+
     try:
         dept_df = pd.read_csv(data)
-        
+
         # Validate required columns
         required_columns = ["Name", "Code"]
-        missing_columns = [col for col in required_columns if col not in dept_df.columns]
+        missing_columns = [
+            col for col in required_columns if col not in dept_df.columns]
         if missing_columns:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+                context={
+                    "message": f"Missing required columns: {', '.join(missing_columns)}"},
             )
-        
+
         # Check for duplicate department codes in the CSV
-        duplicate_codes = dept_df[dept_df.duplicated(subset=['Code'], keep=False)]['Code'].tolist()
+        duplicate_codes = dept_df[dept_df.duplicated(
+            subset=['Code'], keep=False)]['Code'].tolist()
         if duplicate_codes:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Duplicate department codes found in file: {', '.join(set(duplicate_codes))}"},
+                context={
+                    "message": f"Duplicate department codes found in file: {', '.join(set(duplicate_codes))}"},
             )
-        
+
         dept = dept_df.to_dict()
         created_count = 0
         updated_count = 0
-        
+
         with transaction.atomic():
             for key in dept["Code"]:
                 department, created = Department.objects.get_or_create(
@@ -1521,17 +1584,19 @@ def upload_departments(request):
                     department.name = dept["Name"][key]
                     department.save()
                     updated_count += 1
-        
+
         return render(
             request,
             template_name="dashboard/partials/alert-success.html",
-            context={"message": f"Departments processed successfully! Created: {created_count}, Updated: {updated_count}"},
+            context={
+                "message": f"Departments processed successfully! Created: {created_count}, Updated: {updated_count}"},
         )
     except Exception as e:
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+            context={
+                "message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 
@@ -1593,17 +1658,17 @@ def upload_class_students(request, id):
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Class students upload not allowed again!</div>')
-    
+
     cls = get_object_or_404(Class, id=id)
     data = request.FILES.get("file")
-    
+
     try:
         # Read CSV efficiently with optimized settings
         students_df = pd.read_csv(
             data,
             dtype={
                 'MATRIC NUMBER': 'string',
-                'FIRSTNAME': 'string', 
+                'FIRSTNAME': 'string',
                 'LASTNAME': 'string',
                 'EMAIL': 'string',
                 'PHONE NUMBER': 'string'
@@ -1614,7 +1679,7 @@ def upload_class_students(request, id):
 
         # Remove any whitespace and convert to string
         students_df = students_df.astype(str).apply(lambda x: x.str.strip())
-        
+
         # Validation: Check if number of students matches class size
         total_students_in_file = len(students_df)
         print(f"Uploading students for class {id}")
@@ -1629,8 +1694,10 @@ def upload_class_students(request, id):
         #     )
 
         # Validate required columns
-        required_columns = ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"]
-        missing_columns = [col for col in required_columns if col not in students_df.columns]
+        required_columns = ["MATRIC NUMBER", "FIRSTNAME",
+                            "LASTNAME", "EMAIL", "PHONE NUMBER"]
+        missing_columns = [
+            col for col in required_columns if col not in students_df.columns]
         if missing_columns:
             return render(
                 request,
@@ -1639,9 +1706,11 @@ def upload_class_students(request, id):
                     "message": f"Missing required columns: {', '.join(missing_columns)}"
                 },
             )
-        print(f"Uploading {total_students_in_file} students for class {cls.name}")
+        print(
+            f"Uploading {total_students_in_file} students for class {cls.name}")
         # Check for duplicate matric numbers in the file
-        duplicate_matrics = students_df[students_df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
+        duplicate_matrics = students_df[students_df.duplicated(
+            subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
         if duplicate_matrics:
             return render(
                 request,
@@ -1650,11 +1719,12 @@ def upload_class_students(request, id):
                     "message": f"Duplicate matric numbers found in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
                 },
             )
-        
+
         # Convert DataFrame to records for faster processing
         student_records = students_df.to_dict('records')
-        matric_numbers = [record["MATRIC NUMBER"] for record in student_records]
-        
+        matric_numbers = [record["MATRIC NUMBER"]
+                          for record in student_records]
+
         # Get existing students in one optimized query
         print(f"Checking for {len(matric_numbers)} existing students")
 
@@ -1663,21 +1733,21 @@ def upload_class_students(request, id):
             'id', 'matric_no', 'first_name', 'last_name', 'email', 'phone', 'department_id', 'level_id'
         ):
             existing_students[student.matric_no] = student
-        
+
         # Process in chunks for better memory management
         chunk_size = 250
         total_created = 0
         total_updated = 0
-        
+
         with transaction.atomic():
             for i in range(0, len(student_records), chunk_size):
                 chunk = student_records[i:i + chunk_size]
                 students_to_create = []
                 students_to_update = []
-                
+
                 for record in chunk:
                     matric_no = record["MATRIC NUMBER"]
-                    
+
                     if matric_no in existing_students:
                         # Prepare for bulk update
                         student = existing_students[matric_no]
@@ -1701,25 +1771,28 @@ def upload_class_students(request, id):
                                 level=cls,
                             )
                         )
-                
+
                 # Bulk create new students for this chunk
                 if students_to_create:
-                    Student.objects.bulk_create(students_to_create, batch_size=250)
+                    Student.objects.bulk_create(
+                        students_to_create, batch_size=250)
                     total_created += len(students_to_create)
-                
+
                 # Bulk update existing students for this chunk
                 if students_to_update:
                     Student.objects.bulk_update(
                         students_to_update,
-                        ['first_name', 'last_name', 'email', 'phone', 'department', 'level'],
+                        ['first_name', 'last_name', 'email',
+                            'phone', 'department', 'level'],
                         batch_size=250
                     )
                     total_updated += len(students_to_update)
-            
+
             created_count = total_created
             updated_count = total_updated
-            print(f"Processed chunk: Created {created_count}, Updated {updated_count}")
-            
+            print(
+                f"Processed chunk: Created {created_count}, Updated {updated_count}")
+
             if created_count > 0 or updated_count > 0:
                 message = f"Students processed successfully! Created: {created_count}, Updated: {updated_count}"
                 return render(
@@ -1731,16 +1804,18 @@ def upload_class_students(request, id):
                 return render(
                     request,
                     template_name="dashboard/partials/alert-error.html",
-                    context={"message": "No students were processed. Please check your data."},
+                    context={
+                        "message": "No students were processed. Please check your data."},
                 )
-                
+
     except Exception as e:
         print(f"Error in upload_students: {str(e)}")
 
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+            context={
+                "message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 
@@ -1749,39 +1824,44 @@ def upload_class_students(request, id):
 @admin_required
 def upload_halls(request):
     from django.db import transaction
-    
+
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Halls upload not allowed again!</div>')
-    
+
     data = request.FILES.get("file")
-    
+
     try:
         halls_df = pd.read_csv(data)
-        
+
         # Validate required columns
-        required_columns = ["EXAM VENUE", "CAPACITY", "MAX STUDENTS", "MIN COURSES", "ROWS", "COLS"]
-        missing_columns = [col for col in required_columns if col not in halls_df.columns]
+        required_columns = ["EXAM VENUE", "CAPACITY",
+                            "MAX STUDENTS", "MIN COURSES", "ROWS", "COLS"]
+        missing_columns = [
+            col for col in required_columns if col not in halls_df.columns]
         if missing_columns:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+                context={
+                    "message": f"Missing required columns: {', '.join(missing_columns)}"},
             )
-        
+
         # Check for duplicate hall names in the CSV
-        duplicate_halls = halls_df[halls_df.duplicated(subset=['EXAM VENUE'], keep=False)]['EXAM VENUE'].tolist()
+        duplicate_halls = halls_df[halls_df.duplicated(
+            subset=['EXAM VENUE'], keep=False)]['EXAM VENUE'].tolist()
         if duplicate_halls:
             return render(
                 request,
                 template_name="dashboard/partials/alert-error.html",
-                context={"message": f"Duplicate hall names found in file: {', '.join(set(duplicate_halls))}"},
+                context={
+                    "message": f"Duplicate hall names found in file: {', '.join(set(duplicate_halls))}"},
             )
-        
+
         halls = halls_df.to_dict()
         created_count = 0
         updated_count = 0
-        
+
         with transaction.atomic():
             for key in halls["EXAM VENUE"]:
                 hall, created = Hall.objects.get_or_create(
@@ -1805,7 +1885,7 @@ def upload_halls(request):
                     hall.columns = halls["COLS"][key]
                     hall.save()
                     updated_count += 1
-        
+
         message = f"Halls processed successfully! Created: {created_count}, Updated: {updated_count}"
         return render(
             request,
@@ -1816,7 +1896,8 @@ def upload_halls(request):
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",
-            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+            context={
+                "message": f"Upload error: {str(e)}. Please check your file format and try again."},
         )
 
 
@@ -1847,13 +1928,13 @@ def bulk_upload(request):
             '<br><br><script>function enableBulkUpload(){fetch(\'/enable-bulk-upload/\', {method: \'POST\', headers: {\'X-CSRFToken\': document.querySelector(\'[name=csrfmiddlewaretoken]\').value}}).then(response => response.text()).then(data => {location.reload();});}</script>'
         )
         return render(request, template_name='dashboard/upload.html')
-        
+
     if request.method == 'POST':
         try:
             file = request.FILES['file']
             upload_type = request.POST['upload_type']
             result = handle_uploaded_file(file, upload_type)
-            
+
             # Dynamic success messages based on upload type
             success_messages = {
                 'courses': 'Course files uploaded and processed successfully!',
@@ -1861,42 +1942,45 @@ def bulk_upload(request):
                 'students': 'Student files uploaded and processed successfully!',
                 'halls': 'Hall files uploaded and processed successfully!'
             }
-            
-            message = success_messages.get(upload_type, 'Files uploaded successfully!')
-            
+
+            message = success_messages.get(
+                upload_type, 'Files uploaded successfully!')
+
             # If result contains detailed information (like from student processing)
             if isinstance(result, dict) and 'message' in result:
                 message = result['message']
-            
+
             messages.success(request, message)
             return redirect('bulk-upload')
-            
+
         except ValueError as e:
             # Handle validation errors with detailed formatting
             error_message = str(e)
-            
+
             # Check if it's a multi-line error message
             if '\n' in error_message:
                 # Split into main message and details
                 lines = error_message.split('\n')
                 main_message = lines[0]
                 details = '\n'.join(lines[1:]) if len(lines) > 1 else ''
-                
+
                 formatted_message = f'<strong>{main_message}</strong>'
                 if details.strip():
                     # Convert newlines to HTML breaks and preserve formatting
-                    formatted_details = details.replace('\n', '<br>').replace('  •', '&nbsp;&nbsp;•')
+                    formatted_details = details.replace(
+                        '\n', '<br>').replace('  •', '&nbsp;&nbsp;•')
                     formatted_message += f'<br><br><div style="font-family: monospace; font-size: 0.9em; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 8px;">{formatted_details}</div>'
-                
+
                 messages.error(request, formatted_message)
             else:
-                messages.error(request, f'<strong>Validation Error:</strong><br>{error_message}')
+                messages.error(
+                    request, f'<strong>Validation Error:</strong><br>{error_message}')
             return render(request, template_name='dashboard/upload.html')
-            
+
         except Exception as e:
             # Handle unexpected errors
             messages.error(
-                request, 
+                request,
                 f'<strong>Upload Error:</strong><br>An unexpected error occurred: {str(e)}<br><small class="text-muted">Please check your file format and try again.</small>'
             )
             return render(request, template_name='dashboard/upload.html')
@@ -1913,33 +1997,33 @@ def job_monitor_view(request):
     # Get filter parameters
     status_filter = request.GET.get('status', '')
     job_type_filter = request.GET.get('job_type', '')
-    
+
     # Base query - if staff, show all jobs; otherwise, show only user's jobs
     if request.user.is_staff:
         jobs = BackgroundJob.objects.all()
     else:
         jobs = BackgroundJob.objects.filter(created_by=request.user)
-    
+
     # Apply filters
     if status_filter:
         jobs = jobs.filter(status=status_filter)
     if job_type_filter:
         jobs = jobs.filter(job_type=job_type_filter)
-    
+
     # Order by most recent first
     jobs = jobs.select_related('created_by').order_by('-started_at')
-    
+
     # Paginate
     paginator = Paginator(jobs, 20)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
-    
+
     # Count running jobs for the current user
     running_jobs_count = BackgroundJob.objects.filter(
         created_by=request.user,
         status__in=['pending', 'running']
     ).count()
-    
+
     context = {
         'page_obj': page_obj,
         'status_filter': status_filter,
@@ -1951,7 +2035,7 @@ def job_monitor_view(request):
         template_name = "dashboard/pages/jobs.html"
     else:
         template_name = "dashboard/jobs.html"
-    
+
     return render(request, template_name, context)
 
 
@@ -1965,8 +2049,9 @@ def job_detail_view(request, job_id):
     if request.user.is_staff:
         job = get_object_or_404(BackgroundJob, job_id=job_id)
     else:
-        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
-    
+        job = get_object_or_404(
+            BackgroundJob, job_id=job_id, created_by=request.user)
+
     context = {
         'job': job,
     }
@@ -1975,7 +2060,7 @@ def job_detail_view(request, job_id):
         template_name = "dashboard/pages/job-details.html"
     else:
         template_name = "dashboard/job-detail.html"
-    
+
     return render(request, template_name, context)
 
 
@@ -1990,15 +2075,16 @@ def job_delete_view(request, job_id):
     if request.user.is_staff:
         job = get_object_or_404(BackgroundJob, job_id=job_id)
     else:
-        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
-    
+        job = get_object_or_404(
+            BackgroundJob, job_id=job_id, created_by=request.user)
+
     # Only allow deletion of completed or failed jobs
     if job.status in ['success', 'failed']:
         job.delete()
         messages.success(request, 'Job deleted successfully.')
     else:
         messages.error(request, 'Cannot delete a running job.')
-    
+
     return redirect('job_monitor')
 
 
@@ -2013,17 +2099,18 @@ def job_retry_view(request, job_id):
     if request.user.is_staff:
         job = get_object_or_404(BackgroundJob, job_id=job_id)
     else:
-        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
-    
+        job = get_object_or_404(
+            BackgroundJob, job_id=job_id, created_by=request.user)
+
     # Only allow retry of failed jobs
     if job.status != 'failed':
         messages.error(request, 'Can only retry failed jobs.')
         return redirect('job_monitor')
-    
+
     # Import tasks
     from .tasks import generate_timetable_task, generate_distribution_task, generate_allocation_task
     from django.db import transaction
-    
+
     # Create a new job
     import uuid
     new_job_id = str(uuid.uuid4())
@@ -2034,26 +2121,831 @@ def job_retry_view(request, job_id):
         created_by=request.user,
         params=job.params
     )
-    
+
     # Trigger the appropriate task based on job type (after commit)
     def trigger_retry_task():
         if job.job_type == 'timetable':
             params = job.params
             generate_timetable_task.apply_async(
-                args=[new_job_id, request.user.id, params.get('start_date'), params.get('end_date')]
+                args=[new_job_id, request.user.id, params.get(
+                    'start_date'), params.get('end_date')]
             )
         elif job.job_type == 'distribution':
             params = job.params
             generate_distribution_task.apply_async(
-                args=[new_job_id, request.user.id, params.get('date'), params.get('period')]
+                args=[new_job_id, request.user.id,
+                      params.get('date'), params.get('period')]
             )
         elif job.job_type == 'allocation':
             params = job.params
             generate_allocation_task.apply_async(
-                args=[new_job_id, request.user.id, params.get('date'), params.get('period')]
+                args=[new_job_id, request.user.id,
+                      params.get('date'), params.get('period')]
             )
-    
+
     transaction.on_commit(trigger_retry_task)
-    
-    messages.success(request, f'Job retried successfully. New job ID: {new_job_id}')
+
+    messages.success(
+        request, f'Job retried successfully. New job ID: {new_job_id}')
     return redirect('job_detail', job_id=new_job_id)
+
+
+# --------------------------
+#  Department CRUD Views
+# --------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def create_department(request):
+    """Create a new department"""
+    name = request.POST.get("name", "").strip()
+    slug = request.POST.get("slug", "").strip().upper()
+
+    if not name or not slug:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Department name and code are required"},
+        )
+
+    if Department.objects.filter(slug=slug).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Department with code '{slug}' already exists"},
+        )
+
+    if Department.objects.filter(name__iexact=name).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Department with name '{name}' already exists"},
+        )
+
+    Department.objects.create(name=name, slug=slug)
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Department created successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def edit_department(request, slug):
+    """Edit a department"""
+    department = get_object_or_404(Department, slug=slug)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        new_slug = request.POST.get("slug", "").strip().upper()
+
+        if not name or not new_slug:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Department name and code are required"},
+            )
+
+        # Check if new slug conflicts with another department
+        if new_slug != department.slug and Department.objects.filter(slug=new_slug).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Department with code '{new_slug}' already exists"},
+            )
+
+        # Check if new name conflicts with another department
+        if name.lower() != department.name.lower() and Department.objects.filter(name__iexact=name).exclude(id=department.id).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Department with name '{name}' already exists"},
+            )
+
+        department.name = name
+        department.slug = new_slug
+        department.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Department updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"department": department}
+    return render(request, "dashboard/partials/edit-department-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def delete_department(request, slug):
+    """Delete a department"""
+    department = get_object_or_404(Department, slug=slug)
+
+    # Check if department has associated classes
+    if Class.objects.filter(department=department).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete department with associated classes. Delete the classes first."},
+        )
+
+    # Check if department has associated users
+    if User.objects.filter(department=department).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete department with associated users. Reassign the users first."},
+        )
+
+    department.delete()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Department deleted successfully"},
+    )
+
+
+# --------------------------
+#  User Management CRUD Views
+# --------------------------
+
+@login_required(login_url="login")
+@admin_required
+def edit_user(request, user_id):
+    """Edit a user"""
+    user = get_object_or_404(User, id=user_id)
+    departments = Department.objects.all()
+
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        email = request.POST.get("email", "").strip()
+        department_slug = request.POST.get("department", "")
+        is_staff = request.POST.get("is_staff") == "on"
+
+        if not first_name or not last_name or not email:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": "First name, last name and email are required"},
+            )
+
+        # Check if email conflicts with another user
+        if email != user.email and User.objects.filter(email=email).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Email already exists"},
+            )
+
+        user.first_name = first_name
+        user.last_name = last_name
+        user.email = email
+        user.is_staff = is_staff
+
+        if department_slug and not is_staff:
+            department = Department.objects.filter(
+                slug=department_slug).first()
+            user.department = department
+        elif is_staff:
+            user.department = None
+
+        user.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "User updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"user_obj": user, "departments": departments}
+    return render(request, "dashboard/partials/edit-user-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def delete_user(request, user_id):
+    """Delete a user"""
+    user = get_object_or_404(User, id=user_id)
+
+    # Prevent deleting yourself
+    if user.id == request.user.id:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "You cannot delete your own account"},
+        )
+
+    # Prevent deleting the last admin
+    if user.is_staff and User.objects.filter(is_staff=True).count() <= 1:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Cannot delete the last admin user"},
+        )
+
+    user.delete()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "User deleted successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def change_user_password(request, user_id):
+    """Change a user's password"""
+    user = get_object_or_404(User, id=user_id)
+
+    if request.method == "POST":
+        new_password = request.POST.get("new_password", "")
+        confirm_password = request.POST.get("confirm_password", "")
+
+        if not new_password:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Password is required"},
+            )
+
+        if new_password != confirm_password:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Passwords do not match"},
+            )
+
+        if len(new_password) < 8:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Password must be at least 8 characters"},
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Password changed successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"user_obj": user}
+    return render(request, "dashboard/partials/change-password-modal.html", context)
+
+
+# --------------------------
+#  Class CRUD Views
+# --------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def create_class(request, dept_slug):
+    """Create a new class in a department"""
+    department = get_object_or_404(Department, slug=dept_slug)
+
+    name = request.POST.get("name", "").strip()
+    size = request.POST.get("size", "0").strip()
+
+    if not name:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Class name is required"},
+        )
+
+    try:
+        size = int(size)
+        if size < 0:
+            raise ValueError("Size must be positive")
+    except ValueError:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Class size must be a valid positive number"},
+        )
+
+    # Check if class already exists in this department
+    if Class.objects.filter(name__iexact=name, department=department).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": f"Class '{name}' already exists in {department.name}"},
+        )
+
+    Class.objects.create(name=name, size=size, department=department)
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Class created successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def edit_class(request, class_id):
+    """Edit a class"""
+    cls = get_object_or_404(Class, id=class_id)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        size = request.POST.get("size", "0").strip()
+
+        if not name:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Class name is required"},
+            )
+
+        try:
+            size = int(size)
+            if size < 0:
+                raise ValueError("Size must be positive")
+        except ValueError:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Class size must be a valid positive number"},
+            )
+
+        # Check if class name conflicts with another class in the same department
+        if name.lower() != cls.name.lower() and Class.objects.filter(name__iexact=name, department=cls.department).exclude(id=cls.id).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Class '{name}' already exists in {cls.department.name}"},
+            )
+
+        cls.name = name
+        cls.size = size
+        cls.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Class updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"class_obj": cls}
+    return render(request, "dashboard/partials/edit-class-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def delete_class(request, class_id):
+    """Delete a class"""
+    cls = get_object_or_404(Class, id=class_id)
+
+    # Check if class has students
+    if Student.objects.filter(level=cls).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete class with students. Delete the students first."},
+        )
+
+    # Check if class has timetable entries
+    if TimeTable.objects.filter(class_obj=cls).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete class with timetable entries. Clear the timetable first."},
+        )
+
+    cls.delete()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Class deleted successfully"},
+    )
+
+
+# --------------------------
+#  Course CRUD Views (within Class context)
+# --------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def add_course_to_class(request, class_id):
+    """Add a course to a class (create if doesn't exist, or add existing)"""
+    cls = get_object_or_404(Class, id=class_id)
+
+    name = request.POST.get("name", "").strip()
+    code = request.POST.get("code", "").strip().upper()
+    exam_type = request.POST.get("exam_type", "PBE").strip()
+
+    if not name or not code:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Course name and code are required"},
+        )
+
+    if exam_type not in ["PBE", "CBE"]:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Invalid exam type. Must be PBE or CBE"},
+        )
+
+    # Check if course already exists
+    course = Course.objects.filter(code__iexact=code).first()
+
+    if course:
+        # Course exists, check if already in class
+        if course in cls.courses.all():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Course '{code}' is already assigned to this class"},
+            )
+        # Add existing course to class
+        cls.courses.add(course)
+    else:
+        # Create new course and add to class
+        course = Course.objects.create(
+            name=name, code=code, exam_type=exam_type)
+        cls.courses.add(course)
+
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": f"Course '{code}' added to class successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def edit_class_course(request, class_id, course_id):
+    """Edit a course within class context"""
+    cls = get_object_or_404(Class, id=class_id)
+    course = get_object_or_404(Course, id=course_id)
+
+    # Verify course is in this class
+    if course not in cls.courses.all():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Course not found in this class"},
+        )
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        code = request.POST.get("code", "").strip().upper()
+        exam_type = request.POST.get("exam_type", "PBE").strip()
+
+        if not name or not code:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Course name and code are required"},
+            )
+
+        if exam_type not in ["PBE", "CBE"]:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Invalid exam type. Must be PBE or CBE"},
+            )
+
+        # Check if course code conflicts with another course
+        if code.lower() != course.code.lower() and Course.objects.filter(code__iexact=code).exclude(id=course.id).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Course with code '{code}' already exists"},
+            )
+
+        course.name = name
+        course.code = code
+        course.exam_type = exam_type
+        course.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Course updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"course": course, "class": cls}
+    return render(request, "dashboard/partials/edit-course-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def remove_course_from_class(request, class_id, course_id):
+    """Remove a course from a class (does not delete the course itself)"""
+    cls = get_object_or_404(Class, id=class_id)
+    course = get_object_or_404(Course, id=course_id)
+
+    # Verify course is in this class
+    if course not in cls.courses.all():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Course not found in this class"},
+        )
+
+    # Check if course is used in timetable
+    if TimeTable.objects.filter(course=course).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot remove course with timetable entries. Clear the timetable first."},
+        )
+
+    # Remove course from class (not deleting the course)
+    cls.courses.remove(course)
+
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={
+            "message": f"Course '{course.code}' removed from class successfully"},
+    )
+
+
+# --------------------------
+#  Global Course CRUD Views (for Courses page in sidebar)
+# --------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def create_course(request):
+    """Create a new course (global)"""
+    name = request.POST.get("name", "").strip()
+    code = request.POST.get("code", "").strip().upper()
+    exam_type = request.POST.get("exam_type", "PBE").strip()
+
+    if not name or not code:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Course name and code are required"},
+        )
+
+    if exam_type not in ["PBE", "CBE"]:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": "Invalid exam type. Must be PBE or CBE"},
+        )
+
+    if Course.objects.filter(code__iexact=code).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Course with code '{code}' already exists"},
+        )
+
+    Course.objects.create(name=name, code=code, exam_type=exam_type)
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Course created successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def edit_course(request, course_id):
+    """Edit a course (global)"""
+    course = get_object_or_404(Course, id=course_id)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        code = request.POST.get("code", "").strip().upper()
+        exam_type = request.POST.get("exam_type", "PBE").strip()
+
+        if not name or not code:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Course name and code are required"},
+            )
+
+        if exam_type not in ["PBE", "CBE"]:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": "Invalid exam type. Must be PBE or CBE"},
+            )
+
+        # Check if course code conflicts with another course
+        if code.lower() != course.code.lower() and Course.objects.filter(code__iexact=code).exclude(id=course.id).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Course with code '{code}' already exists"},
+            )
+
+        course.name = name
+        course.code = code
+        course.exam_type = exam_type
+        course.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Course updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"course": course}
+    return render(request, "dashboard/partials/edit-course-global-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def delete_course(request, course_id):
+    """Delete a course (global)"""
+    course = get_object_or_404(Course, id=course_id)
+
+    # Check if course is used in timetable
+    if TimeTable.objects.filter(course=course).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete course with timetable entries. Clear the timetable first."},
+        )
+
+    # Check if course is assigned to any class
+    if Class.objects.filter(courses=course).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete course assigned to classes. Remove from classes first."},
+        )
+
+    course.delete()
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Course deleted successfully"},
+    )
+
+
+# --------------------------
+#  Student CRUD Views (within Class context)
+# --------------------------
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def create_student(request, class_id):
+    """Create a new student in a class"""
+    cls = get_object_or_404(Class, id=class_id)
+
+    first_name = request.POST.get("first_name", "").strip()
+    last_name = request.POST.get("last_name", "").strip()
+    matric_no = request.POST.get("matric_no", "").strip().upper()
+    email = request.POST.get("email", "").strip()
+    phone = request.POST.get("phone", "").strip()
+
+    if not first_name or not last_name or not matric_no:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "First name, last name and matric number are required"},
+        )
+
+    if Student.objects.filter(matric_no=matric_no).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": f"Student with matric number '{matric_no}' already exists"},
+        )
+
+    Student.objects.create(
+        first_name=first_name,
+        last_name=last_name,
+        matric_no=matric_no,
+        email=email,
+        phone=phone,
+        level=cls,
+        department=cls.department
+    )
+
+    # Update class size
+    cls.size = Student.objects.filter(
+        level=cls, department=cls.department).count()
+    cls.save()
+
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Student created successfully"},
+    )
+
+
+@login_required(login_url="login")
+@admin_required
+def edit_student(request, student_id):
+    """Edit a student"""
+    student = get_object_or_404(Student, id=student_id)
+
+    if request.method == "POST":
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        matric_no = request.POST.get("matric_no", "").strip().upper()
+        email = request.POST.get("email", "").strip()
+        phone = request.POST.get("phone", "").strip()
+
+        if not first_name or not last_name or not matric_no:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": "First name, last name and matric number are required"},
+            )
+
+        # Check if matric number conflicts with another student
+        if matric_no != student.matric_no and Student.objects.filter(matric_no=matric_no).exists():
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={
+                    "message": f"Student with matric number '{matric_no}' already exists"},
+            )
+
+        student.first_name = first_name
+        student.last_name = last_name
+        student.matric_no = matric_no
+        student.email = email
+        student.phone = phone
+        student.save()
+
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": "Student updated successfully"},
+        )
+
+    # GET request - return modal content
+    context = {"student": student}
+    return render(request, "dashboard/partials/edit-student-modal.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+@admin_required
+def delete_student(request, student_id):
+    """Delete a student"""
+    student = get_object_or_404(Student, id=student_id)
+    cls = student.level
+
+    # Check if student has seat arrangements
+    if SeatArrangement.objects.filter(student=student).exists():
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={
+                "message": "Cannot delete student with seat arrangements. Clear allocations first."},
+        )
+
+    student.delete()
+
+    # Update class size
+    cls.size = Student.objects.filter(
+        level=cls, department=cls.department).count()
+    cls.save()
+
+    return render(
+        request,
+        template_name="dashboard/partials/alert-success.html",
+        context={"message": "Student deleted successfully"},
+    )

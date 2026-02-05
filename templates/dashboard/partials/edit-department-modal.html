@@ -1,0 +1,21 @@
+<div class="modal-header">
+  <h5 class="modal-title">Edit Department</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form hx-post="{% url 'edit_department' department.slug %}" hx-target="#edit-dept-alert" hx-swap="innerHTML">
+  <div class="modal-body">
+    <div id="edit-dept-alert"></div>
+    <div class="form-group">
+      <label for="edit_dept_name" class="form-label">Department Name</label>
+      <input type="text" id="edit_dept_name" name="name" class="form-control" value="{{ department.name }}" required />
+    </div>
+    <div class="form-group">
+      <label for="edit_dept_slug" class="form-label">Department Code</label>
+      <input type="text" id="edit_dept_slug" name="slug" class="form-control" value="{{ department.slug }}" required style="text-transform: uppercase;" />
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    <button type="submit" class="btn btn-primary d-flex gap-3 align-items-center">Update{% include 'dashboard/partials/loader.html' %}</button>
+  </div>
+</form>
