@@ -1338,46 +1338,123 @@ def distribution_statistics(request: HttpRequest) -> HttpResponse:
 @require_POST
 @login_required(login_url="login")
 def upload_courses(request):
+    from django.db import transaction
+    
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Courses upload not allowed again!</div>')
+    
     data = request.FILES.get("file")
-    courses = pd.read_csv(data)
-    courses = courses.to_dict()
-    for key in courses["COURSE CODE"]:
-        course, created = Course.objects.get_or_create(
-            code=courses["COURSE CODE"][key],
-            defaults={
-                "name": courses["COURSE TITLE"][key],
-                "exam_type": courses["EXAM TYPE"][key]
-            },
+    
+    try:
+        courses_df = pd.read_csv(data)
+        
+        # Validate required columns
+        required_columns = ["COURSE CODE", "COURSE TITLE", "EXAM TYPE"]
+        missing_columns = [col for col in required_columns if col not in courses_df.columns]
+        if missing_columns:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+            )
+        
+        # Check for duplicate course codes in the CSV
+        duplicate_codes = courses_df[courses_df.duplicated(subset=['COURSE CODE'], keep=False)]['COURSE CODE'].tolist()
+        if duplicate_codes:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Duplicate course codes found in file: {', '.join(set(duplicate_codes))}"},
+            )
+        
+        courses = courses_df.to_dict()
+        created_count = 0
+        updated_count = 0
+        
+        with transaction.atomic():
+            for key in courses["COURSE CODE"]:
+                course, created = Course.objects.get_or_create(
+                    code=courses["COURSE CODE"][key],
+                    defaults={
+                        "name": courses["COURSE TITLE"][key],
+                        "exam_type": courses["EXAM TYPE"][key]
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    # Update existing course
+                    course.name = courses["COURSE TITLE"][key]
+                    course.exam_type = courses["EXAM TYPE"][key]
+                    course.save()
+                    updated_count += 1
+        
+        message = f"Courses processed successfully! Created: {created_count}, Updated: {updated_count}"
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": message},
         )
-        if created:
-            course.save()
-    if created:
-        return HttpResponse('<div class="alert alert-success">Courses uploaded successfully!</div>')
-    else:
-        return HttpResponse('<div class="alert alert-danger">Upload error, please try again.</div>')
+    except Exception as e:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+        )
 
 
 @require_POST
 @login_required(login_url="login")
 def upload_classes(request, dept_slug):
+    from django.db import transaction
+    
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Classes upload not allowed again!</div>')
+    
     department = get_object_or_404(Department, slug=dept_slug)
     data = request.FILES.get("file")
-    dept = pd.read_csv(data)
-    dept = dept.to_dict()
-    for key in dept["Name"]:
-        cls, created = Class.objects.get_or_create(
-            name=dept["Name"][key],
-            department=department,
-            defaults={"size": dept["Size"][key]},
-        )
-        if created:
-            cls.save()
+    
+    try:
+        dept_df = pd.read_csv(data)
+        
+        # Validate required columns
+        required_columns = ["Name", "Size"]
+        missing_columns = [col for col in required_columns if col not in dept_df.columns]
+        if missing_columns:
+            messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
+            return redirect("get_department", department.slug)
+        
+        # Check for duplicate class names in the CSV
+        duplicate_names = dept_df[dept_df.duplicated(subset=['Name'], keep=False)]['Name'].tolist()
+        if duplicate_names:
+            messages.error(request, f"Duplicate class names found in file: {', '.join(set(duplicate_names))}")
+            return redirect("get_department", department.slug)
+        
+        dept = dept_df.to_dict()
+        created_count = 0
+        updated_count = 0
+        
+        with transaction.atomic():
+            for key in dept["Name"]:
+                cls, created = Class.objects.get_or_create(
+                    name=dept["Name"][key],
+                    department=department,
+                    defaults={"size": dept["Size"][key]},
+                )
+                if created:
+                    created_count += 1
+                else:
+                    # Update existing class size
+                    cls.size = dept["Size"][key]
+                    cls.save()
+                    updated_count += 1
+        
+        messages.success(request, f"Classes processed successfully! Created: {created_count}, Updated: {updated_count}")
+    except Exception as e:
+        messages.error(request, f"Upload error: {str(e)}. Please check your file format and try again.")
+    
     return redirect("get_department", department.slug)
 
 
@@ -1385,19 +1462,52 @@ def upload_classes(request, dept_slug):
 @login_required(login_url="login")
 @admin_required
 def upload_departments(request):
+    from django.db import transaction
+    
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Departments upload not allowed again!</div>')
+    
     data = request.FILES.get("file")
-    dept = pd.read_csv(data)
-    dept = dept.to_dict()
-    for key in dept["Code"]:
-        department, created = Department.objects.get_or_create(
-            slug=dept["Code"][key],
-            defaults={"name": dept["Name"][key]},
-        )
-        if created:
-            department.save()
+    
+    try:
+        dept_df = pd.read_csv(data)
+        
+        # Validate required columns
+        required_columns = ["Code", "Name"]
+        missing_columns = [col for col in required_columns if col not in dept_df.columns]
+        if missing_columns:
+            messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
+            return redirect("department")
+        
+        # Check for duplicate department codes in the CSV
+        duplicate_codes = dept_df[dept_df.duplicated(subset=['Code'], keep=False)]['Code'].tolist()
+        if duplicate_codes:
+            messages.error(request, f"Duplicate department codes found in file: {', '.join(set(duplicate_codes))}")
+            return redirect("department")
+        
+        dept = dept_df.to_dict()
+        created_count = 0
+        updated_count = 0
+        
+        with transaction.atomic():
+            for key in dept["Code"]:
+                department, created = Department.objects.get_or_create(
+                    slug=dept["Code"][key],
+                    defaults={"name": dept["Name"][key]},
+                )
+                if created:
+                    created_count += 1
+                else:
+                    # Update existing department name
+                    department.name = dept["Name"][key]
+                    department.save()
+                    updated_count += 1
+        
+        messages.success(request, f"Departments processed successfully! Created: {created_count}, Updated: {updated_count}")
+    except Exception as e:
+        messages.error(request, f"Upload error: {str(e)}. Please check your file format and try again.")
+    
     return redirect("department")
 
 
@@ -1614,29 +1724,76 @@ def upload_class_students(request, id):
 @login_required(login_url="login")
 @admin_required
 def upload_halls(request):
+    from django.db import transaction
+    
     settings = SystemSettings.objects.first()
     if settings.has_timetable:
         return HttpResponse('<div class="alert alert-danger">Halls upload not allowed again!</div>')
+    
     data = request.FILES.get("file")
-    halls = pd.read_csv(data).to_dict()
-    for key in halls["EXAM VENUE"]:
-        hall, created = Hall.objects.get_or_create(
-            name=halls["EXAM VENUE"][key],
-            defaults={
-                "capacity": halls["CAPACITY"][key],
-                "max_students": halls["MAX STUDENTS"][key],
-                "min_courses": halls["MIN COURSES"][key],
-                "rows": halls["ROWS"][key],
-                "columns": halls["COLS"][key],
-            },
+    
+    try:
+        halls_df = pd.read_csv(data)
+        
+        # Validate required columns
+        required_columns = ["EXAM VENUE", "CAPACITY", "MAX STUDENTS", "MIN COURSES", "ROWS", "COLS"]
+        missing_columns = [col for col in required_columns if col not in halls_df.columns]
+        if missing_columns:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Missing required columns: {', '.join(missing_columns)}"},
+            )
+        
+        # Check for duplicate hall names in the CSV
+        duplicate_halls = halls_df[halls_df.duplicated(subset=['EXAM VENUE'], keep=False)]['EXAM VENUE'].tolist()
+        if duplicate_halls:
+            return render(
+                request,
+                template_name="dashboard/partials/alert-error.html",
+                context={"message": f"Duplicate hall names found in file: {', '.join(set(duplicate_halls))}"},
+            )
+        
+        halls = halls_df.to_dict()
+        created_count = 0
+        updated_count = 0
+        
+        with transaction.atomic():
+            for key in halls["EXAM VENUE"]:
+                hall, created = Hall.objects.get_or_create(
+                    name=halls["EXAM VENUE"][key],
+                    defaults={
+                        "capacity": halls["CAPACITY"][key],
+                        "max_students": halls["MAX STUDENTS"][key],
+                        "min_courses": halls["MIN COURSES"][key],
+                        "rows": halls["ROWS"][key],
+                        "columns": halls["COLS"][key],
+                    },
+                )
+                if created:
+                    created_count += 1
+                else:
+                    # Update existing hall
+                    hall.capacity = halls["CAPACITY"][key]
+                    hall.max_students = halls["MAX STUDENTS"][key]
+                    hall.min_courses = halls["MIN COURSES"][key]
+                    hall.rows = halls["ROWS"][key]
+                    hall.columns = halls["COLS"][key]
+                    hall.save()
+                    updated_count += 1
+        
+        message = f"Halls processed successfully! Created: {created_count}, Updated: {updated_count}"
+        return render(
+            request,
+            template_name="dashboard/partials/alert-success.html",
+            context={"message": message},
         )
-        if created:
-            hall.save()
-    return render(
-        request,
-        template_name="dashboard/partials/alert-success.html",
-        context={"message": "Halls uploaded successfully"},
-    )
+    except Exception as e:
+        return render(
+            request,
+            template_name="dashboard/partials/alert-error.html",
+            context={"message": f"Upload error: {str(e)}. Please check your file format and try again."},
+        )
 
 
 @require_POST
