@@ -1474,7 +1474,7 @@ def upload_departments(request):
         dept_df = pd.read_csv(data)
         
         # Validate required columns
-        required_columns = ["Code", "Name"]
+        required_columns = ["Name", "Code"]
         missing_columns = [col for col in required_columns if col not in dept_df.columns]
         if missing_columns:
             messages.error(request, f"Missing required columns: {', '.join(missing_columns)}")
