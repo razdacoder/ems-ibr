@@ -466,23 +466,43 @@ def process_department_class_file(extracted_dir):
 
 
 def process_class_course_csv_memory(csv_io, class_obj):
-    """Process class course CSV from memory"""
-    import pandas as pd
+    """Process class course CSV from memory with bulk operations"""
+    from django.db import transaction
 
     # Read CSV content into pandas DataFrame
-    csv_io.seek(0)  # Reset to beginning
+    csv_io.seek(0)
     df = pd.read_csv(csv_io)
-    file_dict = df.to_dict()
 
-    for key in file_dict["COURSE CODE"]:
-        code = file_dict["COURSE CODE"][key]
-        name = file_dict["COURSE TITLE"][key]
-        exam_type = file_dict["EXAM TYPE"][key]
+    # Remove duplicates and NaN values
+    # df = df.dropna(subset=["COURSE CODE", "COURSE TITLE", "EXAM TYPE"])
+    df = df.drop_duplicates(subset=["COURSE CODE"])
 
-        course, created = Course.objects.get_or_create(
-            name=name, code=code, exam_type=exam_type
-        )
-        class_obj.courses.add(course)
+    # Extract unique course codes
+    course_codes = df["COURSE CODE"].tolist()
+
+    # Get existing courses in a single query
+    existing_courses = Course.objects.filter(code__in=course_codes)
+    existing_codes = set(existing_courses.values_list("code", flat=True))
+
+    # Prepare new courses to create
+    new_courses = []
+    for _, row in df.iterrows():
+        code = row["COURSE CODE"]
+        if code not in existing_codes:
+            new_courses.append(
+                Course(name=row["COURSE TITLE"], code=code, exam_type=row["EXAM TYPE"])
+            )
+
+    # Bulk create new courses
+    if new_courses:
+        Course.objects.bulk_create(new_courses, ignore_conflicts=True)
+
+    # Get all courses (existing + newly created) in one query
+    all_courses = Course.objects.filter(code__in=course_codes)
+
+    # Bulk add to many-to-many relationship
+    with transaction.atomic():
+        class_obj.courses.add(*all_courses)
 
 
 def process_class_course_csv(file_path, class_obj):
