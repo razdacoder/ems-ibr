@@ -6,6 +6,7 @@ import zipfile
 import pandas as pd  # type: ignore
 from django.conf import settings
 from django.db.models import Prefetch
+from typing_extensions import Counter
 
 from .models import (
     Class,
@@ -14,8 +15,8 @@ from .models import (
     Distribution,
     DistributionItem,
     Hall,
+    SeatArrangement,
     TimeTable,
-    SeatArrangement
 )
 
 ################################################################################################################################################################
@@ -25,14 +26,17 @@ from .models import (
 
 def get_halls():
     """To get all Halls into memory location"""
-    return [{"id": hall.id, "name": hall.name, "capacity": hall.capacity} for hall in Hall.objects.all()]
+    return [
+        {"id": hall.id, "name": hall.name, "capacity": hall.capacity}
+        for hall in Hall.objects.all()
+    ]
 
 
 # Get courses to memory location
 def get_courses():
     """To get courses based on classes object"""
     courses = Course.objects.prefetch_related(
-        Prefetch('courses', queryset=Class.objects.select_related('department'))
+        Prefetch("courses", queryset=Class.objects.select_related("department"))
     ).all()
 
     return [
@@ -41,13 +45,11 @@ def get_courses():
             "code": course.code,
             "exam_type": course.exam_type,
             "classes": [
-                {
-                    "id": cls.id,
-                    "name": cls.name,
-                    "size": cls.size
-                } for cls in course.courses.all()
-            ]
-        } for course in courses
+                {"id": cls.id, "name": cls.name, "size": cls.size}
+                for cls in course.courses.all()
+            ],
+        }
+        for course in courses
     ]
 
 
@@ -56,13 +58,13 @@ def save_to_timetable_db(schedules):
     """Save schedule into the timetable in DB"""
     timetables = []
     for schedule in schedules:
-        for cls in schedule['course']['classes']:
+        for cls in schedule["course"]["classes"]:
             timetables.append(
                 TimeTable(
-                    course=Course.objects.get(id=schedule['course']['id']),
-                    class_obj=Class.objects.get(id=cls['id']),
-                    date=schedule['date'],
-                    period=schedule['period']
+                    course=Course.objects.get(id=schedule["course"]["id"]),
+                    class_obj=Class.objects.get(id=cls["id"]),
+                    date=schedule["date"],
+                    period=schedule["period"],
                 )
             )
     TimeTable.objects.bulk_create(timetables)
@@ -70,8 +72,8 @@ def save_to_timetable_db(schedules):
 
 # Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM") for only PBE courses
 def check_course_period(course):
-    for item in course['classes']:
-        if item['name'].endswith('II') or item['name'].endswith('2'):
+    for item in course["classes"]:
+        if item["name"].endswith("II") or item["name"].endswith("2"):
             return True
     return False
 
@@ -80,7 +82,7 @@ def check_course_period(course):
 def split_course(courses):
     AM_courses, PM_courses = [], []
     for course in courses:
-        if course['exam_type'] == "PBE":
+        if course["exam_type"] == "PBE":
             if check_course_period(course):
                 PM_courses.append(course)
             else:
@@ -92,7 +94,7 @@ def split_course(courses):
 
 # Helper function to check if a class is scheduled on a given date
 def is_class_scheduled(course, date, Schedules):
-    for cls in course['classes']:
+    for cls in course["classes"]:
         for schedule in Schedules:
             if schedule["date"] == date and cls in schedule["course"]["classes"]:
                 return True
@@ -106,10 +108,9 @@ def get_total_seats(Halls):
 
 # Check for CBE Schedule
 def check_for_CBE(schedules, date):
-    schedules_date = filter(
-        lambda schedule: schedule['date'] == date, schedules)
+    schedules_date = filter(lambda schedule: schedule["date"] == date, schedules)
     for schedule in schedules_date:
-        if schedule['course']['exam_type'] == "CBE":
+        if schedule["course"]["exam_type"] == "CBE":
             return True
     return False
 
@@ -118,7 +119,11 @@ def check_for_CBE(schedules, date):
 def can_continue(date, seat_remaining, courses, Schedules):
     for course in courses:
         Seat_Required = sum([Class["size"] for Class in course["classes"]])
-        if seat_remaining >= Seat_Required and not is_class_scheduled(course, date, Schedules) and not check_for_CBE(Schedules, date):
+        if (
+            seat_remaining >= Seat_Required
+            and not is_class_scheduled(course, date, Schedules)
+            and not check_for_CBE(Schedules, date)
+        ):
             return True
     return False
 
@@ -126,7 +131,9 @@ def can_continue(date, seat_remaining, courses, Schedules):
 def can_continue_PM(date, seat_remaining, courses, Schedules):
     for course in courses:
         Seat_Required = sum([Class["size"] for Class in course["classes"]])
-        if seat_remaining >= Seat_Required and not is_class_scheduled(course, date, Schedules):
+        if seat_remaining >= Seat_Required and not is_class_scheduled(
+            course, date, Schedules
+        ):
             return True
     return False
 
@@ -135,15 +142,16 @@ def filter_courses(date, seat_remaining, courses, schedules):
     eligible_courses = []
     for course in courses:
         seat_required = sum(cls["size"] for cls in course["classes"])
-        if seat_remaining >= seat_required and not is_class_scheduled(course, date, schedules):
+        if seat_remaining >= seat_required and not is_class_scheduled(
+            course, date, schedules
+        ):
             eligible_courses.append(course)
     return eligible_courses
 
 
 # Get the next valid course to schedule
 def get_next_course(date, seat_remaining, courses, Schedules):
-    courses_to_select = filter_courses(
-        date, seat_remaining, courses, Schedules)
+    courses_to_select = filter_courses(date, seat_remaining, courses, Schedules)
     return random.choice(courses_to_select)
 
 
@@ -161,25 +169,27 @@ def generate(dates, courses_AM, courses_PM, Halls):
         while AM_scheduling:
             if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
                 AM_scheduling = False
-            Course = get_next_course(
-                Date, Total_Seats_AM, courses_AM, Schedules)
-            if Course['exam_type'] == "CBE":
+            Course = get_next_course(Date, Total_Seats_AM, courses_AM, Schedules)
+            if Course["exam_type"] == "CBE":
                 if not check_for_CBE(Schedules, Date):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
                     courses_AM.remove(Course)
             else:
-                Seat_Required = sum([Class["size"]
-                                    for Class in Course["classes"]])
-                if Total_Seats_AM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
-                    Schedule = {"course": Course,
-                                "date": Date, "period": "AM"}
+                Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                if Total_Seats_AM >= Seat_Required and not is_class_scheduled(
+                    Course, Date, Schedules
+                ):
+                    Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
                     Total_Seats_AM -= Seat_Required
                     courses_AM.remove(Course)
                     if Total_Seats_AM == 0:
                         AM_scheduling = False
-                    if len(filter_courses(Date, Total_Seats_AM, courses_AM, Schedules)) == 0:
+                    if (
+                        len(filter_courses(Date, Total_Seats_AM, courses_AM, Schedules))
+                        == 0
+                    ):
                         AM_scheduling = False
                         #  Schedule PM Courses
         PM_scheduling = True
@@ -187,18 +197,21 @@ def generate(dates, courses_AM, courses_PM, Halls):
             if not can_continue_PM(Date, Total_Seats_PM, courses_PM, Schedules):
                 PM_scheduling = False
             else:
-                Course = get_next_course(
-                    Date, Total_Seats_PM, courses_PM, Schedules)
-                Seat_Required = sum([Class["size"]
-                                    for Class in Course["classes"]])
-                if Total_Seats_PM >= Seat_Required and not is_class_scheduled(Course, Date, Schedules):
+                Course = get_next_course(Date, Total_Seats_PM, courses_PM, Schedules)
+                Seat_Required = sum([Class["size"] for Class in Course["classes"]])
+                if Total_Seats_PM >= Seat_Required and not is_class_scheduled(
+                    Course, Date, Schedules
+                ):
                     Schedule = {"course": Course, "date": Date, "period": "PM"}
                     Schedules.append(Schedule)
                     Total_Seats_PM -= Seat_Required
                     courses_PM.remove(Course)
                     if Total_Seats_PM == 0:
                         PM_scheduling = False
-                    if len(filter_courses(Date, Total_Seats_PM, courses_PM, Schedules)) == 0:
+                    if (
+                        len(filter_courses(Date, Total_Seats_PM, courses_PM, Schedules))
+                        == 0
+                    ):
                         PM_scheduling = False
     # Bulk upload schedules to timetable Db
     save_to_timetable_db(Schedules)
@@ -231,7 +244,7 @@ def convert_hall_to_dict(halls):
             "capacity": hall.capacity,
             "max_students": hall.max_students,
             "min_courses": hall.min_courses,
-            "classes": []
+            "classes": [],
         }
         halls_dict.append(hall_dict)
     return halls_dict
@@ -240,8 +253,14 @@ def convert_hall_to_dict(halls):
 def make_schedules(timetables):
     tt = []
     for timetable in timetables:
-        tt.append({"id": timetable.id, 'class': timetable.class_obj.name,
-                   "course": timetable.course.code, "size": timetable.class_obj.size})
+        tt.append(
+            {
+                "id": timetable.id,
+                "class": timetable.class_obj.name,
+                "course": timetable.course.code,
+                "size": timetable.class_obj.size,
+            }
+        )
     random.shuffle(tt)
     return tt
 
@@ -260,7 +279,11 @@ def distribute_classes_to_halls(timetables, halls):
     results = []
     for hall in halls:
         for schedule in class_schedules:
-            if is_course_in_hall(hall, schedule["course"]) or len(hall["classes"]) == hall["min_courses"] or schedule["size"] == 0:
+            if (
+                is_course_in_hall(hall, schedule["course"])
+                or len(hall["classes"]) == hall["min_courses"]
+                or schedule["size"] == 0
+            ):
                 pass
             else:
                 number_of_students = hall["max_students"]
@@ -269,8 +292,12 @@ def distribute_classes_to_halls(timetables, halls):
                 if schedule["size"] - number_of_students < 5:
                     number_of_students = schedule["size"]
 
-                res = {"id": schedule["id"], "class": schedule["class"], "course": schedule["course"],
-                       "student_range": number_of_students}
+                res = {
+                    "id": schedule["id"],
+                    "class": schedule["class"],
+                    "course": schedule["course"],
+                    "student_range": number_of_students,
+                }
                 hall["classes"].append(res)
                 hall["capacity"] -= number_of_students
                 schedule["size"] -= number_of_students
@@ -286,9 +313,7 @@ def save_to_db(res, date, period):
 
     for item in res:
         hall = Hall.objects.get(id=item["id"])
-        distribution = Distribution.objects.create(
-            hall=hall, date=date, period=period
-        )
+        distribution = Distribution.objects.create(hall=hall, date=date, period=period)
         for cls in item["classes"]:
             schedule = TimeTable.objects.get(id=cls["id"])
             dist_item = DistributionItem.objects.create(
@@ -303,176 +328,203 @@ def save_to_db(res, date, period):
 ##### BULK UPLOAD FUNCTION ########
 ###################################
 
+
 def handle_uploaded_file(file, upload_type):
     """Process uploaded ZIP file entirely in memory without creating temporary files"""
     print("File Uploaded Successful")
-    
+
     # Read the uploaded file into memory
-    file_content = b''
+    file_content = b""
     for chunk in file.chunks():
         file_content += chunk
-    
+
     # Process ZIP file in memory
     import io
-    with zipfile.ZipFile(io.BytesIO(file_content), 'r') as zip_ref:
-        if upload_type == 'courses':
+
+    with zipfile.ZipFile(io.BytesIO(file_content), "r") as zip_ref:
+        if upload_type == "courses":
             return process_class_course_files_memory(zip_ref)
-        elif upload_type == 'classes':
+        elif upload_type == "classes":
             return process_department_class_file_memory(zip_ref)
-        elif upload_type == 'students':
+        elif upload_type == "students":
             return process_student_files_memory(zip_ref)
-    
+
     return None
 
 
 def process_class_course_files_memory(zip_ref):
     """Process class course files from ZIP in memory"""
     import io
-    
+
     # Look for 'class course' folder in ZIP
-    class_course_files = [f for f in zip_ref.namelist() if f.startswith('class course/') and f.endswith('.csv')]
-    
+    class_course_files = [
+        f
+        for f in zip_ref.namelist()
+        if f.startswith("class course/") and f.endswith(".csv")
+    ]
+
     if not class_course_files:
-        raise ValueError("No 'class course' folder with CSV files found in the ZIP file.")
-    
+        raise ValueError(
+            "No 'class course' folder with CSV files found in the ZIP file."
+        )
+
     for file_path in class_course_files:
         # Extract department and class name from path: 'class course/department/class.csv'
-        path_parts = file_path.split('/')
+        path_parts = file_path.split("/")
         if len(path_parts) >= 3:
             department_name = path_parts[1]
             class_file = path_parts[2]
             class_name, ext = os.path.splitext(class_file)
-            
-            if ext == '.csv':
+
+            if ext == ".csv":
                 try:
                     class_obj = Class.objects.get(
-                        name=class_name, department__slug=department_name)
-                    
+                        name=class_name, department__slug=department_name
+                    )
+
                     # Read CSV content from ZIP
                     csv_content = zip_ref.read(file_path)
-                    csv_io = io.StringIO(csv_content.decode('utf-8'))
+                    csv_io = io.StringIO(csv_content.decode("utf-8"))
                     process_class_course_csv_memory(csv_io, class_obj)
-                    
+
                 except Class.DoesNotExist:
-                    print(f"Class {class_name} in department {department_name} does not exist in the database.")
+                    print(
+                        f"Class {class_name} in department {department_name} does not exist in the database."
+                    )
+
 
 def process_class_course_files(extracted_dir):
-    class_course_path = os.path.join(extracted_dir, 'class course')
+    class_course_path = os.path.join(extracted_dir, "class course")
     if os.path.isdir(class_course_path):
         for department_name in os.listdir(class_course_path):
             department_path = os.path.join(class_course_path, department_name)
             if os.path.isdir(department_path):
                 for class_file in os.listdir(department_path):
                     class_name, ext = os.path.splitext(class_file)
-                    if ext == '.csv':
+                    if ext == ".csv":
                         class_path = os.path.join(department_path, class_file)
                         try:
                             class_obj = Class.objects.get(
-                                name=class_name, department__slug=department_name)
+                                name=class_name, department__slug=department_name
+                            )
                             process_class_course_csv(class_path, class_obj)
                         except Class.DoesNotExist:
                             print(
-                                f"Class {class_name} in department {department_name} does not exist in the database.")
+                                f"Class {class_name} in department {department_name} does not exist in the database."
+                            )
 
 
 def process_department_class_file_memory(zip_ref):
     """Process department class files from ZIP in memory"""
     import io
-    
+
     # Look for 'classes' folder in ZIP
-    dept_class_files = [f for f in zip_ref.namelist() if f.startswith('classes/') and f.endswith('classes.csv')]
-    
+    dept_class_files = [
+        f
+        for f in zip_ref.namelist()
+        if f.startswith("classes/") and f.endswith("classes.csv")
+    ]
+
     if not dept_class_files:
-        raise ValueError("No 'classes' folder with classes.csv files found in the ZIP file.")
-    
+        raise ValueError(
+            "No 'classes' folder with classes.csv files found in the ZIP file."
+        )
+
     for file_path in dept_class_files:
         # Extract department name from path: 'classes/department/classes.csv'
-        path_parts = file_path.split('/')
+        path_parts = file_path.split("/")
         if len(path_parts) >= 3:
             department_name = path_parts[1]
-            
+
             try:
                 department = Department.objects.get(slug=department_name)
-                
+
                 # Read CSV content from ZIP
                 csv_content = zip_ref.read(file_path)
-                csv_io = io.StringIO(csv_content.decode('utf-8'))
+                csv_io = io.StringIO(csv_content.decode("utf-8"))
                 process_department_class_csv_memory(csv_io, department)
-                
+
             except Department.DoesNotExist:
                 print(f"Department {department_name} does not exist in the database.")
 
+
 def process_department_class_file(extracted_dir):
-    department_class_path = os.path.join(extracted_dir, 'classes')
+    department_class_path = os.path.join(extracted_dir, "classes")
     if os.path.isdir(department_class_path):
         for department_name in os.listdir(department_class_path):
-            department_path = os.path.join(
-                department_class_path, department_name)
+            department_path = os.path.join(department_class_path, department_name)
             if os.path.isdir(department_path):
-                class_file_path = os.path.join(department_path, 'classes.csv')
+                class_file_path = os.path.join(department_path, "classes.csv")
                 if os.path.isfile(class_file_path):
                     try:
-                        department = Department.objects.get(
-                            slug=department_name)
-                        process_department_class_csv(
-                            class_file_path, department)
+                        department = Department.objects.get(slug=department_name)
+                        process_department_class_csv(class_file_path, department)
                     except Department.DoesNotExist:
                         print(
-                            f"Department {department_name} does not exist in the database.")
+                            f"Department {department_name} does not exist in the database."
+                        )
 
 
 def process_class_course_csv_memory(csv_io, class_obj):
     """Process class course CSV from memory"""
     import pandas as pd
-    
+
     # Read CSV content into pandas DataFrame
     csv_io.seek(0)  # Reset to beginning
     df = pd.read_csv(csv_io)
     file_dict = df.to_dict()
-    
-    for key in file_dict['COURSE CODE']:
-        code = file_dict['COURSE CODE'][key]
-        name = file_dict['COURSE TITLE'][key]
-        exam_type = file_dict['EXAM TYPE'][key]
+
+    for key in file_dict["COURSE CODE"]:
+        code = file_dict["COURSE CODE"][key]
+        name = file_dict["COURSE TITLE"][key]
+        exam_type = file_dict["EXAM TYPE"][key]
+
         course, created = Course.objects.get_or_create(
-            name=name, code=code, exam_type=exam_type)
+            name=name, code=code, exam_type=exam_type
+        )
         class_obj.courses.add(course)
+
 
 def process_class_course_csv(file_path, class_obj):
     file = pd.read_csv(file_path).to_dict()
-    for key in file['COURSE CODE']:
-        code = file['COURSE CODE'][key]
-        name = file['COURSE TITLE'][key]
-        exam_type = file['EXAM TYPE'][key]
+    for key in file["COURSE CODE"]:
+        code = file["COURSE CODE"][key]
+        name = file["COURSE TITLE"][key]
+        exam_type = file["EXAM TYPE"][key]
         course, created = Course.objects.get_or_create(
-            name=name, code=code, exam_type=exam_type)
+            name=name.strip(), code=code.strip(), exam_type=exam_type.strip()
+        )
         class_obj.courses.add(course)
 
 
 def process_department_class_csv_memory(csv_io, department):
     """Process department class CSV from memory"""
     import pandas as pd
-    
+
     # Read CSV content into pandas DataFrame
     csv_io.seek(0)  # Reset to beginning
     df = pd.read_csv(csv_io)
     file_dict = df.to_dict()
-    
-    for key in file_dict['Name']:
-        Class.objects.update_or_create(
-            name=file_dict['Name'][key],
+
+    clasess = []
+
+    for key in file_dict["Name"]:
+        cls = Class(
+            name=file_dict["Name"][key].strip(),
             department=department,
-            size=file_dict['Size'][key]
+            size=file_dict["Size"][key],
         )
+        clasess.append(cls)
+    Class.objects.bulk_create(clasess)
+
 
 def process_department_class_csv(class_file_path, department):
     file = pd.read_csv(class_file_path).to_dict()
-    for key in file['Name']:
+    for key in file["Name"]:
         Class.objects.update_or_create(
-            name=file['Name'][key],
-            department=department,
-            size=file['Size'][key]
+            name=file["Name"][key], department=department, size=file["Size"][key]
         )
+
 
 ##########################################################################################
 ################# Seat Allocation ########################################################
@@ -489,122 +541,146 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
 
     # Initialize seat grid and student tracking
     seats = [[None for _ in range(cols)] for _ in range(rows)]
-    student_positions = {student['name']: None for student in students}
-    
+    student_positions = {student["name"]: None for student in students}
+
     # Group students by course for better placement strategies
     course_groups = {}
     for student in students:
-        course = student['course']
+        course = student["course"]
         if course not in course_groups:
             course_groups[course] = []
         course_groups[course].append(student)
-    
+
     def is_valid_position(student_name, row, col):
         """Check if position is valid - STRICT enforcement of adjacency constraints"""
-        course = next(student['course'] for student in students if student['name'] == student_name)
-        
+        course = next(
+            student["course"] for student in students if student["name"] == student_name
+        )
+
         # Define adjacency directions (8-directional) - ALWAYS check all directions
         # This ensures NO students from same course can sit adjacent horizontally, vertically, or diagonally
-        directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-        
+        directions = [
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
+        ]
+
         for dr, dc in directions:
             r, c = row + dr, col + dc
             if 0 <= r < rows and 0 <= c < cols and seats[r][c]:
                 adjacent_student = next(
-                    student for student in students if student['name'] == seats[r][c])
-                if adjacent_student['course'] == course:
+                    student for student in students if student["name"] == seats[r][c]
+                )
+                if adjacent_student["course"] == course:
                     return False
         return True
-    
-    def try_pattern_placement(course_students, pattern='checkerboard'):
+
+    def try_pattern_placement(course_students, pattern="checkerboard"):
         """Try to place students using specific patterns"""
         placed = 0
-        
-        if pattern == 'checkerboard':
+
+        if pattern == "checkerboard":
             # Try checkerboard pattern (every other seat)
-            positions = [(r, c) for r in range(rows) for c in range(cols) 
-                        if (r + c) % 2 == 0 and not seats[r][c]]
-        elif pattern == 'diagonal':
+            positions = [
+                (r, c)
+                for r in range(rows)
+                for c in range(cols)
+                if (r + c) % 2 == 0 and not seats[r][c]
+            ]
+        elif pattern == "diagonal":
             # Try diagonal pattern
-            positions = [(r, c) for r in range(rows) for c in range(cols) 
-                        if r % 2 == c % 2 and not seats[r][c]]
+            positions = [
+                (r, c)
+                for r in range(rows)
+                for c in range(cols)
+                if r % 2 == c % 2 and not seats[r][c]
+            ]
         else:
             # Sequential pattern
-            positions = [(r, c) for r in range(rows) for c in range(cols) if not seats[r][c]]
-        
+            positions = [
+                (r, c) for r in range(rows) for c in range(cols) if not seats[r][c]
+            ]
+
         random.shuffle(positions)
-        
+
         for student in course_students:
-            if student_positions[student['name']] is not None:
+            if student_positions[student["name"]] is not None:
                 continue  # Already placed
-                
+
             for row, col in positions:
-                if not seats[row][col] and is_valid_position(student['name'], row, col):
-                    seats[row][col] = student['name']
-                    student_positions[student['name']] = (row, col)
+                if not seats[row][col] and is_valid_position(student["name"], row, col):
+                    seats[row][col] = student["name"]
+                    student_positions[student["name"]] = (row, col)
                     positions.remove((row, col))
                     placed += 1
                     break
-        
+
         return placed
-    
+
     def try_random_placement(remaining_students, attempts_per_student=100):
         """Try random placement with STRICT adjacency constraints"""
         placed = 0
-        
+
         for student in remaining_students:
-            if student_positions[student['name']] is not None:
+            if student_positions[student["name"]] is not None:
                 continue  # Already placed
-                
+
             for _ in range(attempts_per_student):
-                row, col = random.randint(0, rows-1), random.randint(0, cols-1)
-                if not seats[row][col] and is_valid_position(student['name'], row, col):
-                    seats[row][col] = student['name']
-                    student_positions[student['name']] = (row, col)
+                row, col = random.randint(0, rows - 1), random.randint(0, cols - 1)
+                if not seats[row][col] and is_valid_position(student["name"], row, col):
+                    seats[row][col] = student["name"]
+                    student_positions[student["name"]] = (row, col)
                     placed += 1
                     break
-        
+
         return placed
-    
+
     # Multi-pass allocation strategy with STRICT adjacency enforcement
     total_placed = 0
-    
+
     # Pass 1: Pattern-based placement for each course
-    patterns = ['checkerboard', 'diagonal', 'sequential']
+    patterns = ["checkerboard", "diagonal", "sequential"]
     for course, course_students in course_groups.items():
         random.shuffle(course_students)  # Randomize within course
-        
+
         for pattern in patterns:
-            remaining = [s for s in course_students if student_positions[s['name']] is None]
+            remaining = [
+                s for s in course_students if student_positions[s["name"]] is None
+            ]
             if not remaining:
                 break
             placed = try_pattern_placement(remaining, pattern)
             total_placed += placed
             if placed > 0:
                 break  # If pattern worked, move to next course
-    
+
     # Pass 2: Random placement with strict constraints - increased attempts
-    remaining_students = [s for s in students if student_positions[s['name']] is None]
+    remaining_students = [s for s in students if student_positions[s["name"]] is None]
     if remaining_students:
         placed = try_random_placement(remaining_students, 300)
         total_placed += placed
-    
+
     # Pass 3: Final attempt with more intensive random placement
-    remaining_students = [s for s in students if student_positions[s['name']] is None]
+    remaining_students = [s for s in students if student_positions[s["name"]] is None]
     if remaining_students:
         placed = try_random_placement(remaining_students, 500)
         total_placed += placed
-    
+
     # NOTE: Removed relaxed and force placement passes to maintain strict adjacency constraints
     # Students that cannot be placed while maintaining constraints will remain unplaced
-    
+
     # Convert positions to sequential seat numbers
     def index_to_seat(row, col):
         return row * cols + col + 1
-    
+
     seat_positions = {}
     unplaced_students = []
-    
+
     for student, position in student_positions.items():
         if position is None:
             unplaced_students.append(student)
@@ -614,18 +690,20 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
                 seat_positions[student] = index_to_seat(row, col)
             else:
                 unplaced_students.append(student)
-    
+
     # Calculate placement statistics
     placed_count = len(seat_positions)
     total_students = len(students)
-    percentage_placed = (placed_count / total_students) * 100 if total_students > 0 else 0
-    
+    percentage_placed = (
+        (placed_count / total_students) * 100 if total_students > 0 else 0
+    )
+
     # Print debug information
     print(f"Total students: {total_students}")
     print(f"Placed students count: {placed_count}")
     print(f"Unplaced students: {len(unplaced_students)}")
     print(f"Percentage placed: {percentage_placed:.2f}%")
-    
+
     # Lower the threshold to 60% and always return results
     if percentage_placed >= 60:
         return seat_positions, unplaced_students, percentage_placed
@@ -636,7 +714,7 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
 
 def print_seating_arrangement(students, rows, cols, date, period, hall_id):
     from .models import Student  # Import here to avoid circular imports
-    
+
     result = allocate_students_to_seats(students, rows, cols)
     if result is None:
         print("Error: allocate_students_to_seats returned None.")
@@ -648,13 +726,13 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
 
     if seat_positions:
         # Group students by course
-        courses = sorted(set(student['course'] for student in students))
+        courses = sorted(set(student["course"] for student in students))
         course_groups = {course: [] for course in courses}
         for student_name, seat in seat_positions.items():
-            student_data = next(s for s in students if s['name'] == student_name)
-            course = student_data['course']
-            cls_id = student_data['cls_id']
-            student_id = student_data.get('student_id')
+            student_data = next(s for s in students if s["name"] == student_name)
+            course = student_data["course"]
+            cls_id = student_data["cls_id"]
+            student_id = student_data.get("student_id")
             course_groups[course].append((student_name, seat, cls_id, student_id))
 
         # Print sorted by course and create SeatArrangement objects
@@ -662,7 +740,9 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
         for course in courses:
             print(f"\n{course}:")
             arrangements = []
-            for student_name, seat, cls_id, student_id in sorted(course_groups[course], key=lambda x: x[0]):
+            for student_name, seat, cls_id, student_id in sorted(
+                course_groups[course], key=lambda x: x[0]
+            ):
                 # Get the actual Student instance if student_id exists
                 student_instance = None
                 if student_id:
@@ -670,7 +750,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         student_instance = Student.objects.get(id=student_id)
                     except Student.DoesNotExist:
                         student_instance = None
-                
+
                 arrangements.append(
                     SeatArrangement(
                         date=date,
@@ -679,7 +759,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         seat_number=seat,
                         hall=Hall.objects.get(id=hall_id),
                         course=Course.objects.filter(code=course).first(),
-                        cls=Class.objects.get(id=cls_id)
+                        cls=Class.objects.get(id=cls_id),
                     )
                 )
                 print(f"{student_name}: {seat}")
@@ -688,10 +768,10 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
     # Group and sort unplaced students by course
     unplaced_by_course = {}
     for student_name in unplaced_students:
-        student_data = next(s for s in students if s['name'] == student_name)
-        course = student_data['course']
-        cls_id = student_data['cls_id']
-        student_id = student_data.get('student_id')
+        student_data = next(s for s in students if s["name"] == student_name)
+        course = student_data["course"]
+        cls_id = student_data["cls_id"]
+        student_id = student_data.get("student_id")
         if course not in unplaced_by_course:
             unplaced_by_course[course] = []
         unplaced_by_course[course].append((student_name, cls_id, student_id))
@@ -710,7 +790,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         student_instance = Student.objects.get(id=student_id)
                     except Student.DoesNotExist:
                         student_instance = None
-                
+
                 arrangements.append(
                     SeatArrangement(
                         date=date,
@@ -718,7 +798,7 @@ def print_seating_arrangement(students, rows, cols, date, period, hall_id):
                         student=student_instance,  # Use actual Student instance
                         hall=Hall.objects.get(id=hall_id),
                         course=Course.objects.filter(code=course).first(),
-                        cls=Class.objects.get(id=cls_id)
+                        cls=Class.objects.get(id=cls_id),
                     )
                 )
                 print(student_name)
@@ -730,7 +810,8 @@ def generate_seat_allocation(rows: int, cols: int, students):
     # Ensure the total number of students does not exceed rows * cols
     if len(students) > rows * cols:
         print(
-            f"Error: Too many students for the given hall capacity of {rows * cols} seats.")
+            f"Error: Too many students for the given hall capacity of {rows * cols} seats."
+        )
     else:
         # Print the seating arrangement
         print_seating_arrangement(students, rows, cols)
@@ -739,14 +820,14 @@ def generate_seat_allocation(rows: int, cols: int, students):
 def is_valid_position(seat_number, course_code, seat_map, rows, cols):
     """
     Check if a seat position is valid for manual assignment based on adjacency constraints.
-    
+
     Args:
         seat_number (int): The seat number to check (1-based)
         course_code (str): The course code of the student to be placed
         seat_map (dict): Dictionary mapping seat numbers to course codes
         rows (int): Number of rows in the hall
         cols (int): Number of columns in the hall
-    
+
     Returns:
         bool: True if the position is valid, False otherwise
     """
@@ -754,22 +835,22 @@ def is_valid_position(seat_number, course_code, seat_map, rows, cols):
     seat_index = seat_number - 1
     row = seat_index // cols
     col = seat_index % cols
-    
+
     # Define adjacency directions (8-directional)
     directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-    
+
     for dr, dc in directions:
         adj_row, adj_col = row + dr, col + dc
-        
+
         # Check if adjacent position is within bounds
         if 0 <= adj_row < rows and 0 <= adj_col < cols:
             # Convert back to seat number
             adj_seat_number = adj_row * cols + adj_col + 1
-            
+
             # Check if there's a student in the adjacent seat with the same course
             if adj_seat_number in seat_map and seat_map[adj_seat_number] == course_code:
                 return False
-    
+
     return True
 
 
@@ -789,135 +870,163 @@ def get_student_number(dep_slug, cls, num):
 ##### STUDENT BULK UPLOAD ########
 ###################################
 
+
 def process_student_files_memory(zip_ref):
     """Process student files from ZIP in memory with comprehensive validation"""
-    from django.db import transaction
-    from .models import Student, Class
     import io
     import re
-    
+
+    from django.db import transaction
+
+    from .models import Class, Student
+
     # Look for 'students' folder in ZIP
-    student_files = [f for f in zip_ref.namelist() if f.startswith('students/') and f.endswith('.csv')]
-    
+    student_files = [
+        f
+        for f in zip_ref.namelist()
+        if f.startswith("students/") and f.endswith(".csv")
+    ]
+
     if not student_files:
-        raise ValueError("No 'students' folder with CSV files found in the ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names.")
-    
+        raise ValueError(
+            "No 'students' folder with CSV files found in the ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names."
+        )
+
     # Pre-validation phase
     validation_results = []
     valid_files = []
-    
+
     for file_path in student_files:
-        csv_filename = file_path.split('/')[-1]  # Get just the filename
+        csv_filename = file_path.split("/")[-1]  # Get just the filename
         try:
             # Read CSV content from ZIP
             csv_content = zip_ref.read(file_path)
-            csv_io = io.StringIO(csv_content.decode('utf-8'))
-            
+            csv_io = io.StringIO(csv_content.decode("utf-8"))
+
             validation_result = validate_student_csv_memory(csv_io, csv_filename)
             validation_results.append(validation_result)
-            if validation_result['is_valid']:
+            if validation_result["is_valid"]:
                 # Reset StringIO for processing
                 csv_io.seek(0)
                 valid_files.append((csv_io, validation_result))
         except Exception as e:
-            validation_results.append({
-                'file_name': csv_filename,
-                'is_valid': False,
-                'errors': [f"Failed to validate file: {str(e)}"]
-            })
-    
+            validation_results.append(
+                {
+                    "file_name": csv_filename,
+                    "is_valid": False,
+                    "errors": [f"Failed to validate file: {str(e)}"],
+                }
+            )
+
     # Check if any files failed validation
-    failed_validations = [r for r in validation_results if not r['is_valid']]
+    failed_validations = [r for r in validation_results if not r["is_valid"]]
     if failed_validations:
         error_messages = []
         for result in failed_validations:
-            error_messages.append(f"File '{result['file_name']}':") 
-            for error in result['errors']:
+            error_messages.append(f"File '{result['file_name']}':")
+            for error in result["errors"]:
                 error_messages.append(f"  • {error}")
-        
-        raise ValueError("Validation failed for one or more files:\n\n" + "\n".join(error_messages))
-    
+
+        raise ValueError(
+            "Validation failed for one or more files:\n\n" + "\n".join(error_messages)
+        )
+
     # Process all valid files in a single transaction
     try:
         with transaction.atomic():
             total_created = 0
             total_updated = 0
-            
+
             for csv_io, validation_result in valid_files:
-                created, updated = process_validated_student_csv_memory(csv_io, validation_result)
+                created, updated = process_validated_student_csv_memory(
+                    csv_io, validation_result
+                )
                 total_created += created
                 total_updated += updated
-            
+
             return {
-                'success': True,
-                'message': f"Successfully processed {len(valid_files)} files. Created: {total_created}, Updated: {total_updated} students.",
-                'files_processed': len(valid_files),
-                'students_created': total_created,
-                'students_updated': total_updated
+                "success": True,
+                "message": f"Successfully processed {len(valid_files)} files. Created: {total_created}, Updated: {total_updated} students.",
+                "files_processed": len(valid_files),
+                "students_created": total_created,
+                "students_updated": total_updated,
             }
     except Exception as e:
         raise ValueError(f"Failed to process student files: {str(e)}")
 
+
 def process_student_files(extracted_dir):
     """Process student files with comprehensive validation"""
-    from django.db import transaction
-    from .models import Student, Class
     import re
-    
-    students_dir = os.path.join(extracted_dir, 'students')
+
+    from django.db import transaction
+
+    from .models import Class, Student
+
+    students_dir = os.path.join(extracted_dir, "students")
     if not os.path.exists(students_dir):
-        raise ValueError("No 'students' folder found in the uploaded ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names.")
-    
-    csv_files = [f for f in os.listdir(students_dir) if f.endswith('.csv')]
+        raise ValueError(
+            "No 'students' folder found in the uploaded ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names."
+        )
+
+    csv_files = [f for f in os.listdir(students_dir) if f.endswith(".csv")]
     if not csv_files:
-        raise ValueError("No CSV files found in the 'students' folder.\nPlease add CSV files named after your class names (e.g., 'ND1 Computer Science.csv').")
-    
+        raise ValueError(
+            "No CSV files found in the 'students' folder.\nPlease add CSV files named after your class names (e.g., 'ND1 Computer Science.csv')."
+        )
+
     # Pre-validation phase
     validation_results = []
     valid_files = []
-    
+
     for csv_file in csv_files:
         file_path = os.path.join(students_dir, csv_file)
         try:
             validation_result = validate_student_csv(file_path)
             validation_results.append(validation_result)
-            if validation_result['is_valid']:
+            if validation_result["is_valid"]:
                 valid_files.append((file_path, validation_result))
         except Exception as e:
-            validation_results.append({
-                'file_name': csv_file,
-                'is_valid': False,
-                'errors': [f"Failed to validate file: {str(e)}"]
-            })
-    
+            validation_results.append(
+                {
+                    "file_name": csv_file,
+                    "is_valid": False,
+                    "errors": [f"Failed to validate file: {str(e)}"],
+                }
+            )
+
     # Check if any files failed validation
-    failed_validations = [r for r in validation_results if not r['is_valid']]
+    failed_validations = [r for r in validation_results if not r["is_valid"]]
     if failed_validations:
         error_messages = []
         for result in failed_validations:
-            error_messages.append(f"File '{result['file_name']}':") 
-            for error in result['errors']:
+            error_messages.append(f"File '{result['file_name']}':")
+            for error in result["errors"]:
                 error_messages.append(f"  • {error}")
-        
-        raise ValueError("Validation failed for one or more files:\n\n" + "\n".join(error_messages))
-    
+
+        raise ValueError(
+            "Validation failed for one or more files:\n\n" + "\n".join(error_messages)
+        )
+
     # Process all valid files in a single transaction
     try:
         with transaction.atomic():
             total_created = 0
             total_updated = 0
-            
+
             for file_path, validation_result in valid_files:
-                created, updated = process_validated_student_csv(file_path, validation_result)
+                created, updated = process_validated_student_csv(
+                    file_path, validation_result
+                )
                 total_created += created
                 total_updated += updated
-            
+
             return {
-                'success': True,
-                'message': f"Successfully processed {len(valid_files)} files. Created: {total_created}, Updated: {total_updated} students.",
-                'files_processed': len(valid_files),
-                'students_created': total_created,
-                'students_updated': total_updated
+                "success": True,
+                "message": f"Successfully processed {len(valid_files)} files. Created: {total_created}, Updated: {total_updated} students.",
+                "files_processed": len(valid_files),
+                "students_created": total_created,
+                "students_updated": total_updated,
             }
     except Exception as e:
         raise ValueError(f"Failed to process student files: {str(e)}")
@@ -925,321 +1034,371 @@ def process_student_files(extracted_dir):
 
 def validate_student_csv_memory(csv_io, file_name):
     """Validate a student CSV file from memory without making database changes"""
-    from .models import Student, Class
     import re
-    
+
+    from .models import Class, Student
+
     errors = []
-    
+
     # Extract class name from filename (remove .csv extension)
-    class_name = file_name.replace('.csv', '')
-    
+    class_name = file_name.replace(".csv", "")
+
     # Check if class exists
     try:
         class_obj = Class.objects.get(name=class_name)
     except Class.DoesNotExist:
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': [f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."]
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": [
+                f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."
+            ],
         }
-    
+
     # Try to read CSV from memory
     try:
         csv_io.seek(0)  # Reset to beginning
         df = pd.read_csv(
             csv_io,
             dtype={
-                'MATRIC NUMBER': 'string',
-                'FIRSTNAME': 'string',
-                'LASTNAME': 'string', 
-                'EMAIL': 'string',
-                'PHONE NUMBER': 'string'
+                "MATRIC NUMBER": "string",
+                "FIRSTNAME": "string",
+                "LASTNAME": "string",
+                "EMAIL": "string",
+                "PHONE NUMBER": "string",
             },
-            engine='c'
+            engine="c",
         )
         df = df.astype(str).apply(lambda x: x.str.strip())
     except Exception as e:
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': [f"Cannot read CSV file: {str(e)}"]
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": [f"Cannot read CSV file: {str(e)}"],
         }
-    
+
     # Check if file is empty
     if len(df) == 0:
         errors.append("CSV file is empty")
-    
+
     # Check required columns
-    required_columns = ['MATRIC NUMBER', 'FIRSTNAME', 'LASTNAME', 'EMAIL', 'PHONE NUMBER']
+    required_columns = [
+        "MATRIC NUMBER",
+        "FIRSTNAME",
+        "LASTNAME",
+        "EMAIL",
+        "PHONE NUMBER",
+    ]
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         errors.append(f"Missing required columns: {', '.join(missing_columns)}")
-    
+
     if errors:  # Return early if basic structure is invalid
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': errors,
-            'class_obj': class_obj
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": errors,
+            "class_obj": class_obj,
         }
-    
+
     # Row-level validation
     for idx, row in df.iterrows():
         row_num = idx + 2  # +2 because pandas is 0-indexed and we skip header
-        
+
         # Check for empty required fields
         for col in required_columns:
-            if pd.isna(row[col]) or str(row[col]).strip() in ['', 'nan', 'None']:
+            if pd.isna(row[col]) or str(row[col]).strip() in ["", "nan", "None"]:
                 errors.append(f"Row {row_num}: {col} is empty")
-        
+
         # Validate email format
-        email = str(row['EMAIL']).strip()
-        if email and email != 'nan':
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email = str(row["EMAIL"]).strip()
+        if email and email != "nan":
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
             if not re.match(email_pattern, email):
                 errors.append(f"Row {row_num}: Invalid email format '{email}'")
-    
+
     # Check for duplicates within the file
-    duplicate_matrics = df[df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
+    duplicate_matrics = df[df.duplicated(subset=["MATRIC NUMBER"], keep=False)][
+        "MATRIC NUMBER"
+    ].tolist()
     if duplicate_matrics:
-        errors.append(f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}")
-    
+        errors.append(
+            f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
+        )
+
     # Check student count vs class size
     if len(df) != class_obj.size:
-        errors.append(f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students")
-    
+        errors.append(
+            f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students"
+        )
+
     # Check for existing students in this class
-    matric_numbers = df['MATRIC NUMBER'].tolist()
+    matric_numbers = df["MATRIC NUMBER"].tolist()
     existing_in_class = Student.objects.filter(
-        matric_no__in=matric_numbers,
-        level=class_obj
-    ).values_list('matric_no', flat=True)
-    
+        matric_no__in=matric_numbers, level=class_obj
+    ).values_list("matric_no", flat=True)
+
     if existing_in_class:
-        errors.append(f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}")
-    
+        errors.append(
+            f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}"
+        )
+
     # Check for existing matric numbers and emails in database
-    existing_matrics = Student.objects.filter(
-        matric_no__in=matric_numbers
-    ).exclude(level=class_obj).values_list('matric_no', flat=True)
-    
+    existing_matrics = (
+        Student.objects.filter(matric_no__in=matric_numbers)
+        .exclude(level=class_obj)
+        .values_list("matric_no", flat=True)
+    )
+
     if existing_matrics:
-        errors.append(f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}")
-    
-    emails = df['EMAIL'].tolist()
-    existing_emails = Student.objects.filter(
-        email__in=emails
-    ).exclude(level=class_obj).values_list('email', flat=True)
-    
+        errors.append(
+            f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}"
+        )
+
+    emails = df["EMAIL"].tolist()
+    existing_emails = (
+        Student.objects.filter(email__in=emails)
+        .exclude(level=class_obj)
+        .values_list("email", flat=True)
+    )
+
     if existing_emails:
-        errors.append(f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}")
-    
+        errors.append(
+            f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}"
+        )
+
     return {
-        'file_name': file_name,
-        'is_valid': len(errors) == 0,
-        'errors': errors,
-        'class_obj': class_obj,
-        'student_data': df if len(errors) == 0 else None,
-        'student_count': len(df)
+        "file_name": file_name,
+        "is_valid": len(errors) == 0,
+        "errors": errors,
+        "class_obj": class_obj,
+        "student_data": df if len(errors) == 0 else None,
+        "student_count": len(df),
     }
+
 
 def validate_student_csv(file_path):
     """Validate a student CSV file without making database changes"""
-    from .models import Student, Class
     import re
-    
+
+    from .models import Class, Student
+
     file_name = os.path.basename(file_path)
     errors = []
-    
+
     # Extract class name from filename (remove .csv extension)
-    class_name = file_name.replace('.csv', '')
-    
+    class_name = file_name.replace(".csv", "")
+
     # Check if class exists
     try:
         class_obj = Class.objects.get(name=class_name)
     except Class.DoesNotExist:
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': [f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."]
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": [
+                f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."
+            ],
         }
-    
+
     # Try to read CSV
     try:
         df = pd.read_csv(
             file_path,
             dtype={
-                'MATRIC NUMBER': 'string',
-                'FIRSTNAME': 'string',
-                'LASTNAME': 'string', 
-                'EMAIL': 'string',
-                'PHONE NUMBER': 'string'
+                "MATRIC NUMBER": "string",
+                "FIRSTNAME": "string",
+                "LASTNAME": "string",
+                "EMAIL": "string",
+                "PHONE NUMBER": "string",
             },
-            engine='c'
+            engine="c",
         )
         df = df.astype(str).apply(lambda x: x.str.strip())
     except Exception as e:
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': [f"Cannot read CSV file: {str(e)}"]
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": [f"Cannot read CSV file: {str(e)}"],
         }
-    
+
     # Check if file is empty
     if len(df) == 0:
         errors.append("CSV file is empty")
-    
+
     # Check required columns
-    required_columns = ['MATRIC NUMBER', 'FIRSTNAME', 'LASTNAME', 'EMAIL', 'PHONE NUMBER']
+    required_columns = [
+        "MATRIC NUMBER",
+        "FIRSTNAME",
+        "LASTNAME",
+        "EMAIL",
+        "PHONE NUMBER",
+    ]
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         errors.append(f"Missing required columns: {', '.join(missing_columns)}")
-    
+
     if errors:  # Return early if basic structure is invalid
         return {
-            'file_name': file_name,
-            'is_valid': False,
-            'errors': errors,
-            'class_obj': class_obj
+            "file_name": file_name,
+            "is_valid": False,
+            "errors": errors,
+            "class_obj": class_obj,
         }
-    
+
     # Row-level validation
     for idx, row in df.iterrows():
         row_num = idx + 2  # +2 because pandas is 0-indexed and we skip header
-        
+
         # Check for empty required fields
         for col in required_columns:
-            if pd.isna(row[col]) or str(row[col]).strip() in ['', 'nan', 'None']:
+            if pd.isna(row[col]) or str(row[col]).strip() in ["", "nan", "None"]:
                 errors.append(f"Row {row_num}: {col} is empty")
-        
+
         # Validate email format
-        email = str(row['EMAIL']).strip()
-        if email and email != 'nan':
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        email = str(row["EMAIL"]).strip()
+        if email and email != "nan":
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
             if not re.match(email_pattern, email):
                 errors.append(f"Row {row_num}: Invalid email format '{email}'")
-    
+
     # Check for duplicates within the file
-    duplicate_matrics = df[df.duplicated(subset=['MATRIC NUMBER'], keep=False)]['MATRIC NUMBER'].tolist()
+    duplicate_matrics = df[df.duplicated(subset=["MATRIC NUMBER"], keep=False)][
+        "MATRIC NUMBER"
+    ].tolist()
     if duplicate_matrics:
-        errors.append(f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}")
-    
+        errors.append(
+            f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
+        )
+
     # Check student count vs class size
     if len(df) != class_obj.size:
-        errors.append(f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students")
-    
+        errors.append(
+            f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students"
+        )
+
     # Check for existing students in this class
-    matric_numbers = df['MATRIC NUMBER'].tolist()
+    matric_numbers = df["MATRIC NUMBER"].tolist()
     existing_in_class = Student.objects.filter(
-        matric_no__in=matric_numbers,
-        level=class_obj
-    ).values_list('matric_no', flat=True)
-    
+        matric_no__in=matric_numbers, level=class_obj
+    ).values_list("matric_no", flat=True)
+
     if existing_in_class:
-        errors.append(f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}")
-    
+        errors.append(
+            f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}"
+        )
+
     # Check for existing matric numbers and emails in database
-    existing_matrics = Student.objects.filter(
-        matric_no__in=matric_numbers
-    ).exclude(level=class_obj).values_list('matric_no', flat=True)
-    
+    existing_matrics = (
+        Student.objects.filter(matric_no__in=matric_numbers)
+        .exclude(level=class_obj)
+        .values_list("matric_no", flat=True)
+    )
+
     if existing_matrics:
-        errors.append(f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}")
-    
-    emails = df['EMAIL'].tolist()
-    existing_emails = Student.objects.filter(
-        email__in=emails
-    ).exclude(level=class_obj).values_list('email', flat=True)
-    
+        errors.append(
+            f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}"
+        )
+
+    emails = df["EMAIL"].tolist()
+    existing_emails = (
+        Student.objects.filter(email__in=emails)
+        .exclude(level=class_obj)
+        .values_list("email", flat=True)
+    )
+
     if existing_emails:
-        errors.append(f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}")
-    
+        errors.append(
+            f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}"
+        )
+
     return {
-        'file_name': file_name,
-        'is_valid': len(errors) == 0,
-        'errors': errors,
-        'class_obj': class_obj,
-        'student_data': df if len(errors) == 0 else None,
-        'student_count': len(df)
+        "file_name": file_name,
+        "is_valid": len(errors) == 0,
+        "errors": errors,
+        "class_obj": class_obj,
+        "student_data": df if len(errors) == 0 else None,
+        "student_count": len(df),
     }
 
 
 def process_validated_student_csv_memory(csv_io, validation_result):
     """Process a validated student CSV file from memory"""
     from .models import Student
-    
-    class_obj = validation_result['class_obj']
-    df = validation_result['student_data']
-    
+
+    class_obj = validation_result["class_obj"]
+    df = validation_result["student_data"]
+
     # Convert to records for processing
-    student_records = df.to_dict('records')
-    
+    student_records = df.to_dict("records")
+
     # Process in chunks for better memory management
     chunk_size = 250
     total_created = 0
     total_updated = 0
-    
+
     for i in range(0, len(student_records), chunk_size):
-        chunk = student_records[i:i + chunk_size]
+        chunk = student_records[i : i + chunk_size]
         students_to_create = []
-        
+
         for record in chunk:
             students_to_create.append(
                 Student(
-                    matric_no=record['MATRIC NUMBER'],
-                    first_name=record['FIRSTNAME'],
-                    last_name=record['LASTNAME'],
-                    email=record['EMAIL'],
-                    phone=record['PHONE NUMBER'],
+                    matric_no=record["MATRIC NUMBER"],
+                    first_name=record["FIRSTNAME"],
+                    last_name=record["LASTNAME"],
+                    email=record["EMAIL"],
+                    phone=record["PHONE NUMBER"],
                     department=class_obj.department,
                     level=class_obj,
                 )
             )
-        
+
         # Bulk create students for this chunk
         if students_to_create:
             Student.objects.bulk_create(students_to_create, batch_size=250)
             total_created += len(students_to_create)
-    
+
     return total_created, total_updated
+
 
 def process_validated_student_csv(file_path, validation_result):
     """Process a validated student CSV file"""
     from .models import Student
-    
-    class_obj = validation_result['class_obj']
-    df = validation_result['student_data']
-    
+
+    class_obj = validation_result["class_obj"]
+    df = validation_result["student_data"]
+
     # Convert to records for processing
-    student_records = df.to_dict('records')
-    
+    student_records = df.to_dict("records")
+
     # Process in chunks for better memory management
     chunk_size = 250
     total_created = 0
     total_updated = 0
-    
+
     for i in range(0, len(student_records), chunk_size):
-        chunk = student_records[i:i + chunk_size]
+        chunk = student_records[i : i + chunk_size]
         students_to_create = []
-        
+
         for record in chunk:
             students_to_create.append(
                 Student(
-                    matric_no=record['MATRIC NUMBER'],
-                    first_name=record['FIRSTNAME'],
-                    last_name=record['LASTNAME'],
-                    email=record['EMAIL'],
-                    phone=record['PHONE NUMBER'],
+                    matric_no=record["MATRIC NUMBER"],
+                    first_name=record["FIRSTNAME"],
+                    last_name=record["LASTNAME"],
+                    email=record["EMAIL"],
+                    phone=record["PHONE NUMBER"],
                     department=class_obj.department,
                     level=class_obj,
                 )
             )
-        
+
         # Bulk create students for this chunk
         if students_to_create:
             Student.objects.bulk_create(students_to_create, batch_size=250)
             total_created += len(students_to_create)
-    
+
     return total_created, total_updated
 
 
@@ -1247,7 +1406,7 @@ def process_validated_student_csv(file_path, validation_result):
 def process_student_csv(file_path, class_obj):
     """Legacy function - use validate_student_csv and process_validated_student_csv instead"""
     validation_result = validate_student_csv(file_path)
-    if not validation_result['is_valid']:
+    if not validation_result["is_valid"]:
         raise ValueError(f"Validation failed: {'; '.join(validation_result['errors'])}")
-    
+
     return process_validated_student_csv(file_path, validation_result)
