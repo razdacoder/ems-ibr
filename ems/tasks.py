@@ -92,6 +92,10 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         job.status = 'running'
         job.save()
         
+        print(f"\n[TASK] Starting timetable generation task {job_id}")
+        print(f"[TASK] Date range: {start_date_str} to {end_date_str}")
+        print(f"[TASK] Requested by user: {user_id}")
+        
         # Parse dates
         startDate = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         endDate = datetime.strptime(end_date_str, "%Y-%m-%d").date()
@@ -103,6 +107,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             if currentDate.weekday() != 6:  # Exclude Sundays
                 dates.append(currentDate)
             currentDate = currentDate + timedelta(days=1)
+        
+        print(f"[TASK] Generated {len(dates)} valid dates (excluding Sundays)")
         
         total_steps = len(dates) * 2  # Rough estimate
         job.total_steps = total_steps
@@ -117,6 +123,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         courses = get_courses()
         halls = get_halls()
         
+        print(f"[TASK] Loaded {len(courses)} courses and {len(halls)} halls")
+        
         # Update progress: 20%
         job.progress = int(total_steps * 0.2)
         job.save()
@@ -124,6 +132,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         
         # Split courses into AM and PM periods
         AM_courses, PM_courses = split_course(courses)
+        
+        print(f"[TASK] Split courses - AM: {len(AM_courses)}, PM: {len(PM_courses)}")
         
         # Update progress: 30%
         job.progress = int(total_steps * 0.3)
@@ -143,7 +153,15 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             )
         
         # Actually generate (the utils function handles the DB writes)
-        generate(dates, AM_courses, PM_courses, halls)
+        # Delete existing timetables first
+        TimeTable.objects.all().delete()
+        print(f"[TASK] Deleted existing timetables, starting generation...")
+        
+        # Capture the summary returned by generate()
+        summary = generate(dates, AM_courses, PM_courses, halls)
+        
+        print(f"[TASK] Timetable generation completed")
+        print(f"[TASK] Summary: {summary}")
         
         # Update progress: 90%
         job.progress = int(total_steps * 0.9)
@@ -153,24 +171,39 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         # Mark as generated in settings
         from .models import SystemSettings
         settings = SystemSettings.objects.first()
-        settings.has_timetable = True
-        settings.save()
+        if settings:
+            settings.has_timetable = True
+            settings.save()
         
         # Complete job
         job.status = 'success'
         job.progress = total_steps
         job.completed_at = timezone.now()
+        
+        # Include detailed summary in result
         job.result_data = {
             'message': 'Timetable generated successfully',
             'dates_count': len(dates),
-            'timetables_created': TimeTable.objects.count()
+            'total_scheduled': summary.get('total_scheduled', 0),
+            'am_scheduled': summary.get('am_scheduled', 0),
+            'pm_scheduled': summary.get('pm_scheduled', 0),
+            'am_skipped': summary.get('am_skipped', 0),
+            'pm_skipped': summary.get('pm_skipped', 0),
+            'skipped_courses': {
+                'AM': summary.get('skipped_am_codes', []),
+                'PM': summary.get('skipped_pm_codes', []),
+            },
+            'timetables_created': TimeTable.objects.count(),
         }
         job.save()
         
-        return {'status': 'success', 'message': 'Timetable generated successfully'}
+        print(f"[TASK] Job completed successfully. Job ID: {job_id}")
+        return job.result_data
         
     except Exception as e:
         import traceback
+        print(f"[ERROR] Timetable generation failed: {str(e)}")
+        print(f"[ERROR] Traceback:\\n{traceback.format_exc()}")
         job.status = 'failed'
         job.error_message = str(e)
         # Store full traceback for debugging

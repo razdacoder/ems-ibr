@@ -125,6 +125,22 @@ def can_continue(date, seat_remaining, courses, Schedules):
             and not check_for_CBE(Schedules, date)
         ):
             return True
+    
+    # Log why we can't continue
+    print(f"[INFO] Cannot continue scheduling for {date} (AM). Remaining seats: {seat_remaining}")
+    for course in courses:
+        Seat_Required = sum([Class["size"] for Class in course["classes"]])
+        reasons = []
+        if seat_remaining < Seat_Required:
+            reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
+        if is_class_scheduled(course, date, Schedules):
+            reasons.append("class already scheduled")
+        if check_for_CBE(Schedules, date):
+            reasons.append("CBE course blocks this period")
+        
+        if reasons:
+            print(f"[SKIP] Course {course['code']} skipped: {', '.join(reasons)}")
+    
     return False
 
 
@@ -135,6 +151,20 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
             course, date, Schedules
         ):
             return True
+    
+    # Log why we can't continue
+    print(f"[INFO] Cannot continue scheduling for {date} (PM). Remaining seats: {seat_remaining}")
+    for course in courses:
+        Seat_Required = sum([Class["size"] for Class in course["classes"]])
+        reasons = []
+        if seat_remaining < Seat_Required:
+            reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
+        if is_class_scheduled(course, date, Schedules):
+            reasons.append("class already scheduled")
+        
+        if reasons:
+            print(f"[SKIP] Course {course['code']} skipped: {', '.join(reasons)}")
+    
     return False
 
 
@@ -159,21 +189,51 @@ def get_next_course(date, seat_remaining, courses, Schedules):
 def generate(dates, courses_AM, courses_PM, Halls):
     # Initialize schedules list
     Schedules = []
+    
+    # Track initial course counts
+    initial_am_count = len(courses_AM)
+    initial_pm_count = len(courses_PM)
+    
+    print(f"\n{'='*60}")
+    print(f"[START] Timetable generation for {len(dates)} dates")
+    print(f"[INFO] Total AM courses: {initial_am_count}, Total PM courses: {initial_pm_count}")
+    print(f"[INFO] Total hall capacity per period: {get_total_seats(Halls)} seats")
+    print(f"{'='*60}\n")
+    
     # Loop through the dates
     for Date in dates:
+        print(f"\n[DATE] Processing: {Date}")
+        print(f"[INFO] Remaining courses - AM: {len(courses_AM)}, PM: {len(courses_PM)}")
+        
         Total_Seats_AM = get_total_seats(Halls)
         Total_Seats_PM = get_total_seats(Halls)
+        
+        print(f"[INFO] Available seats - AM: {Total_Seats_AM}, PM: {Total_Seats_PM}")
 
         AM_scheduling = True
+        am_scheduled_count = 0
         # While there are still seats available and courses to add
         while AM_scheduling:
             if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
                 AM_scheduling = False
+                print(f"[INFO] Stopped AM scheduling for {Date}. Courses scheduled: {am_scheduled_count}")
+                break
+            
             Course = get_next_course(Date, Total_Seats_AM, courses_AM, Schedules)
+            if Course is None:
+                print(f"[WARN] No valid course found for AM on {Date}")
+                AM_scheduling = False
+                break
+            
             if Course["exam_type"] == "CBE":
                 if not check_for_CBE(Schedules, Date):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
+                    print(f"[OK] Scheduled {Course['code']} (AM - CBE)")
+                    courses_AM.remove(Course)
+                    am_scheduled_count += 1
+                else:
+                    print(f"[SKIP] {Course['code']} (AM - CBE) - Another CBE already scheduled")
                     courses_AM.remove(Course)
             else:
                 Seat_Required = sum([Class["size"] for Class in Course["classes"]])
@@ -182,39 +242,96 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 ):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
+                    print(f"[OK] Scheduled {Course['code']} (AM) - {Seat_Required} seats, {Total_Seats_AM - Seat_Required} remaining")
                     Total_Seats_AM -= Seat_Required
                     courses_AM.remove(Course)
+                    am_scheduled_count += 1
                     if Total_Seats_AM == 0:
                         AM_scheduling = False
+                        print(f"[INFO] AM period full for {Date}")
                     if (
                         len(filter_courses(Date, Total_Seats_AM, courses_AM, Schedules))
                         == 0
                     ):
                         AM_scheduling = False
-                        #  Schedule PM Courses
+                else:
+                    print(f"[SKIP] {Course['code']} (AM) - needs {Seat_Required} seats, only {Total_Seats_AM} available")
+                    courses_AM.remove(Course)
+        
+        #  Schedule PM Courses
         PM_scheduling = True
+        pm_scheduled_count = 0
         while PM_scheduling:
             if not can_continue_PM(Date, Total_Seats_PM, courses_PM, Schedules):
                 PM_scheduling = False
+                print(f"[INFO] Stopped PM scheduling for {Date}. Courses scheduled: {pm_scheduled_count}")
+                break
             else:
                 Course = get_next_course(Date, Total_Seats_PM, courses_PM, Schedules)
+                if Course is None:
+                    print(f"[WARN] No valid course found for PM on {Date}")
+                    PM_scheduling = False
+                    break
+                
                 Seat_Required = sum([Class["size"] for Class in Course["classes"]])
                 if Total_Seats_PM >= Seat_Required and not is_class_scheduled(
                     Course, Date, Schedules
                 ):
                     Schedule = {"course": Course, "date": Date, "period": "PM"}
                     Schedules.append(Schedule)
+                    print(f"[OK] Scheduled {Course['code']} (PM) - {Seat_Required} seats, {Total_Seats_PM - Seat_Required} remaining")
                     Total_Seats_PM -= Seat_Required
                     courses_PM.remove(Course)
+                    pm_scheduled_count += 1
                     if Total_Seats_PM == 0:
                         PM_scheduling = False
+                        print(f"[INFO] PM period full for {Date}")
                     if (
                         len(filter_courses(Date, Total_Seats_PM, courses_PM, Schedules))
                         == 0
                     ):
                         PM_scheduling = False
+                else:
+                    print(f"[SKIP] {Course['code']} (PM) - needs {Seat_Required} seats, only {Total_Seats_PM} available")
+                    courses_PM.remove(Course)
+    
+    # Final summary
+    print(f"\n{'='*60}")
+    print("[COMPLETE] TIMETABLE GENERATION SUMMARY")
+    print(f"{'='*60}")
+    
+    scheduled_am = initial_am_count - len(courses_AM)
+    scheduled_pm = initial_pm_count - len(courses_PM)
+    
+    print(f"[SUMMARY] AM: {scheduled_am}/{initial_am_count} scheduled, {len(courses_AM)} skipped")
+    print(f"[SUMMARY] PM: {scheduled_pm}/{initial_pm_count} scheduled, {len(courses_PM)} skipped")
+    print(f"[SUMMARY] Total scheduled: {len(Schedules)} timetable entries")
+    
+    if courses_AM:
+        print(f"\n[SKIPPED] AM courses ({len(courses_AM)}):")
+        for course in courses_AM:
+            print(f"  - {course['code']}")
+    
+    if courses_PM:
+        print(f"\n[SKIPPED] PM courses ({len(courses_PM)}):")
+        for course in courses_PM:
+            print(f"  - {course['code']}")
+    
+    print(f"\n{'='*60}\n")
+    
     # Bulk upload schedules to timetable Db
     save_to_timetable_db(Schedules)
+    
+    # Return summary for task result
+    return {
+        'total_scheduled': len(Schedules),
+        'am_scheduled': scheduled_am,
+        'pm_scheduled': scheduled_pm,
+        'am_skipped': len(courses_AM),
+        'pm_skipped': len(courses_PM),
+        'skipped_am_codes': [c['code'] for c in courses_AM],
+        'skipped_pm_codes': [c['code'] for c in courses_PM],
+    }
 
 
 ################################################################################################################################################################

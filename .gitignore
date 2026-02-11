@@ -39,3 +39,6 @@ local_settings.py
 .coverage
 htmlcov/
 .venv/
+
+# Logs
+logs/*.log
