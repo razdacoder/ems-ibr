@@ -92,6 +92,77 @@ def split_course(courses):
     return (AM_courses, PM_courses)
 
 
+# Automatically split large CBE courses into sections by distributing classes
+def auto_split_large_cbe_courses(courses):
+    """
+    Automatically split CBE courses with >9000 students into 2 sections by class.
+    Uses greedy algorithm to balance student counts between sections.
+    Returns modified course list with split courses.
+    """
+    new_courses = []
+    split_count = 0
+    
+    for course in courses:
+        if course["exam_type"] == "CBE":
+            total_students = sum([cls["size"] for cls in course["classes"]])
+            
+            # If course has >9000 students, split it into 2 sections
+            if total_students > 9000 and len(course["classes"]) >= 2:
+                # Sort classes by size (descending) for better distribution
+                sorted_classes = sorted(course["classes"], key=lambda x: x["size"], reverse=True)
+                
+                # Distribute classes into 2 sections using greedy algorithm
+                # (always add to the section with fewer students)
+                section_a = []
+                section_b = []
+                sum_a = 0
+                sum_b = 0
+                
+                for cls in sorted_classes:
+                    if sum_a <= sum_b:
+                        section_a.append(cls)
+                        sum_a += cls["size"]
+                    else:
+                        section_b.append(cls)
+                        sum_b += cls["size"]
+                
+                # Create two course sections (keep original ID for database reference)
+                course_a = {
+                    "id": course["id"],
+                    "code": f"{course['code']}-A",
+                    "exam_type": course["exam_type"],
+                    "classes": section_a,
+                    "original_code": course["code"],
+                    "is_split": True
+                }
+                
+                course_b = {
+                    "id": course["id"],
+                    "code": f"{course['code']}-B",
+                    "exam_type": course["exam_type"],
+                    "classes": section_b,
+                    "original_code": course["code"],
+                    "is_split": True
+                }
+                
+                print(f"[AUTO-SPLIT] {course['code']} ({total_students} students) split into:")
+                print(f"  → Section A: {len(section_a)} classes, {sum_a} students")
+                print(f"  → Section B: {len(section_b)} classes, {sum_b} students")
+                
+                new_courses.append(course_a)
+                new_courses.append(course_b)
+                split_count += 1
+            else:
+                new_courses.append(course)
+        else:
+            new_courses.append(course)
+    
+    if split_count > 0:
+        print(f"[INFO] Auto-split {split_count} large CBE course(s) into {split_count * 2} sections\n")
+    
+    return new_courses
+
+
 # Helper function to check if a class is scheduled on a given date
 def is_class_scheduled(course, date, Schedules):
     for cls in course["classes"]:
@@ -106,25 +177,86 @@ def get_total_seats(Halls):
     return int(sum([Hall["capacity"] * 0.9 for Hall in Halls]))
 
 
-# Check for CBE Schedule
-def check_for_CBE(schedules, date):
+# Get total CBE students scheduled for a given date
+def get_cbe_student_count(schedules, date):
+    """Calculate total number of students in CBE courses scheduled for a given date"""
+    total_students = 0
     schedules_date = filter(lambda schedule: schedule["date"] == date, schedules)
     for schedule in schedules_date:
         if schedule["course"]["exam_type"] == "CBE":
+            # Sum all class sizes for this CBE course
+            total_students += sum([cls["size"] for cls in schedule["course"]["classes"]])
+    return total_students
+
+
+# Check if any CBE course is scheduled on a specific date
+def has_cbe_on_date(schedules, date):
+    """Check if any CBE course is already scheduled on this date"""
+    for schedule in schedules:
+        if schedule["date"] == date and schedule["course"]["exam_type"] == "CBE":
             return True
     return False
+
+
+# Check if entire day is available for a full-day CBE course
+def can_schedule_full_day_cbe(schedules, date, course):
+    """Check if a large CBE course can be scheduled (only checks class conflicts)"""
+    if course["exam_type"] != "CBE":
+        return False
+    
+    course_students = sum([cls["size"] for cls in course["classes"]])
+    
+    # Only courses with >4500 students need full day
+    if course_students <= 4500:
+        return False
+    
+    # Course must be ≤9000 students (4500 AM + 4500 PM)
+    if course_students > 9000:
+        return False
+    
+    # Only check if any class in this course is already scheduled
+    # (Removed CBE date conflict check to ensure all courses get scheduled)
+    if is_class_scheduled(course, date, schedules):
+        return False
+    
+    return True
+
+
+# Check if a CBE course can be scheduled within the daily student limit
+def can_schedule_cbe(schedules, date, course, max_students=4500):
+    """Check if scheduling a CBE course would exceed the daily student limit"""
+    # Only check for CBE courses
+    if course["exam_type"] != "CBE":
+        return True
+    
+    # Calculate students in the candidate course
+    course_students = sum([cls["size"] for cls in course["classes"]])
+    
+    # Get current CBE student count for this date
+    current_cbe_students = get_cbe_student_count(schedules, date)
+    
+    # Check if adding this course would exceed the limit
+    return (current_cbe_students + course_students) <= max_students
 
 
 # Helper function to check if timetable can still be scheduled based on the number of seats remaining
 def can_continue(date, seat_remaining, courses, Schedules):
     for course in courses:
-        # For CBE courses, check if another CBE is already scheduled (no seat constraint)
+        # For CBE courses, check if within daily student limit (no seat constraint)
         if course["exam_type"] == "CBE":
-            if (
-                not is_class_scheduled(course, date, Schedules)
-                and not check_for_CBE(Schedules, date)  # Only check for CBE conflict
-            ):
-                return True
+            course_students = sum([cls["size"] for cls in course["classes"]])
+            
+            # Large CBE courses (>4500) need full day
+            if course_students > 4500:
+                if can_schedule_full_day_cbe(Schedules, date, course):
+                    return True
+            # Small CBE courses check student limit
+            else:
+                if (
+                    not is_class_scheduled(course, date, Schedules)
+                    and can_schedule_cbe(Schedules, date, course)
+                ):
+                    return True
         # For PBE courses, check seat availability
         else:
             Seat_Required = sum([Class["size"] for Class in course["classes"]])
@@ -136,13 +268,26 @@ def can_continue(date, seat_remaining, courses, Schedules):
     
     # Log why we can't continue
     print(f"[INFO] Cannot continue scheduling for {date} (AM). Remaining seats: {seat_remaining}")
+    current_cbe_count = get_cbe_student_count(Schedules, date)
+    print(f"[INFO] Current CBE students for {date}: {current_cbe_count}/4500")
+    
     for course in courses:
         reasons = []
         if course["exam_type"] == "CBE":
-            if is_class_scheduled(course, date, Schedules):
-                reasons.append("class already scheduled")
-            if check_for_CBE(Schedules, date):
-                reasons.append("another CBE course already scheduled")
+            course_students = sum([cls["size"] for cls in course["classes"]])
+            
+            if course_students > 4500:
+                # Large CBE course logic
+                if is_class_scheduled(course, date, Schedules):
+                    reasons.append("classes already scheduled")
+                elif not can_schedule_full_day_cbe(Schedules, date, course):
+                    reasons.append("cannot get full day (classes conflict)")
+            else:
+                # Small CBE course logic
+                if is_class_scheduled(course, date, Schedules):
+                    reasons.append("class already scheduled")
+                if not can_schedule_cbe(Schedules, date, course):
+                    reasons.append(f"would exceed daily CBE limit (current: {current_cbe_count}, course needs: {course_students}, max: 4500)")
         else:
             Seat_Required = sum([Class["size"] for Class in course["classes"]])
             if seat_remaining < Seat_Required:
@@ -183,10 +328,18 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
 def filter_courses(date, seat_remaining, courses, schedules):
     eligible_courses = []
     for course in courses:
-        # CBE courses don't require seats, only check for conflicts
+        # CBE courses don't require seats
         if course["exam_type"] == "CBE":
-            if not is_class_scheduled(course, date, schedules) and not check_for_CBE(schedules, date):
-                eligible_courses.append(course)
+            course_students = sum([cls["size"] for cls in course["classes"]])
+            
+            # Large CBE courses (>4500) need full day
+            if course_students > 4500:
+                if can_schedule_full_day_cbe(schedules, date, course):
+                    eligible_courses.append(course)
+            # Small CBE courses check student limit
+            else:
+                if not is_class_scheduled(course, date, schedules) and can_schedule_cbe(schedules, date, course):
+                    eligible_courses.append(course)
         # PBE courses require seat availability
         else:
             seat_required = sum(cls["size"] for cls in course["classes"])
@@ -199,10 +352,15 @@ def filter_courses(date, seat_remaining, courses, schedules):
 
 # Get the next valid course to schedule
 def get_next_course(date, seat_remaining, courses, Schedules):
-    # Prioritize CBE courses first (they don't consume seats)
-    cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and not is_class_scheduled(c, date, Schedules) and not check_for_CBE(Schedules, date)]
-    if cbe_courses:
-        return random.choice(cbe_courses)
+    # Prioritize large CBE courses (>4500 students) FIRST - they need full days
+    large_cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and sum([cls["size"] for cls in c["classes"]]) > 4500 and can_schedule_full_day_cbe(Schedules, date, c)]
+    if large_cbe_courses:
+        return random.choice(large_cbe_courses)
+    
+    # Then small CBE courses (≤4500 students)
+    small_cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and sum([cls["size"] for cls in c["classes"]]) <= 4500 and not is_class_scheduled(c, date, Schedules) and can_schedule_cbe(Schedules, date, c)]
+    if small_cbe_courses:
+        return random.choice(small_cbe_courses)
     
     # Then handle PBE courses with seat constraints
     courses_to_select = filter_courses(date, seat_remaining, courses, Schedules)
@@ -215,6 +373,10 @@ def get_next_course(date, seat_remaining, courses, Schedules):
 def generate(dates, courses_AM, courses_PM, Halls):
     # Initialize schedules list
     Schedules = []
+    
+    # Auto-split large CBE courses (>9000 students) into sections by class
+    courses_AM = auto_split_large_cbe_courses(courses_AM)
+    courses_PM = auto_split_large_cbe_courses(courses_PM)
     
     # Track initial course counts
     initial_am_count = len(courses_AM)
@@ -252,16 +414,38 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 break
             
             if Course["exam_type"] == "CBE":
-                if not check_for_CBE(Schedules, Date):
+                course_students = sum([cls["size"] for cls in Course["classes"]])
+                
+                # Check if course needs full day (>4500 students)
+                if course_students > 4500:
+                    if can_schedule_full_day_cbe(Schedules, Date, Course):
+                        # Schedule for both AM and PM periods
+                        Schedule_AM = {"course": Course, "date": Date, "period": "AM"}
+                        Schedule_PM = {"course": Course, "date": Date, "period": "PM"}
+                        Schedules.append(Schedule_AM)
+                        Schedules.append(Schedule_PM)
+                        
+                        # Show section info if it's a split course
+                        section_info = f" (Section {Course['code'].split('-')[-1]})" if Course.get("is_split") else ""
+                        print(f"[OK] Scheduled {Course['code']}{section_info} (FULL DAY - CBE) - {course_students} students (AM + PM)")
+                        courses_AM.remove(Course)
+                        am_scheduled_count += 1
+                    else:
+                        # Don't remove - let it try again on next date
+                        print(f"[DEFER] {Course['code']} (CBE) - Deferring to next date (classes already scheduled today)")
+                
+                # Regular scheduling for courses ≤4500 students
+                elif can_schedule_cbe(Schedules, Date, Course):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
-                    print(f"[OK] Scheduled {Course['code']} (AM - CBE) - No seats consumed")
+                    current_cbe_total = get_cbe_student_count(Schedules, Date)
+                    print(f"[OK] Scheduled {Course['code']} (AM - CBE) - {course_students} students, {current_cbe_total} total CBE today")
                     courses_AM.remove(Course)
                     am_scheduled_count += 1
-                    # CBE courses don't consume seats, so Total_Seats_AM remains unchanged
                 else:
-                    print(f"[SKIP] {Course['code']} (AM - CBE) - Another CBE already scheduled")
-                    courses_AM.remove(Course)
+                    # Don't remove small CBE courses either - let them try on next date
+                    current_cbe_total = get_cbe_student_count(Schedules, Date)
+                    print(f"[DEFER] {Course['code']} (AM - CBE) - Deferring to next date ({current_cbe_total} CBE students already today)")
             else:
                 Seat_Required = sum([Class["size"] for Class in Course["classes"]])
                 if Total_Seats_AM >= Seat_Required and not is_class_scheduled(
@@ -321,6 +505,11 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 else:
                     print(f"[SKIP] {Course['code']} (PM) - needs {Seat_Required} seats, only {Total_Seats_PM} available")
                     courses_PM.remove(Course)
+        
+        # Log CBE summary for this date
+        daily_cbe_count = get_cbe_student_count(Schedules, Date)
+        if daily_cbe_count > 0:
+            print(f"[CBE SUMMARY] {Date}: {daily_cbe_count} CBE students scheduled")
     
     # Final summary
     print(f"\n{'='*60}")
