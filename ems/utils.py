@@ -118,28 +118,40 @@ def check_for_CBE(schedules, date):
 # Helper function to check if timetable can still be scheduled based on the number of seats remaining
 def can_continue(date, seat_remaining, courses, Schedules):
     for course in courses:
-        Seat_Required = sum([Class["size"] for Class in course["classes"]])
-        if (
-            seat_remaining >= Seat_Required
-            and not is_class_scheduled(course, date, Schedules)
-            and not check_for_CBE(Schedules, date)
-        ):
-            return True
+        # For CBE courses, check if another CBE is already scheduled (no seat constraint)
+        if course["exam_type"] == "CBE":
+            if (
+                not is_class_scheduled(course, date, Schedules)
+                and not check_for_CBE(Schedules, date)  # Only check for CBE conflict
+            ):
+                return True
+        # For PBE courses, check seat availability
+        else:
+            Seat_Required = sum([Class["size"] for Class in course["classes"]])
+            if (
+                seat_remaining >= Seat_Required
+                and not is_class_scheduled(course, date, Schedules)
+            ):
+                return True
     
     # Log why we can't continue
     print(f"[INFO] Cannot continue scheduling for {date} (AM). Remaining seats: {seat_remaining}")
     for course in courses:
-        Seat_Required = sum([Class["size"] for Class in course["classes"]])
         reasons = []
-        if seat_remaining < Seat_Required:
-            reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
-        if is_class_scheduled(course, date, Schedules):
-            reasons.append("class already scheduled")
-        if check_for_CBE(Schedules, date):
-            reasons.append("CBE course blocks this period")
+        if course["exam_type"] == "CBE":
+            if is_class_scheduled(course, date, Schedules):
+                reasons.append("class already scheduled")
+            if check_for_CBE(Schedules, date):
+                reasons.append("another CBE course already scheduled")
+        else:
+            Seat_Required = sum([Class["size"] for Class in course["classes"]])
+            if seat_remaining < Seat_Required:
+                reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
+            if is_class_scheduled(course, date, Schedules):
+                reasons.append("class already scheduled")
         
         if reasons:
-            print(f"[SKIP] Course {course['code']} skipped: {', '.join(reasons)}")
+            print(f"[SKIP] Course {course['code']} ({course['exam_type']}) skipped: {', '.join(reasons)}")
     
     return False
 
@@ -171,18 +183,32 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
 def filter_courses(date, seat_remaining, courses, schedules):
     eligible_courses = []
     for course in courses:
-        seat_required = sum(cls["size"] for cls in course["classes"])
-        if seat_remaining >= seat_required and not is_class_scheduled(
-            course, date, schedules
-        ):
-            eligible_courses.append(course)
+        # CBE courses don't require seats, only check for conflicts
+        if course["exam_type"] == "CBE":
+            if not is_class_scheduled(course, date, schedules) and not check_for_CBE(schedules, date):
+                eligible_courses.append(course)
+        # PBE courses require seat availability
+        else:
+            seat_required = sum(cls["size"] for cls in course["classes"])
+            if seat_remaining >= seat_required and not is_class_scheduled(
+                course, date, schedules
+            ):
+                eligible_courses.append(course)
     return eligible_courses
 
 
 # Get the next valid course to schedule
 def get_next_course(date, seat_remaining, courses, Schedules):
+    # Prioritize CBE courses first (they don't consume seats)
+    cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and not is_class_scheduled(c, date, Schedules) and not check_for_CBE(Schedules, date)]
+    if cbe_courses:
+        return random.choice(cbe_courses)
+    
+    # Then handle PBE courses with seat constraints
     courses_to_select = filter_courses(date, seat_remaining, courses, Schedules)
-    return random.choice(courses_to_select)
+    if courses_to_select:
+        return random.choice(courses_to_select)
+    return None
 
 
 # Function to generate the timetable and save it to the DB
@@ -229,9 +255,10 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 if not check_for_CBE(Schedules, Date):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
-                    print(f"[OK] Scheduled {Course['code']} (AM - CBE)")
+                    print(f"[OK] Scheduled {Course['code']} (AM - CBE) - No seats consumed")
                     courses_AM.remove(Course)
                     am_scheduled_count += 1
+                    # CBE courses don't consume seats, so Total_Seats_AM remains unchanged
                 else:
                     print(f"[SKIP] {Course['code']} (AM - CBE) - Another CBE already scheduled")
                     courses_AM.remove(Course)
@@ -582,6 +609,52 @@ def process_department_class_file(extracted_dir):
                         )
 
 
+def validate_and_restructure_course_code(course_code, course_title):
+    """
+    Validates and restructures a course code into the format: ABC 123
+    Handles optional suffixes like "(ELECTIVE)" and multiple codes like "URP 213/URP 211"
+    Returns the first valid course code when multiple are provided.
+    
+    Args:
+        course_code (str): The course code to validate and restructure
+        
+    Returns:
+        str: The restructured course code in format "ABC 123"
+        
+    Raises:
+        ValueError: If the course code is invalid
+    """
+    import re
+    
+    # Remove extra whitespace and convert to uppercase
+    cleaned = str(course_code).strip().upper()
+    
+    # Remove anything in parentheses (like "(ELECTIVE)")
+    cleaned = re.sub(r'\s*\([^)]*\)', '', cleaned)
+    
+    # Handle multiple course codes separated by slash - take the first one
+    if '/' in cleaned:
+        cleaned = cleaned.split('/')[0].strip()
+    
+    # Remove all remaining spaces to parse the components
+    no_spaces = cleaned.replace(" ", "")
+    
+    # Check if it matches the pattern: 3 letters followed by 3 digits
+    pattern = r'^([A-Z]{3})(\d{3})$'
+    match = re.match(pattern, no_spaces)
+    
+    if not match:
+        raise ValueError(
+            f"Invalid course code: '{course_code}'. '{course_title}'"
+            "Expected format: 3 letters followed by 3 digits (e.g., GNS 101)"
+        )
+    
+    # Extract components and format
+    department = match.group(1)
+    course_number = match.group(2)
+    
+    return f"{department} {course_number}"
+
 def process_class_course_csv_memory(csv_io, class_obj):
     """Process class course CSV from memory with bulk operations"""
     from django.db import transaction
@@ -590,8 +663,28 @@ def process_class_course_csv_memory(csv_io, class_obj):
     csv_io.seek(0)
     df = pd.read_csv(csv_io)
 
-    # Remove duplicates and NaN values
-    # df = df.dropna(subset=["COURSE CODE", "COURSE TITLE", "EXAM TYPE"])
+    # Validate and restructure all course codes with error handling
+    validated_codes = []
+    invalid_rows = []
+    
+    for idx, row in df.iterrows():
+        try:
+            validated_codes.append(validate_and_restructure_course_code(row["COURSE CODE"], row["COURSE TITLE"]))
+        except ValueError as e:
+            validated_codes.append(None)  # Placeholder for invalid codes
+            invalid_rows.append(idx)
+    
+    # Assign validated codes back to DataFrame
+    df["COURSE CODE"] = validated_codes
+    
+    # Remove rows with invalid course codes
+    if invalid_rows:
+        df = df.drop(invalid_rows)
+        # Optionally log or raise warning about skipped rows
+        print(f"Warning: Skipped {len(invalid_rows)} rows with invalid course codes")
+    
+    # Remove any remaining None values and duplicates
+    df = df.dropna(subset=["COURSE CODE"])
     df = df.drop_duplicates(subset=["COURSE CODE"])
 
     # Extract unique course codes
@@ -620,7 +713,6 @@ def process_class_course_csv_memory(csv_io, class_obj):
     # Bulk add to many-to-many relationship
     with transaction.atomic():
         class_obj.courses.add(*all_courses)
-
 
 def process_class_course_csv(file_path, class_obj):
     file = pd.read_csv(file_path).to_dict()
