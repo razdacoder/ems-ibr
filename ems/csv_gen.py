@@ -36,6 +36,12 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
     date = request.GET.get("date")
     period = request.GET.get("period")
 
+    # Treat the string "None" or empty string as missing
+    if not date or date == "None":
+        date = None
+    if not period or period == "None":
+        period = None
+
     if date is None:
         date = Distribution.objects.values_list(
             "date", flat=True).distinct().order_by("date").first()

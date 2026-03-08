@@ -481,18 +481,21 @@ def distribution(request):
     dates = TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
     date = request.GET.get("date")
     period = request.GET.get("period")
+
+    # Default to first date and AM if not provided
+    if not date or not period:
+        first_date = dates.first() if dates.exists() else None
+        if not date:
+            date = str(first_date) if first_date else None
+        if not period:
+            period = "AM"
+
     context = {"generated": generated, "dates": dates, "date": date, "period": period}
     if generated:
         if date and period:
             distributions = Distribution.objects.filter(date=date, period=period)
         else:
-            first_date = dates.first() if dates.exists() else None
-            if first_date:
-                distributions = Distribution.objects.filter(
-                    date=first_date, period="AM"
-                )
-            else:
-                distributions = Distribution.objects.none()
+            distributions = Distribution.objects.none()
 
         # Filter distributions based on user role
         if not request.user.is_staff and request.user.department:
@@ -1270,14 +1273,14 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             context={"job_id": job_id, "job_type": "Distribution Generation"},
         )
     else:
-        # Distribution already exists - redirect to view it
-        from django.http import HttpResponse
-
-        return HttpResponse(
-            headers={
-                "HX-Redirect": reverse("distribution") + f"?date={date}&period={period}"
-            }
+        # Distribution already exists — show inline message and refresh the list
+        response = render(
+            request,
+            template_name="dashboard/partials/distribution-exists.html",
+            context={"date": date, "period": period},
         )
+        response["HX-Trigger"] = "distributionReady"
+        return response
 
 
 @require_POST
@@ -1363,11 +1366,17 @@ def check_job_status(request: HttpRequest, job_id: str) -> HttpResponse:
         if job.status == "success":
             context["result"] = job.result_data
 
-        return render(
+        response = render(
             request,
             template_name="dashboard/partials/job-progress.html",
             context=context,
         )
+
+        # Fire distributionReady event so the table refreshes automatically
+        if job.status == "success" and job.job_type == "distribution":
+            response["HX-Trigger"] = "distributionReady"
+
+        return response
     except BackgroundJob.DoesNotExist:
         return render(
             request,

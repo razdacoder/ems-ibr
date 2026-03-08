@@ -42,7 +42,7 @@
       <li>
         <button hx-get="{% url 'timetable' %}" hx-indicator="#htmx-indicator-full" hx-target="#main-content" hx-push-url="true" class="btn bg-gradient-primary"><i class="mdi mdi-refresh text-white"></i></button>
       </li>
-      {% if generated %}
+      {% if generated and date and period %}
         <li>
           <a href="{% url 'export_distribution' %}?date={{ date }}&period={{ period }}" class="btn bg-gradient-primary text-white">
             <i class="mdi mdi-download"></i> Export
@@ -198,3 +198,14 @@
 {% else %}
   <p class="text-center">No Distribution Yet</p>
 {% endif %}
+
+<script>
+  document.body.addEventListener("distributionReady", function () {
+    var date = document.getElementById("date").value;
+    var period = document.getElementById("period").value;
+    htmx.ajax("GET", "{% url 'distribution' %}?date=" + date + "&period=" + period, {
+      target: "#main-content",
+      swap: "innerHTML"
+    });
+  });
+</script>

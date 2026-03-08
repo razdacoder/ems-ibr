@@ -586,6 +586,8 @@ def convert_hall_to_dict(halls):
 def make_schedules(timetables):
     tt = []
     for timetable in timetables:
+        if timetable.course.exam_type == "CBE":
+            continue
         tt.append(
             {
                 "id": timetable.id,
@@ -1298,7 +1300,7 @@ def process_student_files_memory(zip_ref):
 
     from .models import Class, Student
 
-    # Look for 'students' folder in ZIP
+    # Look for 'students/department/class.csv' files in ZIP
     student_files = [
         f
         for f in zip_ref.namelist()
@@ -1307,7 +1309,7 @@ def process_student_files_memory(zip_ref):
 
     if not student_files:
         raise ValueError(
-            "No 'students' folder with CSV files found in the ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names."
+            "No 'students' folder with CSV files found in the ZIP file.\nPlease ensure your ZIP contains a 'students' folder with department subfolders containing CSV files named after class names."
         )
 
     # Pre-validation phase
@@ -1315,13 +1317,18 @@ def process_student_files_memory(zip_ref):
     valid_files = []
 
     for file_path in student_files:
-        csv_filename = file_path.split("/")[-1]  # Get just the filename
+        # Extract department slug and class filename from path: 'students/department-slug/ClassName.csv'
+        path_parts = file_path.split("/")
+        if len(path_parts) < 3:
+            continue  # Skip files not inside a department subfolder
+        department_slug = path_parts[1]
+        csv_filename = path_parts[2]
         try:
             # Read CSV content from ZIP
             csv_content = zip_ref.read(file_path)
             csv_io = io.StringIO(csv_content.decode("utf-8"))
 
-            validation_result = validate_student_csv_memory(csv_io, csv_filename)
+            validation_result = validate_student_csv_memory(csv_io, csv_filename, department_slug)
             validation_results.append(validation_result)
             if validation_result["is_valid"]:
                 # Reset StringIO for processing
@@ -1384,23 +1391,38 @@ def process_student_files(extracted_dir):
     students_dir = os.path.join(extracted_dir, "students")
     if not os.path.exists(students_dir):
         raise ValueError(
-            "No 'students' folder found in the uploaded ZIP file.\nPlease ensure your ZIP contains a 'students' folder with CSV files named after class names."
+            "No 'students' folder found in the uploaded ZIP file.\nPlease ensure your ZIP contains a 'students' folder with department subfolders containing CSV files named after class names."
         )
 
-    csv_files = [f for f in os.listdir(students_dir) if f.endswith(".csv")]
-    if not csv_files:
+    # Collect all CSV files inside department subfolders: students/department-slug/ClassName.csv
+    department_dirs = [
+        d for d in os.listdir(students_dir)
+        if os.path.isdir(os.path.join(students_dir, d))
+    ]
+    if not department_dirs:
         raise ValueError(
-            "No CSV files found in the 'students' folder.\nPlease add CSV files named after your class names (e.g., 'ND1 Computer Science.csv')."
+            "No department subfolders found in the 'students' folder.\nPlease add department subfolders named after department slugs, each containing CSV files named after class names."
+        )
+
+    csv_file_entries = []  # list of (file_path, csv_filename, department_slug)
+    for dept_slug in department_dirs:
+        dept_path = os.path.join(students_dir, dept_slug)
+        for csv_file in os.listdir(dept_path):
+            if csv_file.endswith(".csv"):
+                csv_file_entries.append((os.path.join(dept_path, csv_file), csv_file, dept_slug))
+
+    if not csv_file_entries:
+        raise ValueError(
+            "No CSV files found in any department subfolder.\nPlease add CSV files named after your class names (e.g., 'ND1 Computer Science.csv')."
         )
 
     # Pre-validation phase
     validation_results = []
     valid_files = []
 
-    for csv_file in csv_files:
-        file_path = os.path.join(students_dir, csv_file)
+    for file_path, csv_file, dept_slug in csv_file_entries:
         try:
-            validation_result = validate_student_csv(file_path)
+            validation_result = validate_student_csv(file_path, dept_slug)
             validation_results.append(validation_result)
             if validation_result["is_valid"]:
                 valid_files.append((file_path, validation_result))
@@ -1450,7 +1472,7 @@ def process_student_files(extracted_dir):
         raise ValueError(f"Failed to process student files: {str(e)}")
 
 
-def validate_student_csv_memory(csv_io, file_name):
+def validate_student_csv_memory(csv_io, file_name, department_slug):
     """Validate a student CSV file from memory without making database changes"""
     import re
 
@@ -1461,15 +1483,15 @@ def validate_student_csv_memory(csv_io, file_name):
     # Extract class name from filename (remove .csv extension)
     class_name = file_name.replace(".csv", "")
 
-    # Check if class exists
+    # Check if class exists within the given department
     try:
-        class_obj = Class.objects.get(name=class_name)
+        class_obj = Class.objects.get(name=class_name, department__slug=department_slug)
     except Class.DoesNotExist:
         return {
             "file_name": file_name,
             "is_valid": False,
             "errors": [
-                f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."
+                f"Class '{class_name}' not found in department '{department_slug}'. Please ensure the CSV filename matches an existing class name and is placed in the correct department subfolder."
             ],
         }
 
@@ -1595,7 +1617,7 @@ def validate_student_csv_memory(csv_io, file_name):
     }
 
 
-def validate_student_csv(file_path):
+def validate_student_csv(file_path, department_slug):
     """Validate a student CSV file without making database changes"""
     import re
 
@@ -1607,15 +1629,15 @@ def validate_student_csv(file_path):
     # Extract class name from filename (remove .csv extension)
     class_name = file_name.replace(".csv", "")
 
-    # Check if class exists
+    # Check if class exists within the given department
     try:
-        class_obj = Class.objects.get(name=class_name)
+        class_obj = Class.objects.get(name=class_name, department__slug=department_slug)
     except Class.DoesNotExist:
         return {
             "file_name": file_name,
             "is_valid": False,
             "errors": [
-                f"Class '{class_name}' not found in the system. Please ensure the CSV filename matches an existing class name exactly."
+                f"Class '{class_name}' not found in department '{department_slug}'. Please ensure the CSV filename matches an existing class name and is placed in the correct department subfolder."
             ],
         }
 
@@ -1821,9 +1843,9 @@ def process_validated_student_csv(file_path, validation_result):
 
 
 # Legacy function for backward compatibility
-def process_student_csv(file_path, class_obj):
+def process_student_csv(file_path, class_obj, department_slug):
     """Legacy function - use validate_student_csv and process_validated_student_csv instead"""
-    validation_result = validate_student_csv(file_path)
+    validation_result = validate_student_csv(file_path, department_slug)
     if not validation_result["is_valid"]:
         raise ValueError(f"Validation failed: {'; '.join(validation_result['errors'])}")
 
