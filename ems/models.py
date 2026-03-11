@@ -128,7 +128,7 @@ class Distribution(models.Model):
 class Student(models.Model):
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
-    matric_no = models.CharField(max_length=15, unique=True, db_index=True)
+    matric_no = models.CharField(max_length=15, db_index=True)
     email = models.EmailField()
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     level = models.ForeignKey(Class, on_delete=models.CASCADE)

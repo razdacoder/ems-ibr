@@ -1324,9 +1324,17 @@ def process_student_files_memory(zip_ref):
         department_slug = path_parts[1]
         csv_filename = path_parts[2]
         try:
-            # Read CSV content from ZIP
+            # Read CSV content from ZIP, trying multiple encodings
             csv_content = zip_ref.read(file_path)
-            csv_io = io.StringIO(csv_content.decode("utf-8"))
+            csv_io = None
+            for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+                try:
+                    csv_io = io.StringIO(csv_content.decode(encoding))
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            if csv_io is None:
+                raise ValueError("Unable to decode CSV file with any supported encoding (utf-8, cp1252, latin-1)")
 
             validation_result = validate_student_csv_memory(csv_io, csv_filename, department_slug)
             validation_results.append(validation_result)
@@ -1338,6 +1346,7 @@ def process_student_files_memory(zip_ref):
             validation_results.append(
                 {
                     "file_name": csv_filename,
+                    "department_slug": department_slug,
                     "is_valid": False,
                     "errors": [f"Failed to validate file: {str(e)}"],
                 }
@@ -1348,7 +1357,8 @@ def process_student_files_memory(zip_ref):
     if failed_validations:
         error_messages = []
         for result in failed_validations:
-            error_messages.append(f"File '{result['file_name']}':")
+            dept = result.get("department_slug", "unknown")
+            error_messages.append(f"File '{result['file_name']}' (department: {dept}):")
             for error in result["errors"]:
                 error_messages.append(f"  • {error}")
 
@@ -1363,9 +1373,16 @@ def process_student_files_memory(zip_ref):
             total_updated = 0
 
             for csv_io, validation_result in valid_files:
-                created, updated = process_validated_student_csv_memory(
-                    csv_io, validation_result
-                )
+                class_obj = validation_result["class_obj"]
+                try:
+                    created, updated = process_validated_student_csv_memory(
+                        csv_io, validation_result
+                    )
+                except ValueError as e:
+                    raise ValueError(
+                        f"Error in file '{validation_result['file_name']}' "
+                        f"(class: {class_obj.name}, department: {class_obj.department.name}): {e}"
+                    )
                 total_created += created
                 total_updated += updated
 
@@ -1376,11 +1393,10 @@ def process_student_files_memory(zip_ref):
                 "students_created": total_created,
                 "students_updated": total_updated,
             }
+    except ValueError:
+        raise
     except Exception as e:
         raise ValueError(f"Failed to process student files: {str(e)}")
-
-
-def process_student_files(extracted_dir):
     """Process student files with comprehensive validation"""
     import re
 
@@ -1430,6 +1446,7 @@ def process_student_files(extracted_dir):
             validation_results.append(
                 {
                     "file_name": csv_file,
+                    "department_slug": dept_slug,
                     "is_valid": False,
                     "errors": [f"Failed to validate file: {str(e)}"],
                 }
@@ -1440,7 +1457,8 @@ def process_student_files(extracted_dir):
     if failed_validations:
         error_messages = []
         for result in failed_validations:
-            error_messages.append(f"File '{result['file_name']}':")
+            dept = result.get("department_slug", "unknown")
+            error_messages.append(f"File '{result['file_name']}' (department: {dept}):")
             for error in result["errors"]:
                 error_messages.append(f"  • {error}")
 
@@ -1455,9 +1473,16 @@ def process_student_files(extracted_dir):
             total_updated = 0
 
             for file_path, validation_result in valid_files:
-                created, updated = process_validated_student_csv(
-                    file_path, validation_result
-                )
+                class_obj = validation_result["class_obj"]
+                try:
+                    created, updated = process_validated_student_csv(
+                        file_path, validation_result
+                    )
+                except ValueError as e:
+                    raise ValueError(
+                        f"Error in file '{validation_result['file_name']}' "
+                        f"(class: {class_obj.name}, department: {class_obj.department.name}): {e}"
+                    )
                 total_created += created
                 total_updated += updated
 
@@ -1468,6 +1493,8 @@ def process_student_files(extracted_dir):
                 "students_created": total_created,
                 "students_updated": total_updated,
             }
+    except ValueError:
+        raise
     except Exception as e:
         raise ValueError(f"Failed to process student files: {str(e)}")
 
@@ -1489,6 +1516,7 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
     except Class.DoesNotExist:
         return {
             "file_name": file_name,
+            "department_slug": department_slug,
             "is_valid": False,
             "errors": [
                 f"Class '{class_name}' not found in department '{department_slug}'. Please ensure the CSV filename matches an existing class name and is placed in the correct department subfolder."
@@ -1513,6 +1541,7 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
     except Exception as e:
         return {
             "file_name": file_name,
+            "department_slug": department_slug,
             "is_valid": False,
             "errors": [f"Cannot read CSV file: {str(e)}"],
         }
@@ -1536,41 +1565,19 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
     if errors:  # Return early if basic structure is invalid
         return {
             "file_name": file_name,
+            "department_slug": department_slug,
             "is_valid": False,
             "errors": errors,
             "class_obj": class_obj,
         }
 
-    # Row-level validation
-    for idx, row in df.iterrows():
-        row_num = idx + 2  # +2 because pandas is 0-indexed and we skip header
+    # Silently drop rows with empty required fields (EMAIL is optional - auto-generated if missing)
+    required_non_email = [col for col in required_columns if col != "EMAIL"]
+    for col in required_non_email:
+        df = df[~(df[col].isna() | df[col].str.strip().isin(["", "nan", "None"]))]
 
-        # Check for empty required fields
-        for col in required_columns:
-            if pd.isna(row[col]) or str(row[col]).strip() in ["", "nan", "None"]:
-                errors.append(f"Row {row_num}: {col} is empty")
-
-        # Validate email format
-        email = str(row["EMAIL"]).strip()
-        if email and email != "nan":
-            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-            if not re.match(email_pattern, email):
-                errors.append(f"Row {row_num}: Invalid email format '{email}'")
-
-    # Check for duplicates within the file
-    duplicate_matrics = df[df.duplicated(subset=["MATRIC NUMBER"], keep=False)][
-        "MATRIC NUMBER"
-    ].tolist()
-    if duplicate_matrics:
-        errors.append(
-            f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
-        )
-
-    # Check student count vs class size
-    if len(df) != class_obj.size:
-        errors.append(
-            f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students"
-        )
+    # Silently deduplicate matric numbers (keep first occurrence)
+    df = df.drop_duplicates(subset=["MATRIC NUMBER"], keep="first")
 
     # Check for existing students in this class
     matric_numbers = df["MATRIC NUMBER"].tolist()
@@ -1583,7 +1590,7 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
             f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}"
         )
 
-    # Check for existing matric numbers and emails in database
+    # Check for existing matric numbers in database
     existing_matrics = (
         Student.objects.filter(matric_no__in=matric_numbers)
         .exclude(level=class_obj)
@@ -1595,20 +1602,9 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
             f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}"
         )
 
-    emails = df["EMAIL"].tolist()
-    existing_emails = (
-        Student.objects.filter(email__in=emails)
-        .exclude(level=class_obj)
-        .values_list("email", flat=True)
-    )
-
-    if existing_emails:
-        errors.append(
-            f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}"
-        )
-
     return {
         "file_name": file_name,
+        "department_slug": department_slug,
         "is_valid": len(errors) == 0,
         "errors": errors,
         "class_obj": class_obj,
@@ -1635,31 +1631,48 @@ def validate_student_csv(file_path, department_slug):
     except Class.DoesNotExist:
         return {
             "file_name": file_name,
+            "department_slug": department_slug,
             "is_valid": False,
             "errors": [
                 f"Class '{class_name}' not found in department '{department_slug}'. Please ensure the CSV filename matches an existing class name and is placed in the correct department subfolder."
             ],
         }
 
-    # Try to read CSV
-    try:
-        df = pd.read_csv(
-            file_path,
-            dtype={
-                "MATRIC NUMBER": "string",
-                "FIRSTNAME": "string",
-                "LASTNAME": "string",
-                "EMAIL": "string",
-                "PHONE NUMBER": "string",
-            },
-            engine="c",
-        )
-        df = df.astype(str).apply(lambda x: x.str.strip())
-    except Exception as e:
+    # Try to read CSV with multiple encoding fallbacks
+    df = None
+    last_error = None
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+        try:
+            df = pd.read_csv(
+                file_path,
+                encoding=encoding,
+                dtype={
+                    "MATRIC NUMBER": "string",
+                    "FIRSTNAME": "string",
+                    "LASTNAME": "string",
+                    "EMAIL": "string",
+                    "PHONE NUMBER": "string",
+                },
+                engine="c",
+            )
+            df = df.astype(str).apply(lambda x: x.str.strip())
+            break
+        except UnicodeDecodeError as e:
+            last_error = e
+            continue
+        except Exception as e:
+            return {
+                "file_name": file_name,
+                "department_slug": department_slug,
+                "is_valid": False,
+                "errors": [f"Cannot read CSV file: {str(e)}"],
+            }
+    if df is None:
         return {
             "file_name": file_name,
+            "department_slug": department_slug,
             "is_valid": False,
-            "errors": [f"Cannot read CSV file: {str(e)}"],
+            "errors": [f"Cannot read CSV file: {str(last_error)}"],
         }
 
     # Check if file is empty
@@ -1686,36 +1699,13 @@ def validate_student_csv(file_path, department_slug):
             "class_obj": class_obj,
         }
 
-    # Row-level validation
-    for idx, row in df.iterrows():
-        row_num = idx + 2  # +2 because pandas is 0-indexed and we skip header
+    # Silently drop rows with empty required fields (EMAIL is optional - auto-generated if missing)
+    required_non_email = [col for col in required_columns if col != "EMAIL"]
+    for col in required_non_email:
+        df = df[~(df[col].isna() | df[col].str.strip().isin(["", "nan", "None"]))]
 
-        # Check for empty required fields
-        for col in required_columns:
-            if pd.isna(row[col]) or str(row[col]).strip() in ["", "nan", "None"]:
-                errors.append(f"Row {row_num}: {col} is empty")
-
-        # Validate email format
-        email = str(row["EMAIL"]).strip()
-        if email and email != "nan":
-            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-            if not re.match(email_pattern, email):
-                errors.append(f"Row {row_num}: Invalid email format '{email}'")
-
-    # Check for duplicates within the file
-    duplicate_matrics = df[df.duplicated(subset=["MATRIC NUMBER"], keep=False)][
-        "MATRIC NUMBER"
-    ].tolist()
-    if duplicate_matrics:
-        errors.append(
-            f"Duplicate matric numbers in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
-        )
-
-    # Check student count vs class size
-    if len(df) != class_obj.size:
-        errors.append(
-            f"Student count mismatch. Class size is {class_obj.size} but file contains {len(df)} students"
-        )
+    # Silently deduplicate matric numbers (keep first occurrence)
+    df = df.drop_duplicates(subset=["MATRIC NUMBER"], keep="first")
 
     # Check for existing students in this class
     matric_numbers = df["MATRIC NUMBER"].tolist()
@@ -1728,7 +1718,7 @@ def validate_student_csv(file_path, department_slug):
             f"Students already exist in class '{class_name}': {', '.join(list(existing_in_class)[:5])}{'...' if len(existing_in_class) > 5 else ''}"
         )
 
-    # Check for existing matric numbers and emails in database
+    # Check for existing matric numbers in database
     existing_matrics = (
         Student.objects.filter(matric_no__in=matric_numbers)
         .exclude(level=class_obj)
@@ -1738,18 +1728,6 @@ def validate_student_csv(file_path, department_slug):
     if existing_matrics:
         errors.append(
             f"Matric numbers already exist in other classes: {', '.join(list(existing_matrics)[:5])}{'...' if len(existing_matrics) > 5 else ''}"
-        )
-
-    emails = df["EMAIL"].tolist()
-    existing_emails = (
-        Student.objects.filter(email__in=emails)
-        .exclude(level=class_obj)
-        .values_list("email", flat=True)
-    )
-
-    if existing_emails:
-        errors.append(
-            f"Email addresses already exist in database: {', '.join(list(existing_emails)[:3])}{'...' if len(existing_emails) > 3 else ''}"
         )
 
     return {
@@ -1764,6 +1742,8 @@ def validate_student_csv(file_path, department_slug):
 
 def process_validated_student_csv_memory(csv_io, validation_result):
     """Process a validated student CSV file from memory"""
+    from django.db import IntegrityError, transaction
+
     from .models import Student
 
     class_obj = validation_result["class_obj"]
@@ -1782,12 +1762,18 @@ def process_validated_student_csv_memory(csv_io, validation_result):
         students_to_create = []
 
         for record in chunk:
+            raw_email = str(record["EMAIL"]).strip().replace(" ", "").replace(",", "").lower()
+            if not raw_email or raw_email in ["nan", "none", ""]:
+                first = str(record["FIRSTNAME"]).strip().lower().replace(" ", "")
+                last = str(record["LASTNAME"]).strip().lower().replace(" ", "")
+                matric = str(record["MATRIC NUMBER"]).strip().replace("/", "").replace(" ", "")
+                raw_email = f"{first}{last}{matric}@ems.com"
             students_to_create.append(
                 Student(
                     matric_no=record["MATRIC NUMBER"],
                     first_name=record["FIRSTNAME"],
                     last_name=record["LASTNAME"],
-                    email=record["EMAIL"],
+                    email=raw_email,
                     phone=record["PHONE NUMBER"],
                     department=class_obj.department,
                     level=class_obj,
@@ -1796,7 +1782,23 @@ def process_validated_student_csv_memory(csv_io, validation_result):
 
         # Bulk create students for this chunk
         if students_to_create:
-            Student.objects.bulk_create(students_to_create, batch_size=250)
+            try:
+                with transaction.atomic():
+                    Student.objects.bulk_create(students_to_create, batch_size=250)
+            except IntegrityError:
+                matric_numbers = [s.matric_no for s in students_to_create]
+                existing = (
+                    Student.objects.filter(matric_no__in=matric_numbers)
+                    .values("matric_no", "level__name", "department__name")
+                )
+                conflicts = ", ".join(
+                    f"{r['matric_no']} (class: {r['level__name']}, dept: {r['department__name']})"
+                    for r in existing
+                )
+                raise ValueError(
+                    f"Duplicate matric number(s) found while uploading to class '{class_obj.name}' "
+                    f"(department: {class_obj.department.name}): {conflicts}"
+                )
             total_created += len(students_to_create)
 
     return total_created, total_updated
@@ -1804,6 +1806,8 @@ def process_validated_student_csv_memory(csv_io, validation_result):
 
 def process_validated_student_csv(file_path, validation_result):
     """Process a validated student CSV file"""
+    from django.db import IntegrityError, transaction
+
     from .models import Student
 
     class_obj = validation_result["class_obj"]
@@ -1822,12 +1826,18 @@ def process_validated_student_csv(file_path, validation_result):
         students_to_create = []
 
         for record in chunk:
+            raw_email = str(record["EMAIL"]).strip().replace(" ", "").replace(",", "").lower()
+            if not raw_email or raw_email in ["nan", "none", ""]:
+                first = str(record["FIRSTNAME"]).strip().lower().replace(" ", "")
+                last = str(record["LASTNAME"]).strip().lower().replace(" ", "")
+                matric = str(record["MATRIC NUMBER"]).strip().replace("/", "").replace(" ", "")
+                raw_email = f"{first}{last}{matric}@ems.com"
             students_to_create.append(
                 Student(
                     matric_no=record["MATRIC NUMBER"],
                     first_name=record["FIRSTNAME"],
                     last_name=record["LASTNAME"],
-                    email=record["EMAIL"],
+                    email=raw_email,
                     phone=record["PHONE NUMBER"],
                     department=class_obj.department,
                     level=class_obj,
@@ -1836,7 +1846,23 @@ def process_validated_student_csv(file_path, validation_result):
 
         # Bulk create students for this chunk
         if students_to_create:
-            Student.objects.bulk_create(students_to_create, batch_size=250)
+            try:
+                with transaction.atomic():
+                    Student.objects.bulk_create(students_to_create, batch_size=250)
+            except IntegrityError:
+                matric_numbers = [s.matric_no for s in students_to_create]
+                existing = (
+                    Student.objects.filter(matric_no__in=matric_numbers)
+                    .values("matric_no", "level__name", "department__name")
+                )
+                conflicts = ", ".join(
+                    f"{r['matric_no']} (class: {r['level__name']}, dept: {r['department__name']})"
+                    for r in existing
+                )
+                raise ValueError(
+                    f"Duplicate matric number(s) found while uploading to class '{class_obj.name}' "
+                    f"(department: {class_obj.department.name}): {conflicts}"
+                )
             total_created += len(students_to_create)
 
     return total_created, total_updated
