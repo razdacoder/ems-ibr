@@ -84,8 +84,13 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
 
 
 def export_arrangements(request: HttpRequest) -> HttpResponse:
-    date = request.GET.get("date")
-    period = request.GET.get("period")
+    date = request.GET.get("date") or None
+    period = request.GET.get("period") or None
+
+    if date in (None, "None", ""):
+        date = None
+    if period in (None, "None", ""):
+        period = None
 
     if date is None:
         date = SeatArrangement.objects.values_list(
