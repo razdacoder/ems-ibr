@@ -1,45 +1,233 @@
-{% extends 'base.html' %}
 {% load static %}
-{% block title %}
-  Login
-{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — ExamNova</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="{% static 'assets/css/main.css' %}" />
+  <link rel="shortcut icon" href="{% static 'assets/images/favicon_io/favicon.ico' %}" />
+  <style>
+    body {
+      background: var(--en-gray-50);
+      min-height: 100vh;
+      display: flex;
+    }
+    .en-login-split {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+    .en-login-left {
+      flex: 1.2;
+      background: var(--en-gradient-dark);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 4rem;
+      overflow: hidden;
+    }
+    .en-login-left::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      left: -10%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(79,70,229,0.15) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .en-login-left::after {
+      content: '';
+      position: absolute;
+      bottom: -20%;
+      right: -10%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .en-login-branding {
+      position: relative;
+      z-index: 2;
+      max-width: 500px;
+    }
+    .en-login-branding img {
+      height: 48px;
+      margin-bottom: 2.5rem;
+    }
+    .en-login-branding h1 {
+      color: var(--en-white);
+      font-size: 3.5rem;
+      line-height: 1.1;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+    .en-login-branding p {
+      color: rgba(255,255,255,0.6);
+      font-size: 1.25rem;
+      line-height: 1.6;
+    }
+    .en-login-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: var(--en-white);
+      padding: 2rem;
+      position: relative;
+    }
+    .en-login-box {
+      width: 100%;
+      max-width: 400px;
+    }
+    
+    /* Mobile Top Logo */
+    .en-mobile-logo {
+      display: none;
+      margin-bottom: 2rem;
+    }
+    .en-mobile-logo img {
+      height: 40px;
+    }
+    
+    .en-login-box h2 {
+      font-size: 2.2rem;
+      color: var(--en-dark);
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .en-login-box p {
+      color: var(--en-gray-500);
+      margin-bottom: 2.5rem;
+      font-size: 1.05rem;
+    }
+    .en-form-group {
+      margin-bottom: 1.5rem;
+    }
+    .en-form-label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--en-gray-700);
+      margin-bottom: 0.5rem;
+    }
+    .en-form-control {
+      width: 100%;
+      padding: 14px 16px;
+      font-family: var(--en-font);
+      font-size: 1rem;
+      color: var(--en-dark);
+      background: var(--en-white);
+      border: 1px solid var(--en-gray-300);
+      border-radius: var(--en-radius-md);
+      transition: var(--en-transition);
+    }
+    .en-form-control:focus {
+      outline: none;
+      border-color: var(--en-primary);
+      box-shadow: 0 0 0 4px rgba(79,70,229,0.1);
+    }
+    .en-login-btn {
+      width: 100%;
+      justify-content: center;
+      padding: 16px;
+      font-size: 1.1rem;
+      margin-top: 1rem;
+      box-shadow: 0 4px 14px rgba(79,70,229,0.3);
+    }
+    .en-back-home {
+      position: absolute;
+      top: 2rem;
+      right: 2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--en-gray-500);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--en-transition);
+    }
+    .en-back-home:hover {
+      color: var(--en-primary);
+    }
+    
+    @media (max-width: 992px) {
+      .en-login-left {
+        display: none;
+      }
+      .en-mobile-logo {
+        display: block;
+      }
+      .en-login-box {
+        max-width: 400px;
+      }
+    }
+  </style>
+</head>
+<body>
 
-{% block content %}
-  <div class="container-scroller">
-    <div class="container-fluid page-body-wrapper full-page-wrapper">
-      <div class="content-wrapper d-flex align-items-center auth">
-        <div class="row flex-grow">
-          <div class="col-lg-4 mx-auto">
-            <div class="auth-form-light text-center p-5">
-              <div class="brand-logo">
-                <img src="{% static 'assets/images/logo.png' %} " style="width: 60" />
-              </div>
-              <h4>Hello! let's get started</h4>
-              <h6 class="font-weight-light">Sign in to continue.</h6>
-              {% if messages %}
-                {% for message in messages %}
-                  <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <strong>{{ message }}</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                  </div>
-                {% endfor %}
-              {% endif %}
-              <form class="pt-3" method="post">
-                {% csrf_token %}
-                <div class="form-group">
-                  <input type="email" name="email" class="form-control form-control-lg" id="exampleInputEmail1" placeholder="Email" />
-                </div>
-                <div class="form-group">
-                  <input type="password" name="password" class="form-control form-control-lg" id="exampleInputPassword1" placeholder="Password" />
-                </div>
-                <div class="mt-3">
-                  <button type="submit" class="btn btn-block btn-gradient-primary btn-lg font-weight-medium auth-form-btn">SIGN IN</button>
-                </div>
-              </form>
-            </div>
-          </div>
+  <div class="en-login-split">
+    <!-- Left Side -->
+    <div class="en-login-left">
+      <div class="en-login-branding">
+        <!-- <img src="{% static 'assets/images/logo-white.png' %}" alt="ExamNova Logo"/> -->
+        <h1>Smart exams start here.</h1>
+        <p>Automate your scheduling, optimize your halls, and eliminate seating conflicts with intelligent precision.</p>
+      </div>
+    </div>
+    
+    <!-- Right Side -->
+    <div class="en-login-right">
+      <a href="{% url 'home' %}" class="en-back-home">
+        <i class="fas fa-arrow-left"></i> Back to Home
+      </a>
+      
+      <div class="en-login-box">
+        <div class="en-mobile-logo">
+          <img src="{% static 'assets/images/logo.png' %}" alt="ExamNova Logo" />
         </div>
+        
+        <h2>Welcome back</h2>
+        <p>Sign in to your ExamNova dashboard.</p>
+        
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-danger" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: var(--en-danger); border-radius: var(--en-radius-md); padding: 1rem; margin-bottom: 1.5rem; font-size: 0.95rem;">
+              <i class="fas fa-exclamation-circle me-2"></i> {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+        
+        <form method="post">
+          {% csrf_token %}
+          <div class="en-form-group">
+            <label class="en-form-label" for="email">Email address</label>
+            <input type="email" name="email" class="en-form-control" id="email" placeholder="name@institution.edu" required />
+          </div>
+          
+          <div class="en-form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <label class="en-form-label" for="password" style="margin-bottom: 0;">Password</label>
+            </div>
+            <input type="password" name="password" class="en-form-control" id="password" placeholder="••••••••" required />
+          </div>
+          
+          <button type="submit" class="en-btn en-btn-primary en-login-btn">
+            Sign In to Dashboard
+          </button>
+        </form>
       </div>
     </div>
   </div>
-{% endblock %}
+
+</body>
+</html>

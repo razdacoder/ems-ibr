@@ -14,75 +14,69 @@
 
 <!-- Row 1: Key Metrics Cards -->
 <div class="row">
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-danger card-img-holder text-white">
+	<div class="col-md-6 col-lg-3 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Departments</h4>
-				<h2 class="mb-3">{{ departments_count }}</h2>
+				<h4 class="en-metric-title">Departments</h4>
+				<h2 class="en-metric-value">{{ departments_count }}</h2>
+				<div class="en-metric-icon danger">
+					<i class="mdi mdi-office-building"></i>
+				</div>
 			</div>
 		</div>
 	</div>
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-info card-img-holder text-white">
+	<div class="col-md-6 col-lg-3 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card" style="border-left-color: var(--en-accent) !important;">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Halls</h4>
-				<h2 class="mb-3">{{ halls_count }}</h2>
+				<h4 class="en-metric-title">Halls</h4>
+				<h2 class="en-metric-value">{{ halls_count }}</h2>
+				<div class="en-metric-icon info">
+					<i class="mdi mdi-domain"></i>
+				</div>
 			</div>
 		</div>
 	</div>
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-success card-img-holder text-white">
+	<div class="col-md-6 col-lg-3 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card" style="border-left-color: var(--en-success) !important;">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Students</h4>
-				<h2 class="mb-3">{{ students|default:"0" }}</h2>
+				<h4 class="en-metric-title">Students</h4>
+				<h2 class="en-metric-value">{{ students|default:"0" }}</h2>
+				<div class="en-metric-icon success">
+					<i class="mdi mdi-account-group"></i>
+				</div>
 			</div>
 		</div>
 	</div>
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-warning card-img-holder text-white">
+	<div class="col-md-6 col-lg-3 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card" style="border-left-color: var(--en-warning) !important;">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Courses</h4>
-				<h2 class="mb-3">{{ courses_count }}</h2>
+				<h4 class="en-metric-title">Courses</h4>
+				<h2 class="en-metric-value">{{ courses_count }}</h2>
+				<div class="en-metric-icon warning">
+					<i class="mdi mdi-book-open-page-variant"></i>
+				</div>
 			</div>
 		</div>
 	</div>
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-primary card-img-holder text-white">
+	<div class="col-md-6 col-lg-3 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card" style="border-left-color: var(--en-primary) !important;">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Classes</h4>
-				<h2 class="mb-3">{{ classes_count }}</h2>
+				<h4 class="en-metric-title">Classes</h4>
+				<h2 class="en-metric-value">{{ classes_count }}</h2>
+				<div class="en-metric-icon primary">
+					<i class="mdi mdi-google-classroom"></i>
+				</div>
 			</div>
 		</div>
 	</div>
-	<div class="col-md-4 col-lg-2 stretch-card grid-margin">
-		<div class="card bg-gradient-secondary card-img-holder text-white">
+	<div class="col-md-6 col-xl-3 stretch-card grid-margin">
+		<div class="card en-metric-card" style="border-left-color: #64748b !important;">
 			<div class="card-body">
-				<img
-					src="{% static 'assets/images/dashboard/circle.svg' %}"
-					class="card-img-absolute"
-					alt="circle-image" />
-				<h4 class="font-weight-normal mb-3">Shared Courses</h4>
-				<h2 class="mb-3">{{ shared_courses_count }}</h2>
+				<h4 class="en-metric-title">Shared</h4>
+				<h2 class="en-metric-value">{{ shared_courses_count }}</h2>
+				<div class="en-metric-icon secondary">
+					<i class="mdi mdi-share-variant"></i>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -135,14 +129,16 @@
 					datasets: [{
 						label: 'Number of Departments',
 						data: sharedCoursesData.map(function(c) { return c.count; }),
-						backgroundColor: 'rgba(54, 162, 235, 0.8)',
-						borderColor: 'rgba(54, 162, 235, 1)',
-						borderWidth: 1
+						backgroundColor: 'rgba(79, 70, 229, 0.8)',
+						borderColor: 'rgba(79, 70, 229, 1)',
+						borderWidth: 1,
+						hoverBackgroundColor: 'rgba(79, 70, 229, 1)'
 					}]
 				},
 				options: {
 					responsive: true,
 					maintainAspectRatio: false,
+					defaultFontFamily: "'Inter', sans-serif",
 					legend: {
 						display: false
 					},
@@ -173,23 +169,36 @@
 					},
 					scales: {
 						xAxes: [{
+							gridLines: {
+								display: false,
+								drawBorder: false
+							},
 							ticks: {
 								beginAtZero: true,
 								stepSize: 1,
-								precision: 0
+								precision: 0,
+								fontFamily: "'Inter', sans-serif",
+								fontColor: "#64748b"
 							},
 							scaleLabel: {
 								display: true,
-								labelString: 'Number of Departments'
+								labelString: 'Number of Departments',
+								fontFamily: "'Inter', sans-serif",
+								fontColor: "#64748b"
 							}
 						}],
 						yAxes: [{
+							gridLines: {
+								color: "rgba(0, 0, 0, 0.03)",
+								drawBorder: false
+							},
 							ticks: {
-								fontSize: 11
+								fontSize: 11,
+								fontFamily: "'Inter', sans-serif",
+								fontColor: "#64748b"
 							},
 							scaleLabel: {
-								display: true,
-								labelString: 'Course Code'
+								display: false
 							}
 						}]
 					}

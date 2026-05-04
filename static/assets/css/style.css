@@ -994,8 +994,7 @@
     transform: translateX(-20px);
     opacity: 0; }
   100% {
-    -webkit-transform: translateX(0);index.html
-index.html
+    -webkit-transform: translateX(0);
     transform: translateX(0);
     opacity: 1; } }
 
@@ -2040,7 +2039,8 @@ button,
 [type="button"],
 [type="reset"],
 [type="submit"] {
-  -webkit-appearance: button; }
+  -webkit-appearance: button;
+  appearance: button; }
   button:not(:disabled),
   [type="button"]:not(:disabled),
   [type="reset"]:not(:disabled),
@@ -2087,7 +2087,8 @@ legend {
 
 [type="search"] {
   outline-offset: -2px;
-  -webkit-appearance: textfield; }
+  -webkit-appearance: textfield;
+  appearance: textfield; }
 
 /* rtl:raw:
 [type="tel"],
@@ -3766,7 +3767,7 @@ textarea.form-control-lg {
   -moz-appearance: none;
   appearance: none;
   -webkit-print-color-adjust: exact;
-  color-adjust: exact; }
+  print-color-adjust: exact; }
   .form-check-input[type="checkbox"] {
     border-radius: 0.25em; }
   .form-check-input[type="radio"] {
@@ -10918,7 +10919,8 @@ body {
 .form-control,
 .form-control:focus {
   -webkit-box-shadow: none;
-  -moz-box-shadow: none; }
+  -moz-box-shadow: none;
+  box-shadow: none; }
 
 .form-control {
   -webkit-box-shadow: none;
@@ -14477,4 +14479,416 @@ dl {
 .htmx-request.htmx-indicator.full-loader {
   opacity: 1;
   z-index: 100;
+}
+/* =========================================
+   ExamNova Global Theme Overrides
+   ========================================= */
+:root {
+  --en-primary: #4F46E5;
+  --en-primary-dark: #4338CA;
+  --en-accent: #06B6D4;
+}
+
+.text-primary, .text-primary:hover {
+  color: var(--en-primary) !important;
+}
+
+.bg-primary {
+  background-color: var(--en-primary) !important;
+}
+
+.btn-primary, .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+  background-color: var(--en-primary) !important;
+  border-color: var(--en-primary) !important;
+}
+
+.btn-outline-primary {
+  color: var(--en-primary) !important;
+  border-color: var(--en-primary) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--en-primary) !important;
+  color: #fff !important;
+}
+
+.btn-gradient-primary {
+  background: linear-gradient(135deg, var(--en-primary) 0%, var(--en-accent) 100%) !important;
+  border: 0 !important;
+  color: #fff !important;
+}
+.btn-gradient-primary:hover, .btn-gradient-primary:focus, .btn-gradient-primary:active {
+  background: linear-gradient(135deg, var(--en-primary-dark) 0%, var(--en-accent) 100%) !important;
+}
+
+.sidebar .nav .nav-item.active > .nav-link .menu-title {
+  color: var(--en-primary) !important;
+}
+.sidebar .nav .nav-item.active > .nav-link i {
+  color: var(--en-primary) !important;
+}
+
+.navbar .navbar-brand-wrapper .navbar-brand img {
+  height: 40px !important;
+  width: auto !important;
+}
+
+/* Custom login button match */
+.auth .auth-form-btn {
+  background: linear-gradient(135deg, var(--en-primary) 0%, var(--en-accent) 100%) !important;
+  color: #fff !important;
+  border: none !important;
+}
+.auth .auth-form-btn:hover {
+  background: linear-gradient(135deg, var(--en-primary-dark) 0%, var(--en-accent) 100%) !important;
+}
+
+/* =========================================
+   ExamNova Dashboard Overhaul
+   ========================================= */
+
+/* Typography */
+body, .content-wrapper, .card-title, h1, h2, h3, h4, h5, h6, .nav-profile-text, .navbar-brand {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Base Background */
+.content-wrapper {
+    background-color: #F8FAFC !important; /* var(--en-gray-50) */
+}
+
+/* Modernized Cards */
+.card {
+    border: none !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Remove legacy absolute background circles from cards */
+.card-img-absolute {
+    display: none !important;
+}
+
+/* Custom dashboard cards */
+.en-metric-card {
+    background: #ffffff !important;
+    color: #1e293b !important; /* en-dark */
+    border-left: 4px solid var(--en-primary) !important;
+    overflow: hidden;
+    position: relative;
+}
+.en-metric-card .card-body {
+    padding: 1.75rem 1.5rem !important;
+}
+.en-metric-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #64748b !important; /* en-gray-500 */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem !important;
+}
+.en-metric-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #0f172a !important;
+    margin-bottom: 0 !important;
+}
+.en-metric-icon {
+    position: absolute;
+    top: 50%;
+    right: 1.5rem;
+    transform: translateY(-50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+.en-metric-icon.primary { background: rgba(79, 70, 229, 0.1); color: var(--en-primary); }
+.en-metric-icon.info { background: rgba(6, 182, 212, 0.1); color: var(--en-accent); }
+.en-metric-icon.success { background: rgba(16, 185, 129, 0.1); color: var(--en-success); }
+.en-metric-icon.warning { background: rgba(245, 158, 11, 0.1); color: var(--en-warning); }
+.en-metric-icon.danger { background: rgba(239, 68, 68, 0.1); color: var(--en-danger); }
+.en-metric-icon.secondary { background: rgba(100, 116, 139, 0.1); color: #64748b; }
+
+/* Sidebar cleanup */
+.sidebar {
+    background: #ffffff !important;
+    border-right: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    padding-top: 1.5rem !important;
+}
+
+@media (min-width: 992px) {
+    .sidebar {
+        position: fixed !important;
+        top: 70px !important; /* height of navbar */
+        bottom: 0 !important;
+        width: 260px !important;
+        height: calc(100vh - 70px) !important;
+        overflow-y: auto !important;
+        z-index: 1000 !important;
+    }
+    .main-panel {
+        margin-left: 260px !important;
+        width: calc(100% - 260px) !important;
+    }
+}
+/* Customize scrollbar for sidebar */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+}
+.sidebar::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+.sidebar .nav .nav-item .nav-link {
+    font-family: "Inter", sans-serif !important;
+    color: #475569 !important;
+    padding: 0.85rem 1.25rem !important;
+    margin: 0.25rem 1rem !important;
+    border-radius: 8px !important;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+}
+.sidebar .nav .nav-item .nav-link .menu-title {
+    order: 2;
+    font-weight: 500;
+}
+.sidebar .nav .nav-item .nav-link i.menu-icon {
+    order: 1;
+    margin-left: 0 !important;
+    margin-right: 1rem !important;
+    font-size: 1.25rem;
+}
+.sidebar .nav .nav-item.active > .nav-link {
+    background: rgba(79, 70, 229, 0.08) !important;
+    color: var(--en-primary) !important;
+    position: relative;
+}
+.sidebar .nav .nav-item.active > .nav-link::before {
+    content: "";
+    position: absolute;
+    left: -1rem;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--en-primary);
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+.sidebar .nav .nav-item:hover > .nav-link {
+    background: rgba(241, 245, 249, 1) !important; /* en-gray-100 */
+}
+
+/* Navbar cleanup */
+.navbar.default-layout-navbar {
+    background: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+}
+.navbar .navbar-brand-wrapper {
+    background: #ffffff !important;
+    border-right: 1px solid #e2e8f0 !important;
+}
+.navbar .navbar-menu-wrapper .navbar-toggler {
+    color: #475569 !important;
+}
+.navbar .navbar-menu-wrapper .nav-profile-text p {
+    font-weight: 600 !important;
+    color: #1e293b !important;
+}
+
+/* Button override */
+.btn-gradient-primary {
+    background: var(--en-primary) !important;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3) !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.3px;
+}
+.btn-gradient-primary:hover {
+    background: var(--en-primary-dark) !important;
+    box-shadow: 0 6px 10px -1px rgba(79, 70, 229, 0.4) !important;
+}
+
+/* Page Header */
+.page-title {
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    font-size: 1.5rem !important;
+}
+.page-title-icon {
+    background: rgba(79, 70, 229, 0.1) !important;
+    color: var(--en-primary) !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+}
+
+
+/* =========================================
+   ExamNova Global Component Modernization
+   ========================================= */
+
+/* Modernized Tables */
+.table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important;
+}
+.table thead th {
+    background-color: #F8FAFC !important; /* var(--en-gray-50) */
+    color: #475569 !important; /* var(--en-gray-600) */
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.5px !important;
+    border-top: none !important;
+    border-bottom: 1px solid #e2e8f0 !important; /* var(--en-gray-200) */
+    padding: 1rem 1.5rem !important;
+}
+.table tbody td {
+    padding: 1rem 1.5rem !important;
+    vertical-align: middle !important;
+    color: #1e293b !important; /* var(--en-dark) */
+    border-bottom: 1px solid #f1f5f9 !important; /* var(--en-gray-100) */
+    font-size: 0.9rem !important;
+}
+.table-hover tbody tr:hover {
+    background-color: #f8fafc !important; /* var(--en-gray-50) */
+    transition: background-color 0.15s ease !important;
+}
+
+/* Modernized Forms & Inputs */
+.form-control, .form-select {
+    border: 1px solid #e2e8f0 !important; /* var(--en-gray-200) */
+    border-radius: 8px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.95rem !important;
+    color: #1e293b !important; /* var(--en-dark) */
+    background-color: #ffffff !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--en-primary) !important;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15) !important;
+    outline: none !important;
+}
+.form-label, label {
+    font-weight: 500 !important;
+    color: #475569 !important; /* var(--en-gray-600) */
+    margin-bottom: 0.5rem !important;
+    font-size: 0.9rem !important;
+}
+
+/* Modernized Modals */
+.modal-content {
+    border: none !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+.modal-header {
+    border-bottom: 1px solid #f1f5f9 !important;
+    padding: 1.5rem 1.5rem 1rem !important;
+}
+.modal-title {
+    font-weight: 600 !important;
+    color: #0f172a !important; /* var(--en-dark-alt) */
+}
+.modal-body {
+    padding: 1.5rem !important;
+}
+.modal-footer {
+    border-top: 1px solid #f1f5f9 !important;
+    padding: 1rem 1.5rem 1.5rem !important;
+}
+
+/* Breadcrumb & Header Cleanups */
+.breadcrumb {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.page-header {
+    margin-bottom: 2rem !important;
+    padding-bottom: 1rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* Unified Buttons */
+.btn-primary, .btn-gradient-primary {
+    background: var(--en-primary) !important;
+    border: none !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1.5rem !important;
+    font-weight: 500 !important;
+    font-size: 0.95rem !important;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2), 0 2px 4px -1px rgba(79, 70, 229, 0.1) !important;
+    transition: all 0.2s ease !important;
+}
+.btn-primary:hover, .btn-gradient-primary:hover {
+    background: var(--en-primary-dark) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.3), 0 4px 6px -1px rgba(79, 70, 229, 0.2) !important;
+}
+.btn-secondary {
+    background: #f1f5f9 !important; /* var(--en-gray-100) */
+    border: 1px solid #e2e8f0 !important;
+    color: #475569 !important; /* var(--en-gray-600) */
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+}
+.btn-secondary:hover {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+}
+.btn-danger {
+    background: var(--en-danger) !important;
+    border: none !important;
+    border-radius: 8px !important;
+}
+.btn-danger:hover {
+    background: #dc2626 !important; /* darker red */
+}
+.btn-outline-primary {
+    border-color: var(--en-primary) !important;
+    color: var(--en-primary) !important;
+    border-radius: 8px !important;
+}
+.btn-outline-primary:hover {
+    background: var(--en-primary) !important;
+    color: #ffffff !important;
+}
+.btn-outline-danger {
+    border-color: var(--en-danger) !important;
+    color: var(--en-danger) !important;
+    border-radius: 8px !important;
+}
+.btn-outline-danger:hover {
+    background: var(--en-danger) !important;
+    color: #ffffff !important;
+}
+
+/* Pagination / Icon buttons */
+.btn-icon {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #475569 !important;
+    border-radius: 8px !important;
+    padding: 0.5rem 0.75rem !important;
+}
+.btn-icon:hover:not(:disabled) {
+    background: #f1f5f9 !important;
 }

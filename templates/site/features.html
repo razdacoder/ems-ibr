@@ -1,0 +1,180 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Explore all ExamNova modules — timetable generation, hall distribution, seat allocation, reports, data management, and background job monitoring." />
+  <title>Features — ExamNova</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="{% static 'assets/css/main.css' %}" />
+  <link rel="shortcut icon" href="{% static 'assets/images/favicon_io/favicon.ico' %}" />
+</head>
+<body class="en-landing">
+
+  <!-- Navbar -->
+  <nav class="en-navbar scrolled" id="en-navbar">
+    <div class="en-navbar-inner">
+      <a href="{% url 'home' %}" class="en-navbar-logo">
+        <span>ExamNova</span>
+      </a>
+      <ul class="en-nav-links">
+        <li><a href="{% url 'home' %}#features">Features</a></li>
+        <li><a href="{% url 'home' %}#how-it-works">How It Works</a></li>
+        <li><a href="{% url 'features' %}" style="color: var(--en-white);">Modules</a></li>
+        <li><a href="{% url 'home' %}#contact">Contact</a></li>
+      </ul>
+      <div class="en-nav-cta">
+        <a href="{% url 'login' %}" class="en-btn en-btn-primary en-btn-sm">Login</a>
+      </div>
+      <button class="en-mobile-toggle" onclick="document.querySelector('.en-nav-links').classList.toggle('show')" aria-label="Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Page Hero -->
+  <section class="en-page-hero">
+    <h1>All Features & Modules</h1>
+    <p>Explore every capability of ExamNova — designed to automate and simplify the entire examination management process.</p>
+  </section>
+
+  <!-- Modules Grid -->
+  <section class="en-modules">
+    <div class="en-modules-inner">
+      <div class="en-modules-grid">
+        <!-- Timetable -->
+        <a href="{% url 'feature_detail' 'timetable-generation' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon indigo"><i class="fas fa-calendar-check"></i></div>
+            <h3>Timetable Generation</h3>
+          </div>
+          <p>Automatically generate conflict-free examination timetables based on courses, classes, and available time slots.</p>
+          <ul>
+            <li>AM/PM period scheduling</li>
+            <li>CBE vs PBE exam type handling</li>
+            <li>Sunday exclusion & date range validation</li>
+            <li>Background processing with progress tracking</li>
+            <li>Department-level and institution-wide views</li>
+          </ul>
+        </a>
+
+        <!-- Distribution -->
+        <a href="{% url 'feature_detail' 'hall-distribution' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon cyan"><i class="fas fa-th-large"></i></div>
+            <h3>Hall Distribution</h3>
+          </div>
+          <p>Intelligently distribute class groups across available examination halls based on capacity and constraints.</p>
+          <ul>
+            <li>Capacity-aware hall assignment</li>
+            <li>Large class splitting across halls</li>
+            <li>Utilization statistics & optimization grade</li>
+            <li>Distribution CSV export</li>
+            <li>Per-date, per-period configuration</li>
+          </ul>
+        </a>
+
+        <!-- Seat Allocation -->
+        <a href="{% url 'feature_detail' 'seat-allocation' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon emerald"><i class="fas fa-grip-vertical"></i></div>
+            <h3>Seat Allocation</h3>
+          </div>
+          <p>Assign specific seats to students using a multi-pass algorithm with strict anti-cheating adjacency constraints.</p>
+          <ul>
+            <li>8-directional adjacency enforcement</li>
+            <li>Pattern-based seating (checkerboard, diagonal)</li>
+            <li>Visual seat grid layout per hall</li>
+            <li>Manual seat assignment for unplaced students</li>
+            <li>Placed vs unplaced summary</li>
+          </ul>
+        </a>
+
+        <!-- Reports -->
+        <a href="{% url 'feature_detail' 'reports-exports' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon indigo"><i class="fas fa-file-word"></i></div>
+            <h3>Reports & Exports</h3>
+          </div>
+          <p>Generate professional documents for exam halls — attendance sheets, broadsheet timetables, and seat arrangements.</p>
+          <ul>
+            <li>DOCX attendance sheets with school branding</li>
+            <li>Excel broadsheet (department & day-period views)</li>
+            <li>CSV timetable export per department</li>
+            <li>ZIP packages of seat arrangements</li>
+            <li>Walk-in rows and signature fields included</li>
+          </ul>
+        </a>
+
+        <!-- Data Management -->
+        <a href="{% url 'feature_detail' 'data-management' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon cyan"><i class="fas fa-database"></i></div>
+            <h3>Data Management</h3>
+          </div>
+          <p>Complete CRUD and bulk CSV upload support for all system entities — departments, courses, classes, students, and halls.</p>
+          <ul>
+            <li>Manual create, edit, delete for all entities</li>
+            <li>Bulk CSV upload with validation</li>
+            <li>ZIP-based multi-file upload support</li>
+            <li>Duplicate detection and conflict handling</li>
+            <li>Upload lock after timetable generation</li>
+          </ul>
+        </a>
+
+        <!-- Background Jobs -->
+        <a href="{% url 'feature_detail' 'background-jobs' %}" class="en-module-card">
+          <div class="en-module-header">
+            <div class="en-feature-icon emerald"><i class="fas fa-tasks"></i></div>
+            <h3>Background Job Monitor</h3>
+          </div>
+          <p>Track, retry, and manage all long-running tasks with a comprehensive job monitoring dashboard.</p>
+          <ul>
+            <li>Real-time progress tracking</li>
+            <li>Filter by status and job type</li>
+            <li>Retry failed jobs with one click</li>
+            <li>Detailed error messages and tracebacks</li>
+            <li>Job history with parameters and results</li>
+          </ul>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="en-cta" id="contact">
+    <div class="en-cta-inner">
+      <h2>Ready to get started?</h2>
+      <p>Transform your examination process with ExamNova — fast, intelligent, and reliable.</p>
+      <div class="en-cta-actions">
+        <a href="{% url 'login' %}" class="en-btn en-btn-primary">
+          Login to Dashboard <i class="fas fa-arrow-right"></i>
+        </a>
+        <a href="tel:09038901471" class="en-btn en-btn-outline">
+          <i class="fas fa-phone"></i> 09038901471
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="en-footer">
+    <div class="en-footer-bottom" style="margin-top: 0; border-top: none;">
+      <span>© 2024 ExamNova. All rights reserved.</span>
+      <span><a href="{% url 'home' %}" style="color: var(--en-accent-light); text-decoration: none;">← Back to Home</a></span>
+    </div>
+  </footer>
+
+  <script>
+    window.addEventListener('scroll', function() {
+      const navbar = document.getElementById('en-navbar');
+      navbar.classList.add('scrolled');
+    });
+  </script>
+</body>
+</html>

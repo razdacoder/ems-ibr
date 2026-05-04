@@ -5,6 +5,8 @@ from . import csv_gen, views
 urlpatterns = [
     path("", view=views.index, name="home"),
     path("login/", view=views.login_view, name="login"),
+    path("features/", view=views.features_view, name="features"),
+    path("features/<str:slug>/", view=views.feature_detail_view, name="feature_detail"),
     path("logout/", view=views.logout_view, name="logout"),
     path("dashboard/", view=views.dashboard, name="dashboard"),
     path("departments/", view=views.departments, name="department"),

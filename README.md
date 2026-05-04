@@ -1,4 +1,4 @@
-# EMS-IBR (Examination Management System)
+# ExamNova
 
 A comprehensive Django-based web application designed to automate and streamline the examination management process for educational institutions. The system handles timetable generation, hall distribution, seat allocation, and attendance sheet creation.
 
@@ -27,7 +27,7 @@ A comprehensive Django-based web application designed to automate and streamline
 
 ```bash
 git clone <repository-url>
-cd ems-ibr
+cd examnova
 
 # Create virtual environment
 python -m venv venv
@@ -101,7 +101,7 @@ celery -A core flower
 
 ```bash
 # Build the image
-docker build -t ems-ibr:latest .
+docker build -t examnova:latest .
 
 # Run with docker-compose or manually
 docker run -p 8000:8000 \
@@ -109,7 +109,7 @@ docker run -p 8000:8000 \
   -e SECRET_KEY=your-secret-key \
   -e DATABASE_URL=postgresql://user:pass@host:5432/db \
   -e REDIS_URL=redis://host:6379 \
-  ems-ibr:latest
+  examnova:latest
 ```
 
 ### Push to Registry
@@ -117,13 +117,13 @@ docker run -p 8000:8000 \
 ```bash
 # Docker Hub
 docker login
-docker build -t yourusername/ems-ibr:latest .
-docker push yourusername/ems-ibr:latest
+docker build -t yourusername/examnova:latest .
+docker push yourusername/examnova:latest
 
 # GitHub Container Registry
 echo "YOUR_TOKEN" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
-docker build -t ghcr.io/yourusername/ems-ibr:latest .
-docker push ghcr.io/yourusername/ems-ibr:latest
+docker build -t ghcr.io/yourusername/examnova:latest .
+docker push ghcr.io/yourusername/examnova:latest
 ```
 
 ## Railway Deployment
@@ -158,7 +158,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 ## Project Structure
 
 ```
-ems-ibr/
+examnova/
 ├── core/                 # Project settings & Celery config
 │   ├── settings.py
 │   ├── celery.py
