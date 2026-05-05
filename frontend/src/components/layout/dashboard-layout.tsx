@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   Building2,
   CalendarDays,
+  ChevronsLeft,
+  ChevronsRight,
   ClipboardList,
   Download,
   GraduationCap,
@@ -9,88 +12,380 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Menu,
   School,
   Settings,
   Upload,
   Users,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
 
 interface NavItem {
   to: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   adminOnly?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/departments", label: "Departments", icon: Building2 },
-  { to: "/classes", label: "Classes", icon: School },
-  { to: "/courses", label: "Courses", icon: ClipboardList },
-  { to: "/students", label: "Students", icon: GraduationCap },
-  { to: "/halls", label: "Halls", icon: Grid3x3 },
-  { to: "/timetable", label: "Timetable", icon: CalendarDays },
-  { to: "/distribution", label: "Distribution", icon: ListChecks },
-  { to: "/allocation", label: "Allocation", icon: ListChecks },
-  { to: "/jobs", label: "Jobs", icon: ListChecks },
-  { to: "/uploads", label: "Uploads", icon: Upload, adminOnly: true },
-  { to: "/exports", label: "Exports", icon: Download },
-  { to: "/users", label: "Users", icon: Users, adminOnly: true },
-  { to: "/settings", label: "Settings", icon: Settings, adminOnly: true },
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Overview",
+    items: [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Catalog",
+    items: [
+      { to: "/departments", label: "Departments", icon: Building2 },
+      { to: "/classes", label: "Classes", icon: School },
+      { to: "/courses", label: "Courses", icon: ClipboardList },
+      { to: "/students", label: "Students", icon: GraduationCap },
+      { to: "/halls", label: "Halls", icon: Grid3x3 },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { to: "/timetable", label: "Timetable", icon: CalendarDays },
+      { to: "/distribution", label: "Distribution", icon: ListChecks },
+      { to: "/allocation", label: "Allocation", icon: ListChecks },
+      { to: "/jobs", label: "Jobs", icon: ListChecks },
+      { to: "/exports", label: "Exports", icon: Download },
+    ],
+  },
+  {
+    label: "Admin",
+    items: [
+      { to: "/uploads", label: "Uploads", icon: Upload, adminOnly: true },
+      { to: "/users", label: "Users", icon: Users, adminOnly: true },
+      { to: "/settings", label: "Settings", icon: Settings, adminOnly: true },
+    ],
+  },
 ];
+
+const COLLAPSED_KEY = "examnova:sidebar-collapsed";
+
+function SidebarContent({
+  sections,
+  collapsed,
+  onToggle,
+  onNavigate,
+}: {
+  sections: NavSection[];
+  collapsed: boolean;
+  onToggle?: () => void;
+  onNavigate?: () => void;
+}) {
+  const { user, logout } = useAuth();
+  const initials = (() => {
+    const first = user?.first_name?.[0] ?? "";
+    const last = user?.last_name?.[0] ?? "";
+    return (first + last).toUpperCase() || user?.email?.[0]?.toUpperCase() || "?";
+  })();
+
+  return (
+    <>
+      {/* Brand */}
+      <div
+        className={cn(
+          "flex h-16 shrink-0 items-center border-b border-[color:var(--border)]",
+          collapsed ? "justify-center px-3" : "gap-2.5 px-6",
+        )}
+      >
+        <span
+          aria-hidden
+          className="inline-block size-2 rotate-45 bg-foreground"
+        />
+        {!collapsed && (
+          <>
+            <span className="font-serif text-[1.25rem] tracking-tight">
+              ExamNova
+            </span>
+            <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+              v4.2
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav
+        className={cn(
+          "flex-1 space-y-7 overflow-y-auto py-7",
+          collapsed ? "px-2" : "px-4",
+        )}
+      >
+        {sections.map((section) => (
+          <div key={section.label} className="space-y-1.5">
+            {!collapsed ? (
+              <p className="px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                § {section.label}
+              </p>
+            ) : (
+              <div
+                aria-hidden
+                className="mx-auto h-px w-6 bg-[color:var(--border)]"
+              />
+            )}
+            <div className="space-y-0.5">
+              {section.items.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === "/dashboard"}
+                  onClick={onNavigate}
+                  title={collapsed ? label : undefined}
+                  className={({ isActive }) =>
+                    cn(
+                      "group relative flex items-center rounded-md text-[13.5px] transition-colors",
+                      collapsed
+                        ? "h-9 justify-center"
+                        : "gap-2.5 px-2.5 py-1.5",
+                      isActive
+                        ? "bg-[color:var(--muted)] text-foreground"
+                        : "text-muted-foreground hover:bg-[color:var(--muted)] hover:text-foreground",
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {!collapsed && (
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "h-4 w-px shrink-0 rounded-full transition-colors",
+                            isActive
+                              ? "bg-foreground"
+                              : "bg-transparent group-hover:bg-[color:var(--border)]",
+                          )}
+                        />
+                      )}
+                      {collapsed && isActive && (
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-foreground"
+                        />
+                      )}
+                      <Icon
+                        className="size-3.5 shrink-0"
+                        strokeWidth={isActive ? 2.25 : 2}
+                      />
+                      {!collapsed && (
+                        <span className="font-medium">{label}</span>
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Collapse toggle */}
+      {onToggle && (
+        <div
+          className={cn(
+            "shrink-0 border-t border-[color:var(--border)] py-2",
+            collapsed ? "px-2" : "px-4",
+          )}
+        >
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[color:var(--muted)] hover:text-foreground",
+              collapsed && "justify-center",
+            )}
+          >
+            {collapsed ? (
+              <ChevronsRight className="size-3.5" strokeWidth={2} />
+            ) : (
+              <>
+                <ChevronsLeft className="size-3.5" strokeWidth={2} />
+                Collapse
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* User */}
+      <div
+        className={cn(
+          "shrink-0 border-t border-[color:var(--border)]",
+          collapsed ? "p-2" : "p-3",
+        )}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                title={collapsed ? user?.full_name ?? user?.email : undefined}
+                className={cn(
+                  "flex w-full items-center rounded-md text-left transition-colors hover:bg-[color:var(--muted)]",
+                  collapsed
+                    ? "justify-center p-1.5"
+                    : "gap-3 px-2.5 py-2",
+                )}
+              />
+            }
+          >
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground font-mono text-[11px] font-medium text-background">
+              {initials}
+            </span>
+            {!collapsed && (
+              <span className="flex-1 overflow-hidden">
+                <span className="block truncate text-[13px] font-medium text-foreground">
+                  {user?.full_name ?? user?.email}
+                </span>
+                <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  {user?.is_staff
+                    ? "Administrator"
+                    : user?.department?.slug ?? "Staff"}
+                </span>
+              </span>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="w-[220px]"
+            side="top"
+            sideOffset={8}
+          >
+            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              {user?.email}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                void logout();
+              }}
+            >
+              <LogOut className="mr-2 h-4 w-4" strokeWidth={2} />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
+  );
+}
 
 export function DashboardLayout() {
   const { user, logout } = useAuth();
-  const items = NAV_ITEMS.filter((item) => !item.adminOnly || user?.is_staff);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
+  }, [collapsed]);
+
+  const sections = NAV_SECTIONS.map((s) => ({
+    ...s,
+    items: s.items.filter((i) => !i.adminOnly || user?.is_staff),
+  })).filter((s) => s.items.length > 0);
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <aside className="hidden w-64 flex-col border-r bg-background lg:flex">
-        <div className="flex h-16 items-center border-b px-6 font-semibold">
-          EMS-IBR
-        </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {items.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )
-              }
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar — fixed height, internal scroll only */}
+      <aside
+        className={cn(
+          "hidden h-screen shrink-0 flex-col border-r border-[color:var(--border)] bg-[color:var(--sidebar)] transition-[width] duration-200 ease-out lg:flex",
+          collapsed ? "w-[68px]" : "w-64",
+        )}
+      >
+        <SidebarContent
+          sections={sections}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((v) => !v)}
+        />
+      </aside>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 flex lg:hidden"
+          role="dialog"
+          aria-modal
+        >
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 bg-foreground/30 backdrop-blur-sm"
+          />
+          <aside className="relative flex h-full w-72 flex-col border-r border-[color:var(--border)] bg-[color:var(--sidebar)]">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setMobileOpen(false)}
+              className="absolute right-3 top-3 rounded-full border border-[color:var(--border)] bg-background p-1.5 text-muted-foreground"
             >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t p-3">
-          <div className="mb-2 px-3 text-xs text-muted-foreground">
-            <div className="font-medium text-foreground">{user?.full_name}</div>
-            <div>{user?.email}</div>
-          </div>
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+            <SidebarContent
+              sections={sections}
+              collapsed={false}
+              onNavigate={() => setMobileOpen(false)}
+            />
+          </aside>
+        </div>
+      )}
+
+      {/* Right column: only this area scrolls */}
+      <div className="flex h-screen flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--border)] bg-background/80 px-5 backdrop-blur-md lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+            className="grid size-8 place-items-center rounded-md border border-[color:var(--border)] bg-background"
+          >
+            <Menu className="h-4 w-4" strokeWidth={2} />
+          </button>
+          <span className="flex items-center gap-2 font-serif text-[1.125rem] tracking-tight">
+            <span
+              aria-hidden
+              className="inline-block size-1.5 rotate-45 bg-foreground"
+            />
+            ExamNova
+          </span>
           <Button
             variant="ghost"
-            className="w-full justify-start"
+            size="sm"
             onClick={() => {
               void logout();
             }}
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-1.5 h-4 w-4" strokeWidth={2} />
             Sign out
           </Button>
-        </div>
-      </aside>
-      <main className="flex-1 p-6 lg:p-8">
-        <Outlet />
-      </main>
+        </header>
+        <main className="flex-1 overflow-y-auto px-6 py-10 lg:px-12 lg:py-14">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

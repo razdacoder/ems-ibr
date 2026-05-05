@@ -105,7 +105,7 @@ export default function StudentsListPage() {
           <>
             <Select
               value={department}
-              onValueChange={(v) => { setDepartment(v); setPage(1); }}
+              onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
             >
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Department" />
@@ -121,7 +121,7 @@ export default function StudentsListPage() {
             </Select>
             <Select
               value={classFilter}
-              onValueChange={(v) => { setClassFilter(v); setPage(1); }}
+              onValueChange={(v) => { setClassFilter(v ?? ""); setPage(1); }}
             >
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Class" />
@@ -154,47 +154,82 @@ export default function StudentsListPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Matric</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead className="w-[40px]" />
+              <TableHead className="w-[200px]">Matric no.</TableHead>
+              <TableHead>Student</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Class</TableHead>
-              {isAdmin && <TableHead className="w-[200px]">Actions</TableHead>}
+              <TableHead className="w-[180px]">Class</TableHead>
+              {isAdmin && (
+                <TableHead className="w-[200px] text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {list.data?.results.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell className="font-medium">{s.matric_no}</TableCell>
-                <TableCell>
-                  {s.first_name} {s.last_name}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{s.email}</TableCell>
-                <TableCell>
-                  {s.department?.slug} {s.level?.name}
-                </TableCell>
-                {isAdmin && (
+            {list.data?.results.map((s) => {
+              const initials = (
+                (s.first_name?.[0] ?? "") + (s.last_name?.[0] ?? "")
+              ).toUpperCase();
+              return (
+                <TableRow key={s.id}>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => { setEditing(s); setOpen(true); }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => onDelete(s)}
-                        disabled={remove.isPending}
-                      >
-                        Delete
-                      </Button>
+                    <span className="grid size-7 place-items-center rounded-full bg-[color:var(--muted)] font-mono text-[10px] font-medium text-foreground">
+                      {initials || "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-[12px] tracking-wide">
+                      {s.matric_no}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
+                    {s.first_name} {s.last_name}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {s.email}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      {s.department?.slug && (
+                        <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
+                          {s.department.slug}
+                        </kbd>
+                      )}
+                      {s.level?.name && (
+                        <span className="text-[12px] text-muted-foreground">
+                          {s.level.name}
+                        </span>
+                      )}
                     </div>
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditing(s);
+                            setOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => onDelete(s)}
+                          disabled={remove.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </ListShell>

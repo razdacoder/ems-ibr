@@ -13,6 +13,8 @@ import {
 } from "@/api/system";
 import { toast } from "@/lib/use-toast";
 import { extractErrorEnvelope } from "@/lib/api";
+import { PageHeader } from "@/components/layout/page-header";
+import { Lock } from "lucide-react";
 
 export default function UploadsPage() {
   const settings = useSystemSettings();
@@ -44,22 +46,35 @@ export default function UploadsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Bulk uploads</h1>
-        <p className="text-sm text-muted-foreground">
-          Import departments, halls, and the institutional course catalog from
-          CSV files. Class- and student-level uploads happen on the class detail
-          page.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        section="Admin · Ingestion"
+        title="Bulk uploads."
+        description="Import departments, halls, and the institutional course catalog from CSV files. Class- and student-level uploads happen on the class detail page."
+        meta={
+          <span
+            className={
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] " +
+              (locked
+                ? "bg-[color:var(--accent-yellow)] text-[color:var(--accent-yellow-fg)]"
+                : "bg-[color:var(--accent-green)] text-[color:var(--accent-green-fg)]")
+            }
+          >
+            <Lock className="size-3" strokeWidth={2.25} />
+            {locked ? "Sealed · timetable exists" : "Open · accepting uploads"}
+          </span>
+        }
+      />
 
       {locked && (
-        <Alert>
-          <AlertTitle>Uploads are locked</AlertTitle>
+        <Alert className="border-[color:var(--accent-yellow-fg)]/20 bg-[color:var(--accent-yellow)]/40">
+          <AlertTitle className="font-serif text-[1.125rem]">
+            Uploads are sealed
+          </AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
             <span>
-              A timetable already exists. Re-enable uploads to ingest new data.
+              A timetable already exists for this season. Re-enable uploads to
+              ingest new data — the existing timetable will be invalidated.
             </span>
             <Button
               size="sm"

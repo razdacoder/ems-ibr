@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { PageHeader } from "@/components/layout/page-header";
 import { DepartmentFormDialog } from "./department-form-dialog";
 
 export default function DepartmentsListPage() {
@@ -57,44 +58,51 @@ export default function DepartmentsListPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-semibold">Departments</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage academic departments and their codes.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
+    <div className="space-y-10">
+      <PageHeader
+        section="Catalog · Departments"
+        title="Departments."
+        description="Manage academic departments and their codes."
+        actions={
+          isAdmin && (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+              size="lg"
+              className="h-10"
+            >
+              <Plus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+              New department
+            </Button>
+          )
+        }
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          All departments
+        </span>
+        <div className="relative w-full sm:max-w-xs">
+          <Search
+            className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            strokeWidth={2}
+          />
+          <Input
+            placeholder="Search by name or code"
+            className="h-9 pl-9 font-mono text-[12px]"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
             }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New department
-          </Button>
-        )}
+          />
+        </div>
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">All departments</CardTitle>
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or code"
-              className="pl-8"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {list.error && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>
@@ -105,69 +113,77 @@ export default function DepartmentsListPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead className="text-right">Classes</TableHead>
-                <TableHead className="text-right">Students</TableHead>
-                {isAdmin && <TableHead className="w-[200px]">Actions</TableHead>}
+                <TableHead className="w-[120px]">Code</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead className="w-[140px] text-right">Classes</TableHead>
+                <TableHead className="w-[140px] text-right">Students</TableHead>
+                {isAdmin && (
+                  <TableHead className="w-[200px] text-right">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {list.isLoading
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={`s-${i}`}>
-                      <TableCell colSpan={isAdmin ? 5 : 4}>
-                        <Skeleton className="h-6 w-full" />
+              {list.isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <TableRow key={`s-${i}`}>
+                    <TableCell colSpan={isAdmin ? 5 : 4}>
+                      <Skeleton className="h-6 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : list.data?.results.length ? (
+                list.data.results.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>
+                      <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[11px] tracking-wide">
+                        {d.slug}
+                      </kbd>
+                    </TableCell>
+                    <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
+                      {d.name}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {d.class_count.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {d.student_count.toLocaleString()}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditing(d);
+                              setDialogOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(d)}
+                            disabled={remove.isPending}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </TableCell>
-                    </TableRow>
-                  ))
-                : list.data?.results.length
-                  ? list.data.results.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">{d.slug}</TableCell>
-                        <TableCell>{d.name}</TableCell>
-                        <TableCell className="text-right">
-                          {d.class_count}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {d.student_count}
-                        </TableCell>
-                        {isAdmin && (
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditing(d);
-                                  setDialogOpen(true);
-                                }}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDelete(d)}
-                                disabled={remove.isPending}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))
-                  : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={isAdmin ? 5 : 4}
-                          className="text-center text-muted-foreground"
-                        >
-                          No departments found.
-                        </TableCell>
-                      </TableRow>
                     )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={isAdmin ? 5 : 4}
+                    className="py-12 text-center font-serif italic text-muted-foreground"
+                  >
+                    No departments found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
           {list.data && (

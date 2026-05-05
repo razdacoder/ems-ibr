@@ -66,12 +66,14 @@ export default function HallAllocationPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to={`/allocation?date=${date}&period=${period}`}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back to allocation
-        </Link>
-      </Button>
+    <div className="space-y-10">
+      <Link
+        to={`/allocation?date=${date}&period=${period}`}
+        className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-3" strokeWidth={2.25} />
+        Back to allocation
+      </Link>
 
       {data.isLoading ? (
         <Skeleton className="h-32" />
@@ -83,18 +85,38 @@ export default function HallAllocationPage() {
         </Alert>
       ) : data.data ? (
         <>
-          <div className="flex items-end justify-between">
+          <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold">{data.data.hall.name}</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                § Allocation · Hall
+              </p>
+              <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
+                {data.data.hall.name}.
+              </h1>
+              <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                 {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
-                {data.data.hall.columns} grid · capacity {data.data.hall.capacity}
+                {data.data.hall.columns} grid · cap {data.data.hall.capacity}
               </p>
             </div>
-            <Badge variant="secondary">
-              {data.data.placed.length} placed · {data.data.unplaced.length} unplaced
-            </Badge>
-          </div>
+            <div className="grid grid-cols-2 gap-6 self-start sm:self-end">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Placed
+                </p>
+                <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-green-fg)]">
+                  {data.data.placed.length}
+                </p>
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Unplaced
+                </p>
+                <p className="mt-1 font-serif text-[2rem] tabular-nums text-[color:var(--accent-red-fg)]">
+                  {data.data.unplaced.length}
+                </p>
+              </div>
+            </div>
+          </header>
 
           <Tabs defaultValue="placed">
             <TabsList>
@@ -112,31 +134,51 @@ export default function HallAllocationPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[80px]">Seat</TableHead>
-                        <TableHead>Matric</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Class</TableHead>
+                        <TableHead className="w-[180px]">Matric no.</TableHead>
+                        <TableHead>Student</TableHead>
+                        <TableHead className="w-[120px]">Course</TableHead>
+                        <TableHead className="w-[160px]">Class</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.data.placed.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={5}
+                            className="py-12 text-center font-serif italic text-muted-foreground"
+                          >
                             Nobody seated yet.
                           </TableCell>
                         </TableRow>
                       ) : (
                         data.data.placed
-                          .sort((a, b) => (a.seat_number ?? 0) - (b.seat_number ?? 0))
+                          .sort(
+                            (a, b) =>
+                              (a.seat_number ?? 0) - (b.seat_number ?? 0),
+                          )
                           .map((row) => (
                             <TableRow key={row.id}>
-                              <TableCell className="font-medium">{row.seat_number}</TableCell>
-                              <TableCell>{row.student?.matric_no}</TableCell>
                               <TableCell>
+                                <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[11px] tabular-nums">
+                                  #{row.seat_number}
+                                </kbd>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-mono text-[12px] tracking-wide">
+                                  {row.student?.matric_no}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
                                 {row.student?.first_name} {row.student?.last_name}
                               </TableCell>
-                              <TableCell>{row.course.code}</TableCell>
-                              <TableCell>{row.class.name}</TableCell>
+                              <TableCell>
+                                <span className="font-mono text-[12px] tracking-wide">
+                                  {row.course.code}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {row.class.name}
+                              </TableCell>
                             </TableRow>
                           ))
                       )}
@@ -159,29 +201,44 @@ export default function HallAllocationPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Matric</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Class</TableHead>
-                        {isAdmin && <TableHead className="w-[260px]">Manual seat</TableHead>}
+                        <TableHead className="w-[180px]">Matric no.</TableHead>
+                        <TableHead>Student</TableHead>
+                        <TableHead className="w-[120px]">Course</TableHead>
+                        <TableHead className="w-[160px]">Class</TableHead>
+                        {isAdmin && (
+                          <TableHead className="w-[260px]">Manual seat</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.data.unplaced.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={isAdmin ? 5 : 4}
+                            className="py-12 text-center font-serif italic text-[color:var(--accent-green-fg)]"
+                          >
                             Everyone is seated.
                           </TableCell>
                         </TableRow>
                       ) : (
                         data.data.unplaced.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell>{row.student?.matric_no}</TableCell>
                             <TableCell>
+                              <span className="font-mono text-[12px] tracking-wide">
+                                {row.student?.matric_no}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
                               {row.student?.first_name} {row.student?.last_name}
                             </TableCell>
-                            <TableCell>{row.course.code}</TableCell>
-                            <TableCell>{row.class.name}</TableCell>
+                            <TableCell>
+                              <span className="font-mono text-[12px] tracking-wide">
+                                {row.course.code}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {row.class.name}
+                            </TableCell>
                             {isAdmin && (
                               <TableCell>
                                 <div className="flex gap-2">
@@ -189,7 +246,8 @@ export default function HallAllocationPage() {
                                     type="number"
                                     min={1}
                                     max={
-                                      data.data?.hall.rows * data.data?.hall.columns
+                                      data.data?.hall.rows *
+                                      data.data?.hall.columns
                                     }
                                     placeholder="Seat #"
                                     value={seatInputs[row.id] ?? ""}
@@ -199,7 +257,7 @@ export default function HallAllocationPage() {
                                         [row.id]: e.target.value,
                                       }))
                                     }
-                                    className="w-24"
+                                    className="h-8 w-24 font-mono text-[12px]"
                                   />
                                   <Button
                                     size="sm"

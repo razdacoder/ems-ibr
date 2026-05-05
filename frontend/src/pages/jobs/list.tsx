@@ -8,7 +8,6 @@ import {
   useRetryJob,
 } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -85,7 +84,7 @@ export default function JobsListPage() {
         description="Background jobs you've triggered (admins see jobs from everyone)."
         filters={
           <>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1); }}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -97,7 +96,7 @@ export default function JobsListPage() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
+            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v ?? ""); setPage(1); }}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -128,68 +127,128 @@ export default function JobsListPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]" />
               <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Progress</TableHead>
-              <TableHead>Started</TableHead>
+              <TableHead className="w-[140px]">Status</TableHead>
+              <TableHead className="w-[180px]">Progress</TableHead>
+              <TableHead className="w-[180px]">Started</TableHead>
               <TableHead>By</TableHead>
-              <TableHead className="w-[260px]">Actions</TableHead>
+              <TableHead className="w-[280px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {list.data?.results.map((job) => (
-              <TableRow key={job.job_id}>
-                <TableCell className="font-medium">
-                  {job.job_type_display}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
-                </TableCell>
-                <TableCell className="text-right">{job.progress}%</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(job.started_at).toLocaleString()}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {job.created_by_email}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setActiveJob(job);
-                        setOpen(true);
-                      }}
+            {list.data?.results.map((job) => {
+              const tone = statusTone(job.status);
+              return (
+                <TableRow key={job.job_id}>
+                  <TableCell>
+                    <span
+                      className="grid size-6 place-items-center rounded-full"
+                      style={{ backgroundColor: tone.bg }}
                     >
-                      View
-                    </Button>
-                    {isAdmin && job.status === "failed" && (
+                      {job.status === "running" ? (
+                        <span className="relative inline-flex size-1.5">
+                          <span
+                            className="absolute inset-0 animate-ping rounded-full"
+                            style={{ backgroundColor: tone.fg, opacity: 0.6 }}
+                          />
+                          <span
+                            className="relative size-1.5 rounded-full"
+                            style={{ backgroundColor: tone.fg }}
+                          />
+                        </span>
+                      ) : (
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ backgroundColor: tone.fg }}
+                        />
+                      )}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-serif text-[1rem] tracking-[-0.005em]">
+                      {job.job_type_display}
+                    </p>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      {job.job_id.slice(0, 12)}…
+                    </p>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className="rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                      style={{ backgroundColor: tone.bg, color: tone.fg }}
+                    >
+                      {job.status}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="relative h-1 w-24 overflow-hidden rounded-full bg-[color:var(--border)]">
+                        <span
+                          className="absolute inset-y-0 left-0 transition-[width]"
+                          style={{
+                            width: `${job.progress}%`,
+                            backgroundColor: tone.fg,
+                          }}
+                        />
+                      </span>
+                      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {job.progress}%
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-[12px] tabular-nums text-muted-foreground">
+                      {new Date(job.started_at).toLocaleString("en-GB", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-[12px] text-muted-foreground">
+                      {job.created_by_email}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onRetry(job)}
-                        disabled={retry.isPending}
+                        onClick={() => {
+                          setActiveJob(job);
+                          setOpen(true);
+                        }}
                       >
-                        Retry
+                        View
                       </Button>
-                    )}
-                    {isAdmin && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => onDelete(job)}
-                        disabled={
-                          remove.isPending || job.status === "running"
-                        }
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                      {isAdmin && job.status === "failed" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onRetry(job)}
+                          disabled={retry.isPending}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => onDelete(job)}
+                          disabled={
+                            remove.isPending || job.status === "running"
+                          }
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </ListShell>
@@ -203,9 +262,12 @@ export default function JobsListPage() {
   );
 }
 
-function statusVariant(s: string) {
-  if (s === "success") return "default" as const;
-  if (s === "failed") return "destructive" as const;
-  if (s === "running") return "secondary" as const;
-  return "outline" as const;
+function statusTone(s: string) {
+  if (s === "success")
+    return { bg: "var(--accent-green)", fg: "var(--accent-green-fg)" };
+  if (s === "failed")
+    return { bg: "var(--accent-red)", fg: "var(--accent-red-fg)" };
+  if (s === "running")
+    return { bg: "var(--accent-blue)", fg: "var(--accent-blue-fg)" };
+  return { bg: "var(--accent-yellow)", fg: "var(--accent-yellow-fg)" };
 }

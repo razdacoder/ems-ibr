@@ -15,7 +15,6 @@ import {
 } from "@/api/uploads";
 import { useSystemSettings } from "@/api/system";
 import { FileUploadCard } from "@/components/file-upload-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -79,28 +78,43 @@ export default function ClassDetailPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link to="/classes">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back to classes
-        </Link>
-      </Button>
+    <div className="space-y-10">
+      <Link
+        to="/classes"
+        className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-3" strokeWidth={2.25} />
+        Back to classes
+      </Link>
 
       {cls.isLoading ? (
         <Skeleton className="h-32" />
       ) : cls.data ? (
         <>
-          <div className="flex items-end justify-between">
+          <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold">{cls.data.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                {cls.data.department.name} ({cls.data.department.slug})
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                § Catalog · Class
+              </p>
+              <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
+                {cls.data.name}.
+              </h1>
+              <p className="mt-2 text-[14.5px] text-muted-foreground">
+                {cls.data.department.name}
+                <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
+                  {cls.data.department.slug}
+                </span>
               </p>
             </div>
-            <Badge variant="secondary">
-              {cls.data.student_count} student{cls.data.student_count === 1 ? "" : "s"}
-            </Badge>
-          </div>
+            <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                Students enrolled
+              </p>
+              <p className="mt-1 font-serif text-[2rem] tabular-nums">
+                {cls.data.student_count}
+              </p>
+            </div>
+          </header>
 
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -120,10 +134,12 @@ export default function ClassDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[120px]">Code</TableHead>
+                    <TableHead className="w-[140px]">Code</TableHead>
                     <TableHead>Title</TableHead>
-                    <TableHead className="w-[100px]">Type</TableHead>
-                    {isAdmin && <TableHead className="w-[100px]">Action</TableHead>}
+                    <TableHead className="w-[120px]">Type</TableHead>
+                    {isAdmin && (
+                      <TableHead className="w-[80px] text-right" />
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -131,7 +147,7 @@ export default function ClassDetailPage() {
                     <TableRow>
                       <TableCell
                         colSpan={isAdmin ? 4 : 3}
-                        className="text-center text-muted-foreground"
+                        className="py-12 text-center font-serif italic text-muted-foreground"
                       >
                         No courses assigned yet.
                       </TableCell>
@@ -139,24 +155,42 @@ export default function ClassDetailPage() {
                   ) : (
                     cls.data.courses.map((c) => (
                       <TableRow key={c.id}>
-                        <TableCell className="font-medium">{c.code}</TableCell>
-                        <TableCell>{c.name}</TableCell>
                         <TableCell>
-                          <Badge
-                            variant={c.exam_type === "CBE" ? "default" : "secondary"}
+                          <span className="font-mono text-[12px] tracking-wide">
+                            {c.code}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
+                          {c.name}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className="rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                            style={
+                              c.exam_type === "CBE"
+                                ? {
+                                    backgroundColor: "var(--accent-blue)",
+                                    color: "var(--accent-blue-fg)",
+                                  }
+                                : {
+                                    backgroundColor: "var(--accent-yellow)",
+                                    color: "var(--accent-yellow-fg)",
+                                  }
+                            }
                           >
                             {c.exam_type}
-                          </Badge>
+                          </span>
                         </TableCell>
                         {isAdmin && (
-                          <TableCell>
+                          <TableCell className="text-right">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="icon-sm"
                               onClick={() => onRemove(c.id, c.code)}
                               disabled={remove.isPending}
+                              title={`Remove ${c.code}`}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" strokeWidth={2} />
                             </Button>
                           </TableCell>
                         )}

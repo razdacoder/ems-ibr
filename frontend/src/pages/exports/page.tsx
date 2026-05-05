@@ -21,6 +21,7 @@ import {
 import { downloadAuthenticatedFile } from "@/lib/download";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default function ExportsPage() {
   const dates = useTimetableDates();
@@ -47,14 +48,12 @@ export default function ExportsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Exports</h1>
-        <p className="text-sm text-muted-foreground">
-          Download CSV, Excel, and Word reports. Slot-scoped exports use the
-          selected date and period.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        section="Operations · Exports"
+        title="Exports."
+        description="Download CSV, Excel, and Word reports. Slot-scoped exports use the selected date and period."
+      />
 
       <Card>
         <CardHeader>
@@ -66,7 +65,7 @@ export default function ExportsPage() {
         <CardContent className="flex flex-wrap items-end gap-2">
           <Select
             value={date ?? ""}
-            onValueChange={(v) => setDate(v)}
+            onValueChange={(v) => setDate(v ?? undefined)}
             disabled={!dates.data?.dates.length}
           >
             <SelectTrigger className="w-[200px]">
@@ -92,7 +91,7 @@ export default function ExportsPage() {
               <SelectItem value="PM">PM</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={hallId ?? ""} onValueChange={(v) => setHallId(v)}>
+          <Select value={hallId ?? ""} onValueChange={(v) => setHallId(v ?? undefined)}>
             <SelectTrigger className="w-[260px]">
               <SelectValue placeholder="Hall (for attendance sheets)" />
             </SelectTrigger>

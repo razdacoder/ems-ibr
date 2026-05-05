@@ -47,8 +47,8 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -84,26 +84,28 @@ export default function TimetablePage() {
   const [progressOpen, setProgressOpen] = useState(false);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Timetable</h1>
-          <p className="text-sm text-muted-foreground">
-            Browse the generated exam timetable. Generate to (re-)build it.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button onClick={() => setGenOpen(true)}>
-            <CalendarPlus className="mr-2 h-4 w-4" />
-            Generate timetable
-          </Button>
-        )}
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        section="Operations · Timetable"
+        title="Timetable."
+        description="Browse the generated exam timetable. Generate to (re-)build it."
+        actions={
+          isAdmin && (
+            <Button onClick={() => setGenOpen(true)} size="lg" className="h-10">
+              <CalendarPlus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+              Generate timetable
+            </Button>
+          )
+        }
+      />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          Filter
+        </span>
         <Select
           value={date ?? ""}
-          onValueChange={(v) => setDate(v)}
+          onValueChange={(v) => setDate(v ?? undefined)}
           disabled={!dates.data?.dates.length}
         >
           <SelectTrigger className="w-[200px]">
@@ -132,15 +134,15 @@ export default function TimetablePage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
+        <CardHeader className="border-b border-[color:var(--border)]">
+          <CardTitle className="font-serif text-[1.5rem] tracking-tight">
             {date ? `${date} · ${period}` : "Pick a date"}
           </CardTitle>
-          <CardDescription>
-            {list.data?.results.length ?? 0} exams scheduled.
+          <CardDescription className="font-mono text-[10px] uppercase tracking-[0.14em]">
+            {list.data?.results.length ?? 0} exams scheduled
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {list.error ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -154,15 +156,19 @@ export default function TimetablePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Course</TableHead>
+                  <TableHead className="w-[110px]">Dept</TableHead>
+                  <TableHead className="w-[200px]">Class</TableHead>
+                  <TableHead className="w-[120px]">Course code</TableHead>
+                  <TableHead>Course title</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {list.data.results.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="py-12 text-center font-serif italic text-muted-foreground"
+                    >
                       No exams for this slot.
                     </TableCell>
                   </TableRow>
@@ -170,13 +176,20 @@ export default function TimetablePage() {
                   list.data.results.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
-                        <Badge variant="secondary">
+                        <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
                           {row.class.department.slug}
-                        </Badge>
+                        </kbd>
                       </TableCell>
-                      <TableCell>{row.class.name}</TableCell>
+                      <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
+                        {row.class.name}
+                      </TableCell>
                       <TableCell>
-                        {row.course.code} — {row.course.name}
+                        <span className="font-mono text-[12px] tracking-wide text-foreground">
+                          {row.course.code}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {row.course.name}
                       </TableCell>
                     </TableRow>
                   ))

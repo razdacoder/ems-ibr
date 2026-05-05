@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { PageHeader } from "@/components/layout/page-header";
 
 const schema = z.object({
   session: z.string().trim().min(1, "Session is required"),
@@ -102,14 +103,12 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">System settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure the active session and semester, and manage destructive admin
-          actions.
-        </p>
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        section="Admin · Settings"
+        title="System settings."
+        description="Configure the active session and semester, and manage destructive admin actions."
+      />
 
       <Card>
         <CardHeader>
@@ -203,10 +202,15 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
 
-      <Card className="border-destructive/40">
+      <Card className="border-[color:var(--accent-red-fg)]/30 bg-[color:var(--accent-red)]/30">
         <CardHeader>
-          <CardTitle className="text-destructive">Reset the system</CardTitle>
-          <CardDescription>
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--accent-red-fg)]">
+            § Danger zone
+          </p>
+          <CardTitle className="font-serif text-[1.5rem] tracking-tight text-[color:var(--accent-red-fg)]">
+            Reset the system.
+          </CardTitle>
+          <CardDescription className="text-[color:var(--accent-red-fg)]/70">
             Wipe all departments, classes, courses, halls, students, timetables
             and seat allocations. This cannot be undone.
           </CardDescription>

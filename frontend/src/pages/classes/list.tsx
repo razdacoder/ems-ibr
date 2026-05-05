@@ -45,7 +45,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
@@ -102,7 +101,7 @@ export default function ClassesListPage() {
         filters={
           <Select
             value={department}
-            onValueChange={(v) => { setDepartment(v); setPage(1); }}
+            onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All departments" />
@@ -134,39 +133,65 @@ export default function ClassesListPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[100px]">Dept</TableHead>
               <TableHead>Class</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead className="text-right">Students</TableHead>
+              <TableHead className="w-[140px] text-right">Students</TableHead>
               <TableHead>Courses</TableHead>
-              {isAdmin && <TableHead className="w-[260px]">Actions</TableHead>}
+              {isAdmin && (
+                <TableHead className="w-[280px] text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.data?.results.map((c) => (
               <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell>{c.department.slug}</TableCell>
-                <TableCell className="text-right">{c.student_count}</TableCell>
                 <TableCell>
+                  <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
+                    {c.department.slug}
+                  </kbd>
+                </TableCell>
+                <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
+                  {c.name}
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className="font-mono tabular-nums">
+                    {c.student_count.toLocaleString()}
+                  </span>
+                </TableCell>
+                <TableCell className="whitespace-normal">
                   <div className="flex flex-wrap gap-1">
                     {c.courses.slice(0, 5).map((co) => (
-                      <Badge key={co.id} variant="secondary">{co.code}</Badge>
+                      <kbd
+                        key={co.id}
+                        className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide"
+                      >
+                        {co.code}
+                      </kbd>
                     ))}
                     {c.courses.length > 5 && (
-                      <Badge variant="outline">+{c.courses.length - 5}</Badge>
+                      <span className="rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
+                        +{c.courses.length - 5}
+                      </span>
                     )}
                   </div>
                 </TableCell>
                 {isAdmin && (
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link to={`/classes/${c.id}`}>Manage</Link>
+                  <TableCell className="text-right">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        render={<Link to={`/classes/${c.id}`} />}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Manage
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => { setEditing(c); setOpen(true); }}
+                        onClick={() => {
+                          setEditing(c);
+                          setOpen(true);
+                        }}
                       >
                         Edit
                       </Button>

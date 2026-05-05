@@ -32,6 +32,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { PageHeader } from "@/components/layout/page-header";
 import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -69,25 +70,33 @@ export default function AllocationPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Seat allocation</h1>
-          <p className="text-sm text-muted-foreground">
-            Per-hall placement of students for each exam slot.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button onClick={onGenerate} disabled={!date || generate.isPending}>
-            <Sparkles className="mr-2 h-4 w-4" /> Generate allocation
-          </Button>
-        )}
-      </div>
+    <div className="space-y-10">
+      <PageHeader
+        section="Operations · Allocation"
+        title="Seat allocation."
+        description="Per-hall placement of students for each exam slot. Anti-cheating adjacency rules with manual override."
+        actions={
+          isAdmin && (
+            <Button
+              onClick={onGenerate}
+              disabled={!date || generate.isPending}
+              size="lg"
+              className="h-10"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+              Generate allocation
+            </Button>
+          )
+        }
+      />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          Filter
+        </span>
         <Select
           value={date ?? ""}
-          onValueChange={(v) => setDate(v)}
+          onValueChange={(v) => setDate(v ?? undefined)}
           disabled={!dates.data?.dates.length}
         >
           <SelectTrigger className="w-[200px]">
@@ -116,15 +125,15 @@ export default function AllocationPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
+        <CardHeader className="border-b border-[color:var(--border)]">
+          <CardTitle className="font-serif text-[1.5rem] tracking-tight">
             {date ? `${date} · ${period}` : "Pick a slot"}
           </CardTitle>
-          <CardDescription>
-            Click a hall to view per-seat placements.
+          <CardDescription className="font-mono text-[10px] uppercase tracking-[0.14em]">
+            Click a hall to view per-seat placements
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {list.error ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -139,35 +148,81 @@ export default function AllocationPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Hall</TableHead>
-                  <TableHead className="text-right">Placed</TableHead>
-                  <TableHead className="text-right">Unplaced</TableHead>
+                  <TableHead className="w-[120px] text-right">Placed</TableHead>
+                  <TableHead className="w-[120px] text-right">
+                    Unplaced
+                  </TableHead>
+                  <TableHead className="w-[180px]">Status</TableHead>
                   <TableHead className="w-[120px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {list.data.results.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={5}
+                      className="py-12 text-center font-serif italic text-muted-foreground"
+                    >
                       No allocations for this slot.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  list.data.results.map((row) => (
-                    <TableRow key={row.hall_id}>
-                      <TableCell className="font-medium">{row.hall__name}</TableCell>
-                      <TableCell className="text-right">{row.placed}</TableCell>
-                      <TableCell className="text-right">{row.not_placed}</TableCell>
-                      <TableCell>
-                        <Button asChild size="sm" variant="outline">
-                          <Link
-                            to={`/allocation/hall?date=${date}&period=${period}&hall_id=${row.hall_id}`}
+                  list.data.results.map((row) => {
+                    const total = row.placed + row.not_placed;
+                    const ratio = total > 0 ? row.placed / total : 0;
+                    const fullyPlaced = row.not_placed === 0;
+                    return (
+                      <TableRow key={row.hall_id}>
+                        <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
+                          {row.hall__name}
+                        </TableCell>
+                        <TableCell className="text-right font-mono tabular-nums text-foreground">
+                          {row.placed.toLocaleString()}
+                        </TableCell>
+                        <TableCell
+                          className={
+                            "text-right font-mono tabular-nums " +
+                            (row.not_placed > 0
+                              ? "text-[color:var(--accent-red-fg)]"
+                              : "text-muted-foreground")
+                          }
+                        >
+                          {row.not_placed.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="relative h-1 w-20 overflow-hidden rounded-full bg-[color:var(--border)]">
+                              <span
+                                className={
+                                  "absolute inset-y-0 left-0 " +
+                                  (fullyPlaced
+                                    ? "bg-[color:var(--accent-green-fg)]"
+                                    : "bg-foreground")
+                                }
+                                style={{ width: `${Math.round(ratio * 100)}%` }}
+                              />
+                            </span>
+                            <span className="font-mono text-[10px] tabular-nums uppercase tracking-[0.12em] text-muted-foreground">
+                              {Math.round(ratio * 100)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            render={
+                              <Link
+                                to={`/allocation/hall?date=${date}&period=${period}&hall_id=${row.hall_id}`}
+                              />
+                            }
+                            size="sm"
+                            variant="outline"
                           >
                             Open
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
