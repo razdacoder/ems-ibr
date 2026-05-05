@@ -44,22 +44,25 @@ if not DEBUG:
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django_htmx",
-    "active_link",
+    "channels",
+    "rest_framework",
+    "rest_framework.authtoken",
+    "corsheaders",
     "django_celery_results",
     "ems",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django_htmx.middleware.HtmxMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -76,9 +79,10 @@ ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [
-            BASE_DIR / "templates",
-        ],
+        # In prod, the Docker build copies the React app's index.html into
+        # frontend/dist/. Catchall URL renders it as a Django template so the
+        # SPA boots from any unrecognised path.
+        "DIRS": [BASE_DIR / "frontend" / "dist"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -92,6 +96,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "core.wsgi.application"
+ASGI_APPLICATION = "core.asgi.application"
 
 
 # Database
@@ -154,11 +159,16 @@ STATIC_URL = "/static/"
 # Static files collection directory
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Directory where source static files are located
-# This is needed for collectstatic to find files in both development and production
+# Directory where source static files are located. The React app's compiled
+# bundle (frontend/dist) is also collected so WhiteNoise can serve it under
+# /static/. The empty `static/` dir keeps DEBUG=True local runs working
+# even before the frontend has been built.
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+_FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    STATICFILES_DIRS.append(_FRONTEND_DIST)
 
 # Django 5.0+ uses STORAGES instead of deprecated STATICFILES_STORAGE
 # Use standard FileSystemStorage - WhiteNoise middleware will handle serving and compression
@@ -183,8 +193,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Celery Configuration
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+# Celery Configuration. Falls back to REDIS_URL so platforms that expose a
+# single Redis URL (Railway, Render, Fly, etc.) work without extra config.
+CELERY_BROKER_URL = env(
+    "CELERY_BROKER_URL",
+    default=env("REDIS_URL", default="redis://localhost:6379/0"),
+)
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_CACHE_BACKEND = "default"
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -194,3 +208,49 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 CELERY_RESULT_EXTENDED = True
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "ems.api.pagination.DefaultPagination",
+    "PAGE_SIZE": 15,
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.MultiPartParser",
+        "rest_framework.parsers.FormParser",
+    ],
+    "EXCEPTION_HANDLER": "ems.api.exceptions.handler",
+}
+
+# CORS for the Vite dev server and any deployed frontend origin. In the
+# bundled-frontend production deploy, the SPA is same-origin so CORS is not
+# strictly required — but the dev defaults below are kept so `npm run dev`
+# against a local Django server works out of the box.
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+)
+CORS_ALLOW_CREDENTIALS = False
+CORS_EXPOSE_HEADERS = ["Content-Disposition"]
+
+# Channels — falls back to REDIS_URL if CHANNEL_REDIS_URL isn't set, so
+# managed-Redis providers that hand you one URL just work. Channel keys
+# are namespaced under "asgi:" and don't collide with Celery's keys.
+_CHANNEL_REDIS = env(
+    "CHANNEL_REDIS_URL",
+    default=env("REDIS_URL", default="redis://localhost:6379/0"),
+)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [_CHANNEL_REDIS]},
+    },
+}

@@ -105,34 +105,27 @@ elif [ "${SERVICE_TYPE}" = "beat" ]; then
     exec celery -A core beat -l info
     
 else
-    # Default: Web service
+    # Default: web service. Channels needs ASGI, so we run Daphne instead of
+    # Gunicorn — Gunicorn-on-WSGI silently drops WebSocket upgrades.
     echo "Starting Web Service..."
-    
-    # Wait for PostgreSQL
+
     wait_for_postgres
-    
-    # Collect static files
+
+    # collectstatic already ran at image-build time; re-running is a no-op
+    # in the typical case but keeps a volume-mounted dev copy correct.
     echo "Collecting static files..."
     python manage.py collectstatic --no-input
-    
-    # Run migrations
+
     echo "Running database migrations..."
-    python manage.py makemigrations ems --noinput || true
-    python manage.py migrate ems --noinput || true
     python manage.py migrate --noinput
-    
-    # Create superuser if environment variables are set
+
     echo "Creating superuser if needed..."
     python manage.py create_superuser || true
-    
-    # Start Gunicorn
-    echo "Starting Gunicorn on port ${PORT:-8000}..."
-    exec gunicorn core.wsgi:application \
-        --bind 0.0.0.0:${PORT:-8000} \
-        --workers 4 \
-        --threads 2 \
-        --timeout 120 \
-        --access-logfile - \
-        --error-logfile - \
-        --log-level info
+
+    echo "Starting Daphne (ASGI) on port ${PORT:-8000}..."
+    exec daphne \
+        -b 0.0.0.0 \
+        -p "${PORT:-8000}" \
+        --proxy-headers \
+        core.asgi:application
 fi
