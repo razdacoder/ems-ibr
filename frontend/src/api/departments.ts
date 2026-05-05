@@ -1,0 +1,100 @@
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+export interface Department {
+  id: number;
+  name: string;
+  slug: string;
+  class_count: number;
+  student_count: number;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export interface DepartmentListParams {
+  page?: number;
+  query?: string;
+}
+
+const KEY = ["departments"] as const;
+
+export function useDepartments(params: DepartmentListParams = {}) {
+  return useQuery({
+    queryKey: [...KEY, params],
+    queryFn: async () => {
+      const res = await api.get<PaginatedResponse<Department>>(
+        "/departments/",
+        { params },
+      );
+      return res.data;
+    },
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDepartment(slug: string | undefined) {
+  return useQuery({
+    queryKey: [...KEY, "detail", slug],
+    queryFn: async () => {
+      const res = await api.get<Department>(`/departments/${slug}/`);
+      return res.data;
+    },
+    enabled: !!slug,
+  });
+}
+
+export interface DepartmentInput {
+  name: string;
+  slug: string;
+}
+
+export function useCreateDepartment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: DepartmentInput) => {
+      const res = await api.post<Department>("/departments/", data);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+    },
+  });
+}
+
+export function useUpdateDepartment(originalSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: DepartmentInput) => {
+      const res = await api.patch<Department>(
+        `/departments/${originalSlug}/`,
+        data,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+    },
+  });
+}
+
+export function useDeleteDepartment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slug: string) => {
+      await api.delete(`/departments/${slug}/`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+    },
+  });
+}

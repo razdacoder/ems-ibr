@@ -1,0 +1,139 @@
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import {
+  type Course,
+  useCourses,
+  useDeleteCourse,
+} from "@/api/courses";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ListShell } from "@/components/data-table/list-shell";
+import { PaginationFooter } from "@/components/data-table/pagination";
+import { useAuth } from "@/lib/auth";
+import { extractErrorEnvelope } from "@/lib/api";
+import { toast } from "@/lib/use-toast";
+import { CourseFormDialog } from "./course-form-dialog";
+
+export default function CoursesListPage() {
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_staff;
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<Course | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const list = useCourses({ page, query: query || undefined });
+  const remove = useDeleteCourse();
+
+  const onDelete = async (course: Course) => {
+    if (!confirm(`Delete course ${course.code}?`)) return;
+    try {
+      await remove.mutateAsync(course.id);
+      toast({ title: "Course deleted" });
+    } catch (err) {
+      toast({
+        title: "Delete failed",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <>
+      <ListShell
+        title="Courses"
+        description="The global catalog of exam-bearing courses."
+        toolbar={
+          isAdmin && (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New course
+            </Button>
+          )
+        }
+        query={query}
+        onQueryChange={(q) => {
+          setQuery(q);
+          setPage(1);
+        }}
+        searchPlaceholder="Search by code or title"
+        isLoading={list.isLoading}
+        error={list.error}
+        isEmpty={!list.data?.results.length}
+        pagination={
+          list.data && (
+            <PaginationFooter
+              page={page}
+              pageSize={15}
+              total={list.data.count}
+              onPageChange={setPage}
+            />
+          )
+        }
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[120px]">Code</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead className="w-[120px]">Type</TableHead>
+              {isAdmin && <TableHead className="w-[200px]">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.data?.results.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">{c.code}</TableCell>
+                <TableCell>{c.name}</TableCell>
+                <TableCell>
+                  <Badge variant={c.exam_type === "CBE" ? "default" : "secondary"}>
+                    {c.exam_type}
+                  </Badge>
+                </TableCell>
+                {isAdmin && (
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditing(c);
+                          setOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onDelete(c)}
+                        disabled={remove.isPending}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ListShell>
+      <CourseFormDialog open={open} onOpenChange={setOpen} initial={editing} />
+    </>
+  );
+}

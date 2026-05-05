@@ -1,0 +1,60 @@
+from rest_framework import status, viewsets
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
+
+from ems.api.exceptions import Conflict
+from ems.api.permissions import IsAdminStaff
+from ems.api.serializers.user import (
+    ChangePasswordSerializer,
+    UserSerializer,
+)
+from ems.models import User
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """User CRUD — admin only."""
+
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminStaff]
+
+    def get_queryset(self):
+        qs = User.objects.all().select_related("department").order_by("email")
+        if query := self.request.query_params.get("query"):
+            qs = (
+                qs.filter(email__icontains=query)
+                | qs.filter(first_name__icontains=query)
+                | qs.filter(last_name__icontains=query)
+            )
+        return qs
+
+    def perform_create(self, serializer):
+        # password is required when creating a user
+        if not self.request.data.get("password"):
+            raise ValidationError({"password": ["Password is required."]})
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.id == self.request.user.id:
+            raise Conflict("You cannot delete your own account.")
+        if instance.is_staff and User.objects.filter(is_staff=True).count() <= 1:
+            raise Conflict("Refusing to delete the last administrator.")
+        instance.delete()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="change-password")
+    def change_password(self, request, pk=None):
+        user = self.get_object()
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data["password"])
+        user.save()
+        # Invalidate the user's existing token, if any, so they have to log in again.
+        Token.objects.filter(user=user).delete()
+        Token.objects.create(user=user)
+        return Response({"detail": "Password updated."})
