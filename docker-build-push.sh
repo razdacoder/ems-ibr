@@ -89,12 +89,12 @@ fi
 # Set image name based on registry type
 case $REGISTRY_TYPE in
     dockerhub)
-        IMAGE_NAME="${USERNAME}/ems-ibr:${VERSION}"
+        IMAGE_NAME="${USERNAME}/exam-nova:${VERSION}"
         REGISTRY_URL=""
         print_info "Using Docker Hub registry"
         ;;
     ghcr)
-        IMAGE_NAME="ghcr.io/${USERNAME}/ems-ibr:${VERSION}"
+        IMAGE_NAME="ghcr.io/${USERNAME}/exam-nova:${VERSION}"
         REGISTRY_URL="ghcr.io"
         print_info "Using GitHub Container Registry"
         ;;
@@ -158,9 +158,9 @@ print_info "Build completed successfully!"
 # Also tag as latest if building a version
 if [ "$VERSION" != "latest" ]; then
     if [ "$REGISTRY_TYPE" = "dockerhub" ]; then
-        LATEST_TAG="${USERNAME}/ems-ibr:latest"
+        LATEST_TAG="${USERNAME}/exam-nova:latest"
     else
-        LATEST_TAG="ghcr.io/${USERNAME}/ems-ibr:latest"
+        LATEST_TAG="ghcr.io/${USERNAME}/exam-nova:latest"
     fi
     print_info "Tagging as latest: ${LATEST_TAG}"
     docker tag "$IMAGE_NAME" "$LATEST_TAG"

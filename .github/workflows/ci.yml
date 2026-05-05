@@ -71,22 +71,5 @@ jobs:
       - name: Production build
         run: npm run build
 
-  docker:
-    name: Docker image build
-    runs-on: ubuntu-latest
-    needs: [backend, frontend]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (no push)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          load: true
-          tags: ems-ibr:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+# Note: the Docker image build/push lives in docker-publish.yml. This file
+# only validates source-level correctness on PRs.
