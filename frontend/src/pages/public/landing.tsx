@@ -88,16 +88,16 @@ function GridSketch() {
       aria-hidden
       fill="none"
     >
-      <circle cx="142" cy="44" r="30" fill="#FBF3DB" />
+      <circle cx="142" cy="44" r="30" fill="var(--accent-yellow)" />
       <path
         d="M20 116 C 40 60, 80 38, 130 50 C 170 60, 184 92, 174 116"
-        stroke="#1A1A19"
+        stroke="var(--foreground)"
         strokeWidth="1.25"
         strokeLinecap="round"
       />
       <path
         d="M20 116 L 184 116"
-        stroke="#1A1A19"
+        stroke="var(--foreground)"
         strokeWidth="1.25"
         strokeLinecap="round"
       />
@@ -107,7 +107,7 @@ function GridSketch() {
           cx={32 + i * 24}
           cy={116 - Math.sin(i * 0.7) * 10 - 14}
           r="2"
-          fill="#1A1A19"
+          fill="var(--foreground)"
         />
       ))}
     </svg>
@@ -131,8 +131,8 @@ function SeatGridSketch() {
         width={cols * cell + pad * 2 - 1}
         height={rows * cell + pad * 2 + 17}
         rx="6"
-        fill="#FFFFFF"
-        stroke="#EAEAEA"
+        fill="var(--card)"
+        stroke="var(--border)"
       />
       <text
         x={pad}
@@ -140,7 +140,7 @@ function SeatGridSketch() {
         fontFamily="JetBrains Mono, monospace"
         fontSize="7"
         letterSpacing="0.06em"
-        fill="#787774"
+        fill="var(--muted-foreground)"
       >
         HALL · CBN · SLOT 02
       </text>
@@ -156,8 +156,14 @@ function SeatGridSketch() {
               width={cell - 4}
               height={cell - 4}
               rx="2"
-              fill={accent ? "#EDF3EC" : filled ? "#F7F6F3" : "#FFFFFF"}
-              stroke={accent ? "#346538" : "#EAEAEA"}
+              fill={
+                accent
+                  ? "var(--accent-green)"
+                  : filled
+                    ? "var(--muted)"
+                    : "var(--card)"
+              }
+              stroke={accent ? "var(--accent-green-fg)" : "var(--border)"}
               strokeWidth={accent ? 1.2 : 1}
             />
           );
@@ -182,8 +188,8 @@ function CalendarSketch() {
     27: "am",
   };
   return (
-    <div className="rounded-md border border-[#EAEAEA] bg-white p-4">
-      <div className="grid grid-cols-6 gap-1 text-[10px] font-mono uppercase tracking-wider text-[#787774]">
+    <div className="rounded-md border border-border bg-card p-4">
+      <div className="grid grid-cols-6 gap-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
         {days.map((d, i) => (
           <span key={i}>{d}</span>
         ))}
@@ -194,19 +200,19 @@ function CalendarSketch() {
           return (
             <div
               key={n}
-              className="relative aspect-square rounded-[3px] border border-[#EAEAEA] bg-[#FBFBFA] p-1"
+              className="relative aspect-square rounded-[3px] border border-border bg-background p-1"
             >
-              <span className="font-mono text-[9px] text-[#787774]">{n}</span>
+              <span className="font-mono text-[9px] text-muted-foreground">{n}</span>
               {s === "am" && (
-                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[#FBF3DB]" />
+                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-yellow)]" />
               )}
               {s === "pm" && (
-                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[#E1F3FE]" />
+                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-blue)]" />
               )}
               {s === "both" && (
                 <>
-                  <span className="absolute inset-x-1 bottom-2.5 h-1 rounded-[1px] bg-[#FBF3DB]" />
-                  <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[#E1F3FE]" />
+                  <span className="absolute inset-x-1 bottom-2.5 h-1 rounded-[1px] bg-[color:var(--accent-yellow)]" />
+                  <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-blue)]" />
                 </>
               )}
             </div>
@@ -228,14 +234,14 @@ function WindowChrome({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[12px] border border-[#EAEAEA] bg-white">
-      <div className="flex items-center justify-between border-b border-[#EAEAEA] bg-[#FBFBFA] px-4 py-2.5">
+    <div className="overflow-hidden rounded-[12px] border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border bg-background px-4 py-2.5">
         <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-[#E5E5E2]" />
-          <span className="size-2.5 rounded-full bg-[#E5E5E2]" />
-          <span className="size-2.5 rounded-full bg-[#E5E5E2]" />
+          <span className="size-2.5 rounded-full bg-border" />
+          <span className="size-2.5 rounded-full bg-border" />
+          <span className="size-2.5 rounded-full bg-border" />
         </div>
-        <div className="flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-wider text-[#787774]">
+        <div className="flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           <span>{title}</span>
           {meta && <span className="hidden sm:inline">{meta}</span>}
         </div>
@@ -274,17 +280,17 @@ function useReveal() {
 function FaqItem({ q, a, idx }: { q: string; a: string; idx: number }) {
   const [open, setOpen] = useState(idx === 0);
   return (
-    <div className="border-b border-[#EAEAEA]">
+    <div className="border-b border-border">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="group flex w-full items-start justify-between gap-6 py-7 text-left"
       >
-        <span className="font-serif text-xl leading-snug text-[#1A1A19] sm:text-[1.625rem]">
+        <span className="font-serif text-xl leading-snug text-foreground sm:text-[1.625rem]">
           {q}
         </span>
-        <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[#EAEAEA] text-[#1A1A19] transition-colors group-hover:bg-[#F7F6F3]">
+        <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors group-hover:bg-muted">
           {open ? (
             <Minus className="size-3.5" strokeWidth={2} />
           ) : (
@@ -300,7 +306,7 @@ function FaqItem({ q, a, idx }: { q: string; a: string; idx: number }) {
         }}
       >
         <div className="min-h-0">
-          <p className="max-w-3xl pb-7 text-[15px] leading-[1.7] text-[#6F6E69]">
+          <p className="max-w-3xl pb-7 text-[15px] leading-[1.7] text-muted-foreground">
             {a}
           </p>
         </div>
@@ -312,10 +318,10 @@ function FaqItem({ q, a, idx }: { q: string; a: string; idx: number }) {
 /* --- Live status pill (animated dot, mono text) --- */
 function LiveStatus() {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[#EAEAEA] bg-white/70 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#346538]">
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-green-fg)]">
       <span className="relative inline-flex size-1.5">
-        <span className="absolute inset-0 animate-ping rounded-full bg-[#346538]/60" />
-        <span className="relative size-1.5 rounded-full bg-[#346538]" />
+        <span className="absolute inset-0 animate-ping rounded-full bg-[color:var(--accent-green-fg)]/60" />
+        <span className="relative size-1.5 rounded-full bg-[color:var(--accent-green-fg)]" />
       </span>
       System nominal
     </span>
@@ -325,7 +331,7 @@ function LiveStatus() {
 export default function LandingPage() {
   useReveal();
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#FBFBFA] text-[#1A1A19] antialiased">
+    <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground antialiased">
       {/* Ambient drift layer — radial warmth, very faint */}
       <div
         aria-hidden
@@ -345,7 +351,7 @@ export default function LandingPage() {
       />
 
       {/* ============================ HEADER ============================ */}
-      <header className="sticky top-0 z-40 border-b border-[#EAEAEA]/80 bg-[#FBFBFA]/70 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/70 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
           <Link
             to="/"
@@ -353,22 +359,22 @@ export default function LandingPage() {
           >
             <span
               aria-hidden
-              className="inline-block size-2 rotate-45 bg-[#1A1A19]"
+              className="inline-block size-2 rotate-45 bg-foreground"
             />
             ExamNova
           </Link>
 
-          <nav className="hidden items-center gap-8 text-[13px] text-[#6F6E69] md:flex">
-            <Link to="/features" className="hover:text-[#1A1A19]">
+          <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
+            <Link to="/features" className="hover:text-foreground">
               Modules
             </Link>
-            <a href="#pipeline" className="hover:text-[#1A1A19]">
+            <a href="#pipeline" className="hover:text-foreground">
               Pipeline
             </a>
-            <a href="#evidence" className="hover:text-[#1A1A19]">
+            <a href="#evidence" className="hover:text-foreground">
               Evidence
             </a>
-            <a href="#faq" className="hover:text-[#1A1A19]">
+            <a href="#faq" className="hover:text-foreground">
               FAQ
             </a>
           </nav>
@@ -378,7 +384,7 @@ export default function LandingPage() {
             <Button
               render={<Link to="/login" />}
               size="sm"
-              className="rounded-md bg-[#1A1A19] text-white hover:bg-[#2F3437]"
+              className="rounded-md bg-foreground text-background hover:bg-foreground/85"
             >
               Sign in
               <ArrowUpRight className="ml-1 size-3.5" strokeWidth={2.25} />
@@ -392,25 +398,25 @@ export default function LandingPage() {
         <section className="relative">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#EAEAEA] to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border to-transparent"
           />
           <div className="mx-auto max-w-7xl px-6 pb-20 pt-16 sm:px-8 sm:pt-24 lg:pb-32 lg:pt-32">
             <div className="grid gap-16 lg:grid-cols-12 lg:gap-12">
               <div className="lg:col-span-7" data-reveal>
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-[#FBF3DB] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#956400]">
-                    <span className="size-1 rounded-full bg-[#956400]" />
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-yellow)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--accent-yellow-fg)]">
+                    <span className="size-1 rounded-full bg-[color:var(--accent-yellow-fg)]" />
                     Operations OS for examinations
                   </span>
-                  <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[#787774] sm:inline">
+                  <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:inline">
                     v4.2 · Mar 2026
                   </span>
                 </div>
 
-                <h1 className="mt-8 font-serif text-[3rem] leading-[1.02] tracking-[-0.02em] text-[#1A1A19] sm:text-[4.25rem] lg:text-[5.25rem]">
+                <h1 className="mt-8 font-serif text-[3rem] leading-[1.02] tracking-[-0.02em] text-foreground sm:text-[4.25rem] lg:text-[5.25rem]">
                   Run the entire
                   <br />
-                  <span className="italic text-[#1A1A19]">exam season </span>
+                  <span className="italic text-foreground">exam season </span>
                   from
                   <br />
                   <span className="relative inline-block">
@@ -423,7 +429,7 @@ export default function LandingPage() {
                     >
                       <path
                         d="M2 13 C 80 4, 200 4, 318 12"
-                        stroke="#346538"
+                        stroke="var(--accent-green-fg)"
                         strokeWidth="1.6"
                         strokeLinecap="round"
                       />
@@ -431,7 +437,7 @@ export default function LandingPage() {
                   </span>
                 </h1>
 
-                <p className="mt-8 max-w-2xl text-[1.0625rem] leading-[1.7] text-[#3A3A38]">
+                <p className="mt-8 max-w-2xl text-[1.0625rem] leading-[1.7] text-foreground/85">
                   ExamNova schedules, distributes, seats, and documents every
                   exam — without spreadsheets and without weekend war rooms. Job
                   progress streams over WebSockets. Ingestion locks after the
@@ -442,17 +448,17 @@ export default function LandingPage() {
                   <Button
                     render={<Link to="/login" />}
                     size="lg"
-                    className="h-11 rounded-md bg-[#1A1A19] px-5 text-[14px] text-white hover:bg-[#2F3437]"
+                    className="h-11 rounded-md bg-foreground px-5 text-[14px] text-background hover:bg-foreground/85"
                   >
                     Open the dashboard
                     <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
                   </Button>
                   <Link
                     to="/features"
-                    className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-[#1A1A19]"
+                    className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-foreground"
                   >
                     See every module
-                    <span className="relative inline-block h-px w-0 bg-[#1A1A19] transition-all duration-300 group-hover:w-5" />
+                    <span className="relative inline-block h-px w-0 bg-foreground transition-all duration-300 group-hover:w-5" />
                     <ArrowUpRight
                       className="size-4 transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
                       strokeWidth={2.25}
@@ -460,7 +466,7 @@ export default function LandingPage() {
                   </Link>
                 </div>
 
-                <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-[11px] uppercase tracking-[0.1em] text-[#787774]">
+                <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <Lock className="size-3" strokeWidth={2.25} />
                     Source-locked after generation
@@ -491,7 +497,7 @@ export default function LandingPage() {
                       <p className="font-serif text-[1.25rem] tracking-tight">
                         Generation timeline
                       </p>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#346538]">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-green-fg)]">
                         Done · 1m 12s
                       </p>
                     </div>
@@ -521,7 +527,7 @@ export default function LandingPage() {
                         <li key={s.name}>
                           <div className="flex items-center justify-between text-[13px]">
                             <span className="flex items-center gap-2">
-                              <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#EDF3EC] text-[#346538]">
+                              <span className="inline-flex size-4 items-center justify-center rounded-full bg-[color:var(--accent-green)] text-[color:var(--accent-green-fg)]">
                                 {s.state === "lock" ? (
                                   <Lock
                                     className="size-2.5"
@@ -534,17 +540,17 @@ export default function LandingPage() {
                                   />
                                 )}
                               </span>
-                              <span className="font-medium text-[#1A1A19]">
+                              <span className="font-medium text-foreground">
                                 {s.name}
                               </span>
                             </span>
-                            <span className="font-mono text-[11px] tabular-nums text-[#787774]">
+                            <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
                               {s.dur}
                             </span>
                           </div>
-                          <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-[#F1F0EC]">
+                          <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-muted">
                             <div
-                              className="h-full bg-[#1A1A19]"
+                              className="h-full bg-foreground"
                               style={{ width: `${s.pct}%` }}
                             />
                           </div>
@@ -552,7 +558,7 @@ export default function LandingPage() {
                       ))}
                     </ol>
 
-                    <div className="grid grid-cols-3 gap-3 border-t border-[#EAEAEA] pt-5">
+                    <div className="grid grid-cols-3 gap-3 border-t border-border pt-5">
                       {[
                         { k: "Halls", v: "70" },
                         { k: "Classes", v: "248" },
@@ -562,7 +568,7 @@ export default function LandingPage() {
                           <p className="font-serif text-2xl tabular-nums">
                             {m.v}
                           </p>
-                          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                             {m.k}
                           </p>
                         </div>
@@ -571,10 +577,10 @@ export default function LandingPage() {
                   </div>
                 </WindowChrome>
 
-                <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   <span>Last run · 2026-03-16 06:42 WAT</span>
-                  <span className="flex items-center gap-1.5 text-[#346538]">
-                    <span className="size-1 rounded-full bg-[#346538]" />
+                  <span className="flex items-center gap-1.5 text-[color:var(--accent-green-fg)]">
+                    <span className="size-1 rounded-full bg-[color:var(--accent-green-fg)]" />
                     Streamed live
                   </span>
                 </div>
@@ -584,7 +590,7 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ STAT STRIP ============================ */}
-        <section className="border-y border-[#EAEAEA] bg-white">
+        <section className="border-y border-border bg-card">
           <div className="mx-auto max-w-7xl px-6 sm:px-8">
             <div className="grid grid-cols-2 lg:grid-cols-4">
               {STATS.map((s, i) => (
@@ -592,20 +598,20 @@ export default function LandingPage() {
                   key={s.label}
                   className={
                     "py-10 lg:py-12 " +
-                    (i !== 0 ? "lg:border-l lg:border-[#EAEAEA] lg:pl-10 " : "") +
-                    (i % 2 !== 0 ? "border-l border-[#EAEAEA] pl-6 lg:pl-10 " : "pr-6 ") +
-                    (i < 2 ? "border-b border-[#EAEAEA] lg:border-b-0 " : "")
+                    (i !== 0 ? "lg:border-l lg:border-border lg:pl-10 " : "") +
+                    (i % 2 !== 0 ? "border-l border-border pl-6 lg:pl-10 " : "pr-6 ") +
+                    (i < 2 ? "border-b border-border lg:border-b-0 " : "")
                   }
                   data-reveal
                   style={{
                     ["--reveal-delay" as string]: `${i * 80}ms`,
                   }}
                 >
-                  <p className="font-serif text-[2.5rem] leading-none tabular-nums text-[#1A1A19] sm:text-[3.25rem]">
+                  <p className="font-serif text-[2.5rem] leading-none tabular-nums text-foreground sm:text-[3.25rem]">
                     {s.value}
                   </p>
-                  <p className="mt-3 text-[13px] text-[#1A1A19]">{s.label}</p>
-                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                  <p className="mt-3 text-[13px] text-foreground">{s.label}</p>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                     {s.meta}
                   </p>
                 </div>
@@ -620,7 +626,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-12 items-start gap-6">
               <div className="col-span-12 sm:col-span-3 lg:col-span-2">
                 <p
-                  className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#787774]"
+                  className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
                   data-reveal
                 >
                   § 01
@@ -633,18 +639,18 @@ export default function LandingPage() {
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "100ms" }}
               >
-                <p className="font-serif text-[1.75rem] leading-[1.25] tracking-[-0.01em] text-[#1A1A19] sm:text-[2.5rem] lg:text-[3rem]">
+                <p className="font-serif text-[1.75rem] leading-[1.25] tracking-[-0.01em] text-foreground sm:text-[2.5rem] lg:text-[3rem]">
                   Examinations are a logistics problem disguised as an academic
                   one.{" "}
-                  <span className="text-[#787774]">
+                  <span className="text-muted-foreground">
                     A thousand small decisions — which course at which hour, in
                     which hall, with which student in which seat — compound
                     into the difference between a quiet week and a war room.
                   </span>{" "}
                   ExamNova exists so the quiet week is the default.
                 </p>
-                <footer className="mt-10 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.12em] text-[#787774]">
-                  <span className="h-px w-10 bg-[#1A1A19]" />
+                <footer className="mt-10 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="h-px w-10 bg-foreground" />
                   Engineering note · ExamNova team
                 </footer>
               </blockquote>
@@ -653,20 +659,20 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ BENTO ============================ */}
-        <section className="bg-white">
+        <section className="bg-card">
           <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
             <div className="mb-14 flex flex-wrap items-end justify-between gap-6">
               <div data-reveal>
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   § 02 — Modules
                 </p>
-                <h2 className="mt-3 max-w-3xl font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] text-[#1A1A19] sm:text-[3rem]">
+                <h2 className="mt-3 max-w-3xl font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] text-foreground sm:text-[3rem]">
                   Every step from upload to attendance sheet.
                 </h2>
               </div>
               <Link
                 to="/features"
-                className="group inline-flex items-center gap-1.5 text-[13px] text-[#1A1A19]"
+                className="group inline-flex items-center gap-1.5 text-[13px] text-foreground"
                 data-reveal
               >
                 Open the index
@@ -680,19 +686,19 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
               {/* CARD 1 — Scheduling, large with calendar mock */}
               <article
-                className="group relative col-span-1 flex flex-col justify-between overflow-hidden rounded-[12px] border border-[#EAEAEA] bg-white p-7 transition-all duration-300 hover:-translate-y-px sm:col-span-2 lg:col-span-4 lg:row-span-2"
+                className="group relative col-span-1 flex flex-col justify-between overflow-hidden rounded-[12px] border border-border bg-card p-7 transition-all duration-300 hover:-translate-y-px sm:col-span-2 lg:col-span-4 lg:row-span-2"
                 style={{ minHeight: 360 }}
                 data-reveal
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                   <div className="max-w-md">
-                    <span className="inline-block rounded-full bg-[#EDF3EC] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#346538]">
+                    <span className="inline-block rounded-full bg-[color:var(--accent-green)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-green-fg)]">
                       Scheduling
                     </span>
                     <h3 className="mt-4 font-serif text-[1.75rem] leading-[1.1] tracking-[-0.01em] sm:text-[2rem]">
                       Conflict-free timetables in minutes.
                     </h3>
-                    <p className="mt-3 text-[14px] leading-[1.65] text-[#6F6E69]">
+                    <p className="mt-3 text-[14px] leading-[1.65] text-muted-foreground">
                       Pick the exam window. The scheduler honours class
                       catalogs, AM/PM splits, and CBE/PBE separation, and
                       excludes Sundays automatically.
@@ -701,7 +707,7 @@ export default function LandingPage() {
                 </div>
                 <div className="mt-6">
                   <CalendarSketch />
-                  <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                  <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                     Avg. run · 14s for 248 classes across 70 halls
                   </p>
                 </div>
@@ -709,17 +715,17 @@ export default function LandingPage() {
 
               {/* CARD 2 — Distribution */}
               <article
-                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-[#EAEAEA] bg-white p-7 sm:col-span-2"
+                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-border bg-card p-7 sm:col-span-2"
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "60ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[#E1F3FE] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#1F6C9F]">
+                <span className="inline-block self-start rounded-full bg-[color:var(--accent-blue)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-blue-fg)]">
                   Distribution
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
                   Capacity-aware hall assignment.
                 </h3>
-                <p className="text-[13.5px] leading-[1.65] text-[#6F6E69]">
+                <p className="text-[13.5px] leading-[1.65] text-muted-foreground">
                   Large classes split across halls. Small ones share. Utilisation
                   reported per slot.
                 </p>
@@ -727,29 +733,29 @@ export default function LandingPage() {
                   {[68, 92, 74, 88, 81, 95, 70].map((h, i) => (
                     <div
                       key={i}
-                      className="flex-1 rounded-t-[2px] bg-[#1A1A19]/85"
+                      className="flex-1 rounded-t-[2px] bg-foreground/85"
                       style={{ height: `${h * 0.6}px` }}
                     />
                   ))}
                 </div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   utilisation · slot-by-slot
                 </p>
               </article>
 
               {/* CARD 3 — Seating with grid sketch */}
               <article
-                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-[#EAEAEA] bg-white p-7 sm:col-span-2"
+                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-border bg-card p-7 sm:col-span-2"
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[#FDEBEC] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#9F2F2D]">
+                <span className="inline-block self-start rounded-full bg-[color:var(--accent-red)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-red-fg)]">
                   Seating
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
                   Anti-cheating seat placement.
                 </h3>
-                <p className="text-[13.5px] leading-[1.65] text-[#6F6E69]">
+                <p className="text-[13.5px] leading-[1.65] text-muted-foreground">
                   8-direction adjacency rules with manual override for unplaced
                   students.
                 </p>
@@ -760,23 +766,23 @@ export default function LandingPage() {
 
               {/* CARD 4 — Reports */}
               <article
-                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-[#EAEAEA] bg-white p-7 sm:col-span-2"
+                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-border bg-card p-7 sm:col-span-2"
                 data-reveal
               >
-                <span className="inline-block self-start rounded-full bg-[#FBF3DB] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#956400]">
+                <span className="inline-block self-start rounded-full bg-[color:var(--accent-yellow)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-yellow-fg)]">
                   Reports
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
                   Print-ready exports.
                 </h3>
-                <p className="text-[13.5px] leading-[1.65] text-[#6F6E69]">
+                <p className="text-[13.5px] leading-[1.65] text-muted-foreground">
                   DOCX attendance sheets, broadsheet Excel, per-department CSV.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {["DOCX", "XLSX", "CSV", "PDF"].map((f) => (
                     <kbd
                       key={f}
-                      className="rounded-[4px] border border-[#EAEAEA] bg-[#F7F6F3] px-2 py-1 font-mono text-[10px] tracking-wider text-[#1A1A19]"
+                      className="rounded-[4px] border border-border bg-muted px-2 py-1 font-mono text-[10px] tracking-wider text-foreground"
                     >
                       {f}
                     </kbd>
@@ -786,50 +792,50 @@ export default function LandingPage() {
 
               {/* CARD 5 — Ingestion (DARK accent) */}
               <article
-                className="relative col-span-1 flex flex-col gap-4 overflow-hidden rounded-[12px] border border-[#1A1A19] bg-[#1A1A19] p-7 text-white sm:col-span-2"
+                className="relative col-span-1 flex flex-col gap-4 overflow-hidden rounded-[12px] border border-foreground bg-foreground p-7 text-background sm:col-span-2"
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "60ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-white/10 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-white/70">
+                <span className="inline-block self-start rounded-full bg-background/10 px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-background/70">
                   Ingestion
                 </span>
-                <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em] text-white">
+                <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em] text-background">
                   Bulk CSV uploads. Locked after generation.
                 </h3>
-                <p className="text-[13.5px] leading-[1.65] text-white/65">
+                <p className="text-[13.5px] leading-[1.65] text-background/65">
                   Strict validation. Versioned per season. The source of truth
                   stays clean.
                 </p>
-                <div className="mt-3 rounded-[6px] border border-white/10 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-white/80">
-                  <span className="text-[#FBF3DB]">$</span> examnova ingest
+                <div className="mt-3 rounded-[6px] border border-background/10 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-background/80">
+                  <span className="text-[color:var(--accent-yellow-fg)]">$</span> examnova ingest
                   ./roster.csv
                   <br />
-                  <span className="text-white/50">→</span> 27,020 rows · 0
+                  <span className="text-background/50">→</span> 27,020 rows · 0
                   warnings · sealed
                 </div>
               </article>
 
               {/* CARD 6 — Monitoring */}
               <article
-                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-[#EAEAEA] bg-white p-7 sm:col-span-2"
+                className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-border bg-card p-7 sm:col-span-2"
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[#EDF3EC] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#346538]">
+                <span className="inline-block self-start rounded-full bg-[color:var(--accent-green)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-green-fg)]">
                   Monitoring
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
                   Live job progress.
                 </h3>
-                <p className="text-[13.5px] leading-[1.65] text-[#6F6E69]">
+                <p className="text-[13.5px] leading-[1.65] text-muted-foreground">
                   WebSocket stream while jobs run. Retry from the failed stage.
                 </p>
-                <div className="relative mt-2 h-12 overflow-hidden rounded-[6px] bg-[#F7F6F3]">
+                <div className="relative mt-2 h-12 overflow-hidden rounded-[6px] bg-muted">
                   <div
                     aria-hidden
-                    className="absolute inset-y-0 left-0 w-2/3 bg-[#1A1A19] transition-all"
+                    className="absolute inset-y-0 left-0 w-2/3 bg-foreground transition-all"
                   />
-                  <span className="relative z-10 flex h-full items-center px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white">
+                  <span className="relative z-10 flex h-full items-center px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-background">
                     Allocation · 67%
                   </span>
                 </div>
@@ -839,11 +845,11 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ PIPELINE ============================ */}
-        <section id="pipeline" className="relative border-t border-[#EAEAEA]">
+        <section id="pipeline" className="relative border-t border-border">
           <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   § 03 — Pipeline
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
@@ -851,7 +857,7 @@ export default function LandingPage() {
                   <br />
                   <span className="italic">one source of truth.</span>
                 </h2>
-                <p className="mt-5 max-w-md text-[15px] leading-[1.65] text-[#6F6E69]">
+                <p className="mt-5 max-w-md text-[15px] leading-[1.65] text-muted-foreground">
                   Each stage produces a versioned artefact and emits a
                   WebSocket event. Re-run any stage in isolation; the rest
                   remain valid.
@@ -862,7 +868,7 @@ export default function LandingPage() {
               </div>
 
               <div className="col-span-12 lg:col-span-8">
-                <ol className="divide-y divide-[#EAEAEA] border-y border-[#EAEAEA]">
+                <ol className="divide-y divide-border border-y border-border">
                   {PIPELINE.map((p, i) => (
                     <li
                       key={p.n}
@@ -872,18 +878,18 @@ export default function LandingPage() {
                         ["--reveal-delay" as string]: `${i * 80}ms`,
                       }}
                     >
-                      <span className="col-span-2 font-serif text-[1.5rem] tabular-nums text-[#787774] sm:col-span-1">
+                      <span className="col-span-2 font-serif text-[1.5rem] tabular-nums text-muted-foreground sm:col-span-1">
                         {p.n}
                       </span>
                       <div className="col-span-10 sm:col-span-4">
                         <p className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
                           {p.label}
                         </p>
-                        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                           {p.detail}
                         </p>
                       </div>
-                      <p className="col-span-12 max-w-xl text-[14px] leading-[1.65] text-[#3A3A38] sm:col-span-7">
+                      <p className="col-span-12 max-w-xl text-[14px] leading-[1.65] text-foreground/85 sm:col-span-7">
                         {p.body}
                       </p>
                     </li>
@@ -897,7 +903,7 @@ export default function LandingPage() {
         {/* ============================ EVIDENCE / BROADSHEET ============================ */}
         <section
           id="evidence"
-          className="relative overflow-hidden bg-[#F7F6F3]"
+          className="relative overflow-hidden bg-muted"
         >
           <div
             aria-hidden
@@ -910,19 +916,19 @@ export default function LandingPage() {
           <div className="relative mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
             <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
               <div className="lg:col-span-5" data-reveal>
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   § 04 — Evidence
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   The broadsheet, generated.
                 </h2>
-                <p className="mt-5 text-[15px] leading-[1.7] text-[#3A3A38]">
+                <p className="mt-5 text-[15px] leading-[1.7] text-foreground/85">
                   A single document captures every student's allocation across
                   the season — hall, seat, slot, course code. Reproducible from
                   the locked source data, exportable to Excel and PDF on demand.
                 </p>
 
-                <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-[#EAEAEA] pt-8">
+                <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-border pt-8">
                   {[
                     { k: "Generation time", v: "1m 12s" },
                     { k: "Conflicts found", v: "0" },
@@ -930,10 +936,10 @@ export default function LandingPage() {
                     { k: "Manual overrides", v: "3" },
                   ].map((d) => (
                     <div key={d.k}>
-                      <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#787774]">
+                      <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                         {d.k}
                       </dt>
-                      <dd className="mt-1.5 font-serif text-[1.75rem] tabular-nums text-[#1A1A19]">
+                      <dd className="mt-1.5 font-serif text-[1.75rem] tabular-nums text-foreground">
                         {d.v}
                       </dd>
                     </div>
@@ -951,8 +957,8 @@ export default function LandingPage() {
                   meta="20260316_AM.xlsx"
                 >
                   <div className="overflow-hidden">
-                    <div className="border-b border-[#EAEAEA] bg-white px-5 py-3">
-                      <div className="grid grid-cols-12 gap-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                    <div className="border-b border-border bg-card px-5 py-3">
+                      <div className="grid grid-cols-12 gap-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                         <span className="col-span-3">Mat. No</span>
                         <span className="col-span-3">Course</span>
                         <span className="col-span-2">Hall</span>
@@ -960,7 +966,7 @@ export default function LandingPage() {
                         <span className="col-span-2 text-right">Slot</span>
                       </div>
                     </div>
-                    <ul className="divide-y divide-[#EAEAEA] bg-white">
+                    <ul className="divide-y divide-border bg-card">
                       {[
                         ["IBR/CSC/22/0142", "CSC301", "CBN", "B-07", "AM-2"],
                         ["IBR/CSC/22/0143", "CSC301", "CBN", "B-08", "AM-2"],
@@ -973,31 +979,31 @@ export default function LandingPage() {
                       ].map((row, i) => (
                         <li
                           key={i}
-                          className="grid grid-cols-12 gap-3 px-5 py-3 font-mono text-[12px] tabular-nums text-[#1A1A19]"
+                          className="grid grid-cols-12 gap-3 px-5 py-3 font-mono text-[12px] tabular-nums text-foreground"
                         >
-                          <span className="col-span-3 text-[#1A1A19]">
+                          <span className="col-span-3 text-foreground">
                             {row[0]}
                           </span>
-                          <span className="col-span-3 text-[#3A3A38]">
+                          <span className="col-span-3 text-foreground/85">
                             {row[1]}
                           </span>
-                          <span className="col-span-2 text-[#3A3A38]">
+                          <span className="col-span-2 text-foreground/85">
                             {row[2]}
                           </span>
                           <span className="col-span-2">
-                            <kbd className="rounded-[3px] border border-[#EAEAEA] bg-[#F7F6F3] px-1.5 py-0.5 text-[10px]">
+                            <kbd className="rounded-[3px] border border-border bg-muted px-1.5 py-0.5 text-[10px]">
                               {row[3]}
                             </kbd>
                           </span>
-                          <span className="col-span-2 text-right text-[#787774]">
+                          <span className="col-span-2 text-right text-muted-foreground">
                             {row[4]}
                           </span>
                         </li>
                       ))}
                     </ul>
-                    <div className="flex items-center justify-between border-t border-[#EAEAEA] bg-[#FBFBFA] px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                    <div className="flex items-center justify-between border-t border-border bg-background px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                       <span>showing 8 of 27,020</span>
-                      <span className="flex items-center gap-1.5 text-[#346538]">
+                      <span className="flex items-center gap-1.5 text-[color:var(--accent-green-fg)]">
                         <Lock className="size-3" strokeWidth={2.25} />
                         Sealed · 2026-03-16
                       </span>
@@ -1010,19 +1016,19 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ TRUST MARQUEE ============================ */}
-        <section className="border-y border-[#EAEAEA] bg-white py-12">
+        <section className="border-y border-border bg-card py-12">
           <div className="mx-auto max-w-7xl px-6 sm:px-8">
-            <p className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[#787774]">
+            <p className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               In production at universities and polytechnics
             </p>
             <div className="relative mt-6 overflow-hidden">
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-white to-transparent"
+                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-card to-transparent"
               />
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-white to-transparent"
+                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-card to-transparent"
               />
               <div className="marquee-track flex w-max items-center gap-16">
                 {[
@@ -1047,7 +1053,7 @@ export default function LandingPage() {
                 ].map((name, i) => (
                   <span
                     key={i}
-                    className="font-serif text-[1.5rem] italic text-[#787774]"
+                    className="font-serif text-[1.5rem] italic text-muted-foreground"
                   >
                     {name}
                   </span>
@@ -1058,11 +1064,11 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ FAQ ============================ */}
-        <section id="faq" className="bg-[#FBFBFA]">
+        <section id="faq" className="bg-background">
           <div className="mx-auto max-w-5xl px-6 py-24 sm:px-8 lg:py-32">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   § 05 — Questions
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
@@ -1070,11 +1076,11 @@ export default function LandingPage() {
                   <br />
                   <span className="italic">asked things.</span>
                 </h2>
-                <p className="mt-5 text-[14px] leading-[1.65] text-[#6F6E69]">
+                <p className="mt-5 text-[14px] leading-[1.65] text-muted-foreground">
                   Anything missing?{" "}
                   <a
                     href="mailto:hello@examnova.app"
-                    className="text-[#1A1A19] underline underline-offset-4 decoration-[#EAEAEA] hover:decoration-[#1A1A19]"
+                    className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
                   >
                     Write to us
                   </a>
@@ -1086,7 +1092,7 @@ export default function LandingPage() {
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "100ms" }}
               >
-                <div className="border-t border-[#EAEAEA]">
+                <div className="border-t border-border">
                   {FAQS.map((f, i) => (
                     <FaqItem key={i} q={f.q} a={f.a} idx={i} />
                   ))}
@@ -1097,7 +1103,7 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ CTA ============================ */}
-        <section className="relative overflow-hidden border-t border-[#EAEAEA] bg-[#1A1A19] text-white">
+        <section className="relative overflow-hidden border-t border-border bg-foreground text-background">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-60"
@@ -1119,7 +1125,7 @@ export default function LandingPage() {
           />
           <div className="relative mx-auto max-w-5xl px-6 py-28 text-center sm:px-8 lg:py-40">
             <p
-              className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/60"
+              className="font-mono text-[10px] uppercase tracking-[0.18em] text-background/60"
               data-reveal
             >
               Ready when you are
@@ -1131,7 +1137,7 @@ export default function LandingPage() {
             >
               Cut your exam season
               <br />
-              <span className="italic text-white/85">
+              <span className="italic text-background/85">
                 from a month to an afternoon.
               </span>
             </h2>
@@ -1143,14 +1149,14 @@ export default function LandingPage() {
               <Button
                 render={<Link to="/login" />}
                 size="lg"
-                className="h-12 rounded-md bg-white px-6 text-[14px] text-[#1A1A19] hover:bg-white/90"
+                className="h-12 rounded-md bg-card px-6 text-[14px] text-foreground hover:bg-background/90"
               >
                 Sign in to the dashboard
                 <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
               </Button>
               <Link
                 to="/features"
-                className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-white/85 hover:text-white"
+                className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-background/85 hover:text-background"
               >
                 Read the module index
                 <ArrowUpRight
@@ -1161,7 +1167,7 @@ export default function LandingPage() {
             </div>
 
             <div
-              className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 font-mono text-[10px] uppercase tracking-[0.14em] text-white/50"
+              className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 font-mono text-[10px] uppercase tracking-[0.14em] text-background/50"
               data-reveal
               style={{ ["--reveal-delay" as string]: "300ms" }}
             >
@@ -1174,54 +1180,54 @@ export default function LandingPage() {
         </section>
 
         {/* ============================ FOOTER ============================ */}
-        <footer className="border-t border-[#EAEAEA] bg-[#FBFBFA]">
+        <footer className="border-t border-border bg-background">
           <div className="mx-auto max-w-7xl px-6 sm:px-8">
             <div className="grid grid-cols-2 gap-10 py-16 sm:grid-cols-12">
               <div className="col-span-2 sm:col-span-5">
                 <Link
                   to="/"
-                  className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight text-[#1A1A19]"
+                  className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight text-foreground"
                 >
                   <span
                     aria-hidden
-                    className="inline-block size-2 rotate-45 bg-[#1A1A19]"
+                    className="inline-block size-2 rotate-45 bg-foreground"
                   />
                   ExamNova
                 </Link>
-                <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-[#6F6E69]">
+                <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-muted-foreground">
                   Operations OS for examinations. Schedule, distribute, seat,
                   document — without the spreadsheets.
                 </p>
                 <div className="mt-6 flex items-center gap-3">
                   <LiveStatus />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774]">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                     99.97% uptime · 90d
                   </span>
                 </div>
               </div>
 
               <div className="sm:col-span-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Product
                 </p>
-                <ul className="mt-4 space-y-2.5 text-[13.5px] text-[#1A1A19]">
+                <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
-                    <Link to="/features" className="hover:text-[#346538]">
+                    <Link to="/features" className="hover:text-[color:var(--accent-green-fg)]">
                       Modules
                     </Link>
                   </li>
                   <li>
-                    <a href="#pipeline" className="hover:text-[#346538]">
+                    <a href="#pipeline" className="hover:text-[color:var(--accent-green-fg)]">
                       Pipeline
                     </a>
                   </li>
                   <li>
-                    <a href="#evidence" className="hover:text-[#346538]">
+                    <a href="#evidence" className="hover:text-[color:var(--accent-green-fg)]">
                       Evidence
                     </a>
                   </li>
                   <li>
-                    <Link to="/login" className="hover:text-[#346538]">
+                    <Link to="/login" className="hover:text-[color:var(--accent-green-fg)]">
                       Dashboard
                     </Link>
                   </li>
@@ -1229,12 +1235,12 @@ export default function LandingPage() {
               </div>
 
               <div className="sm:col-span-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Resources
                 </p>
-                <ul className="mt-4 space-y-2.5 text-[13.5px] text-[#1A1A19]">
+                <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
-                    <a href="#faq" className="hover:text-[#346538]">
+                    <a href="#faq" className="hover:text-[color:var(--accent-green-fg)]">
                       FAQ
                     </a>
                   </li>
@@ -1245,19 +1251,19 @@ export default function LandingPage() {
               </div>
 
               <div className="sm:col-span-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#787774]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Contact
                 </p>
-                <ul className="mt-4 space-y-2.5 text-[13.5px] text-[#1A1A19]">
+                <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
                     <a
                       href="mailto:hello@examnova.app"
-                      className="hover:text-[#346538]"
+                      className="hover:text-[color:var(--accent-green-fg)]"
                     >
                       hello@examnova.app
                     </a>
                   </li>
-                  <li className="text-[#6F6E69]">
+                  <li className="text-muted-foreground">
                     Mokola, Ibadan
                     <br />
                     Oyo State, Nigeria
@@ -1266,7 +1272,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-start justify-between gap-3 border-t border-[#EAEAEA] py-6 font-mono text-[10px] uppercase tracking-[0.12em] text-[#787774] sm:flex-row sm:items-center">
+            <div className="flex flex-col items-start justify-between gap-3 border-t border-border py-6 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center">
               <span>
                 &copy; {new Date().getFullYear()} ExamNova · All rights
                 reserved.

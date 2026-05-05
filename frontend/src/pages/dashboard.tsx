@@ -230,45 +230,74 @@ export default function DashboardPage() {
             create cross-department timetable constraints. Review them before
             generating the next run.
           </p>
-          <ul className="divide-y divide-[color:var(--border)] overflow-hidden rounded-[12px] border border-[color:var(--border)] bg-card">
-            {stats.data?.shared_courses.slice(0, 8).map((c) => (
-              <li
-                key={c.code}
-                className="grid grid-cols-12 gap-4 px-6 py-5 transition-colors hover:bg-[color:var(--muted)]"
-              >
-                <div className="col-span-12 sm:col-span-4">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                    {c.code}
-                  </p>
-                  <p className="mt-1 font-serif text-[1.125rem] leading-tight tracking-[-0.005em]">
-                    {c.name}
-                  </p>
-                </div>
-                <div className="col-span-12 sm:col-span-7">
-                  <div className="flex flex-wrap gap-1.5">
-                    {c.departments.flatMap((d) =>
-                      d.classes.map((cls) => (
-                        <span
-                          key={`${d.name}-${cls}`}
-                          className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[10px] tracking-wide text-foreground"
-                        >
-                          {d.name} · {cls}
-                        </span>
-                      )),
-                    )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {stats.data?.shared_courses.slice(0, 8).map((c) => {
+              const totalClasses = c.departments.reduce(
+                (n, d) => n + d.classes.filter(Boolean).length,
+                0,
+              );
+              return (
+                <article
+                  key={c.code}
+                  className="group flex flex-col rounded-[12px] border border-[color:var(--border)] bg-card p-5 transition-colors hover:border-foreground/25"
+                >
+                  {/* Header */}
+                  <header className="flex items-start justify-between gap-4 border-b border-[color:var(--border)] pb-4">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {c.code}
+                      </p>
+                      <h3 className="mt-1.5 font-serif text-[1.125rem] leading-tight tracking-[-0.005em]">
+                        {c.name}
+                      </h3>
+                    </div>
+                    <span
+                      className="shrink-0 rounded-full bg-[color:var(--accent-yellow)] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-yellow-fg)]"
+                      title="Departments × Classes coupled by this course"
+                    >
+                      {c.dept_count} × {totalClasses}
+                    </span>
+                  </header>
+
+                  {/* Department-grouped class lists */}
+                  <div
+                    className="mt-4 grid gap-x-5 gap-y-4"
+                    style={{
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(110px, 1fr))",
+                    }}
+                  >
+                    {c.departments.map((d) => (
+                      <div
+                        key={d.name}
+                        className="border-l border-[color:var(--border)] pl-3 transition-colors group-hover:border-foreground/40"
+                      >
+                        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
+                          {d.name}
+                        </p>
+                        <ul className="mt-2 space-y-0.5">
+                          {d.classes.map((cls, i) => (
+                            <li
+                              key={`${d.name}-${cls ?? i}`}
+                              className="font-mono text-[11px] tabular-nums text-muted-foreground"
+                            >
+                              {cls ?? "—"}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
-                </div>
-                <div className="col-span-12 self-center text-right sm:col-span-1">
-                  <span className="font-serif text-[1.25rem] tabular-nums">
-                    {c.dept_count}
-                  </span>
-                  <span className="ml-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                    depts
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </article>
+              );
+            })}
+          </div>
+
+          {(stats.data?.shared_courses_count ?? 0) > 8 && (
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              Showing 8 of {stats.data?.shared_courses_count} flagged courses
+            </p>
+          )}
         </section>
       )}
     </div>
