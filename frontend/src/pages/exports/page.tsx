@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { useTimetableDates } from "@/api/scheduling";
 import { useHalls } from "@/api/halls";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,6 +25,8 @@ import { toast } from "@/lib/use-toast";
 import { PageHeader } from "@/components/layout/page-header";
 
 export default function ExportsPage() {
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_staff;
   const dates = useTimetableDates();
   const halls = useHalls({ page: 1 });
   const [date, setDate] = useState<string | undefined>();
@@ -55,6 +58,7 @@ export default function ExportsPage() {
         description="Download CSV, Excel, and Word reports. Slot-scoped exports use the selected date and period."
       />
 
+      {isAdmin && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Slot</CardTitle>
@@ -68,7 +72,7 @@ export default function ExportsPage() {
             onValueChange={(v) => setDate(v ?? undefined)}
             disabled={!dates.data?.dates.length}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger>
               <SelectValue placeholder="Pick a date" />
             </SelectTrigger>
             <SelectContent>
@@ -83,7 +87,7 @@ export default function ExportsPage() {
             value={period}
             onValueChange={(v) => setPeriod(v as "AM" | "PM")}
           >
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -92,7 +96,7 @@ export default function ExportsPage() {
             </SelectContent>
           </Select>
           <Select value={hallId ?? ""} onValueChange={(v) => setHallId(v ?? undefined)}>
-            <SelectTrigger className="w-[260px]">
+            <SelectTrigger>
               <SelectValue placeholder="Hall (for attendance sheets)" />
             </SelectTrigger>
             <SelectContent>
@@ -105,56 +109,67 @@ export default function ExportsPage() {
           </Select>
         </CardContent>
       </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <ExportCard
           title="Timetable CSV"
-          description="Per-department exam schedule as CSV."
+          description={
+            isAdmin
+              ? "Full exam schedule across every department."
+              : "Your department's exam schedule as CSV."
+          }
           onDownload={() =>
             tryDownload("/exports/timetable/", "timetable.csv")
           }
         />
-        <ExportCard
-          title="Distribution CSV"
-          description="Hall-to-class assignments for the selected slot."
-          disabled={!date || !period}
-          onDownload={() =>
-            tryDownload("/exports/distribution/", `distribution-${date}-${period}.csv`, {
-              date,
-              period,
-            })
-          }
-        />
-        <ExportCard
-          title="Arrangement ZIP"
-          description="Per-course seat arrangements (CSV bundle)."
-          disabled={!date || !period}
-          onDownload={() =>
-            tryDownload("/exports/arrangement/", `arrangement-${date}-${period}.zip`, {
-              date,
-              period,
-            })
-          }
-        />
-        <ExportCard
-          title="Attendance sheets"
-          description="DOCX zip with one sheet per course."
-          disabled={!date || !period || !hallId}
-          onDownload={() =>
-            tryDownload(
-              "/exports/attendance-sheets/",
-              `attendance-${date}-${period}.zip`,
-              { date, period, hall_id: hallId },
-            )
-          }
-        />
-        <ExportCard
-          title="Broadsheet"
-          description="Full Excel broadsheet across the entire timetable."
-          onDownload={() =>
-            tryDownload("/exports/broadsheet/", "broadsheet.xlsx")
-          }
-        />
+        {isAdmin && (
+          <>
+            <ExportCard
+              title="Distribution CSV"
+              description="Hall-to-class assignments for the selected slot."
+              disabled={!date || !period}
+              onDownload={() =>
+                tryDownload(
+                  "/exports/distribution/",
+                  `distribution-${date}-${period}.csv`,
+                  { date, period },
+                )
+              }
+            />
+            <ExportCard
+              title="Arrangement ZIP"
+              description="Per-course seat arrangements (CSV bundle)."
+              disabled={!date || !period}
+              onDownload={() =>
+                tryDownload(
+                  "/exports/arrangement/",
+                  `arrangement-${date}-${period}.zip`,
+                  { date, period },
+                )
+              }
+            />
+            <ExportCard
+              title="Attendance sheets"
+              description="DOCX zip with one sheet per course."
+              disabled={!date || !period || !hallId}
+              onDownload={() =>
+                tryDownload(
+                  "/exports/attendance-sheets/",
+                  `attendance-${date}-${period}.zip`,
+                  { date, period, hall_id: hallId },
+                )
+              }
+            />
+            <ExportCard
+              title="Broadsheet"
+              description="Full Excel broadsheet across the entire timetable."
+              onDownload={() =>
+                tryDownload("/exports/broadsheet/", "broadsheet.xlsx")
+              }
+            />
+          </>
+        )}
       </div>
     </div>
   );

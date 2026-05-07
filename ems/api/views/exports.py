@@ -7,7 +7,7 @@ the renderer is bypassed, so the existing functions in ``ems.csv_gen`` and
 """
 
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.views import APIView
 
 from ems import csv_gen
@@ -25,21 +25,21 @@ class TimetableExportView(APIView):
 
 
 class DistributionExportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         return csv_gen.export_distribution(request)
 
 
 class ArrangementExportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         return csv_gen.export_arrangements(request)
 
 
 class AttendanceSheetsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         params = request.query_params
@@ -51,7 +51,7 @@ class AttendanceSheetsView(APIView):
 
 
 class BroadsheetView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         return legacy_generate_broadsheet(request)

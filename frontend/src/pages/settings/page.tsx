@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { useConfirm } from "@/lib/confirm";
 import { PageHeader } from "@/components/layout/page-header";
 
 const schema = z.object({
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const update = useUpdateSystemSettings();
   const reset = useResetSystem();
   const enable = useEnableBulkUpload();
+  const confirm = useConfirm();
 
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<Values>({
@@ -71,12 +73,14 @@ export default function SettingsPage() {
   };
 
   const onReset = async () => {
-    if (
-      !confirm(
-        "Reset the system? Every department, class, course, hall, student, timetable and seat allocation will be deleted.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "Reset the system?",
+      description:
+        "Every department, class, course, hall, student, timetable and seat allocation will be deleted. This cannot be undone.",
+      confirmLabel: "Reset",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await reset.mutateAsync();
       toast({ title: "System reset complete" });

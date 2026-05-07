@@ -1,7 +1,8 @@
 from rest_framework import permissions, status, viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import CanManageDepartmentScoped
 from ems.api.serializers.student import (
     StudentSerializer,
     assert_student_deletable,
@@ -35,7 +36,26 @@ class StudentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [permissions.IsAuthenticated()]
-        return [IsAdminStaff()]
+        return [CanManageDepartmentScoped()]
+
+    def _enforce_department(self, serializer):
+        """Non-admins can only assign students to classes in their own department."""
+        user = self.request.user
+        if user.is_staff or not user.department_id:
+            return
+        cls = serializer.validated_data.get("level")
+        if cls is not None and cls.department_id != user.department_id:
+            raise PermissionDenied(
+                "You can only manage students in your own department."
+            )
+
+    def perform_create(self, serializer):
+        self._enforce_department(serializer)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._enforce_department(serializer)
+        serializer.save()
 
     def perform_destroy(self, instance):
         assert_student_deletable(instance)

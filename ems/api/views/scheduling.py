@@ -2,6 +2,8 @@
 and distribution statistics. The generate/manual-assign endpoints live in
 ``jobs.py``; these are the corresponding GETs."""
 
+from datetime import datetime
+
 from django.db.models import Count, Q, Sum
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -181,8 +183,15 @@ class HallAllocationView(APIView):
                 status=400,
             )
         try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            return Response(
+                {"detail": "date must be in YYYY-MM-DD format."},
+                status=400,
+            )
+        try:
             hall = Hall.objects.get(pk=hall_id)
-        except Hall.DoesNotExist:
+        except (Hall.DoesNotExist, ValueError):
             return Response({"detail": "Hall not found."}, status=404)
 
         qs = SeatArrangement.objects.filter(

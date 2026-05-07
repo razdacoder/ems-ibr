@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
@@ -41,9 +42,16 @@ export default function DepartmentsListPage() {
 
   const list = useDepartments({ page, query: query || undefined });
   const remove = useDeleteDepartment();
+  const confirm = useConfirm();
 
   const handleDelete = async (dept: Department) => {
-    if (!confirm(`Delete department "${dept.name}"?`)) return;
+    const ok = await confirm({
+      title: "Delete department?",
+      description: `"${dept.name}" will be permanently removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(dept.slug);
       toast({ title: "Department deleted" });

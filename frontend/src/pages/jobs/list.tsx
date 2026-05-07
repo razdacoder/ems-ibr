@@ -26,6 +26,7 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
@@ -49,9 +50,16 @@ export default function JobsListPage() {
   });
   const remove = useDeleteJob();
   const retry = useRetryJob();
+  const confirm = useConfirm();
 
   const onDelete = async (job: BackgroundJob) => {
-    if (!confirm(`Delete this ${job.job_type_display.toLowerCase()} job?`)) return;
+    const ok = await confirm({
+      title: "Delete job?",
+      description: `This ${job.job_type_display.toLowerCase()} job will be removed from history.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(job.job_id);
       toast({ title: "Job deleted" });
@@ -85,7 +93,7 @@ export default function JobsListPage() {
         filters={
           <>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1); }}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -97,7 +105,7 @@ export default function JobsListPage() {
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v ?? ""); setPage(1); }}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger>
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>

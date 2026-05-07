@@ -49,12 +49,13 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
 export default function StudentsListPage() {
   const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
+  const isAdmin = !!user?.is_staff || !!user?.department;
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState<string>("__all__");
@@ -69,11 +70,18 @@ export default function StudentsListPage() {
     class: classFilter === "__all__" ? undefined : Number(classFilter),
   });
   const remove = useDeleteStudent();
-  const departments = useDepartments({ page: 1 });
+  const departments = useDepartments({ page: 1, enabled: !!user?.is_staff });
   const classes = useClasses({ page: 1 });
+  const confirm = useConfirm();
 
   const onDelete = async (s: Student) => {
-    if (!confirm(`Delete ${s.matric_no}?`)) return;
+    const ok = await confirm({
+      title: "Delete student?",
+      description: `${s.matric_no} will be permanently removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(s.id);
       toast({ title: "Student deleted" });
@@ -103,27 +111,29 @@ export default function StudentsListPage() {
         searchPlaceholder="Search by name or matric"
         filters={
           <>
-            <Select
-              value={department}
-              onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All depts</SelectItem>
-                {departments.data?.results.map((d) => (
-                  <SelectItem key={d.id} value={d.slug}>
-                    {d.slug}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {user?.is_staff && (
+              <Select
+                value={department}
+                onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All depts</SelectItem>
+                  {departments.data?.results.map((d) => (
+                    <SelectItem key={d.id} value={d.slug}>
+                      {d.slug}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select
               value={classFilter}
               onValueChange={(v) => { setClassFilter(v ?? ""); setPage(1); }}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger>
                 <SelectValue placeholder="Class" />
               </SelectTrigger>
               <SelectContent>

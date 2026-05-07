@@ -1,11 +1,11 @@
 from django.db.models import Count
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import CanManageDepartmentScoped
 from ems.api.serializers.cls import (
     ClassCourseAssignSerializer,
     ClassSerializer,
@@ -40,7 +40,31 @@ class ClassViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [permissions.IsAuthenticated()]
-        return [IsAdminStaff()]
+        return [CanManageDepartmentScoped()]
+
+    def _enforce_department(self, serializer):
+        """Non-admins with a department can only write to their own department."""
+        user = self.request.user
+        if user.is_staff or not user.department_id:
+            return
+        target_dept = serializer.validated_data.get("department")
+        if target_dept and target_dept.id != user.department_id:
+            raise PermissionDenied(
+                "You can only manage classes in your own department."
+            )
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_staff and user.department_id:
+            from ems.models import Department
+
+            serializer.save(department=Department.objects.get(pk=user.department_id))
+            return
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._enforce_department(serializer)
+        serializer.save()
 
     def perform_destroy(self, instance):
         assert_class_deletable(instance)
@@ -55,7 +79,7 @@ class ClassViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["post"],
         url_path="courses",
-        permission_classes=[IsAdminStaff],
+        permission_classes=[CanManageDepartmentScoped],
     )
     def add_course(self, request, pk=None):
         cls = self.get_object()
@@ -71,7 +95,7 @@ class ClassViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["patch", "delete"],
         url_path=r"courses/(?P<course_id>[^/.]+)",
-        permission_classes=[IsAdminStaff],
+        permission_classes=[CanManageDepartmentScoped],
     )
     def manage_course(self, request, pk=None, course_id=None):
         cls = self.get_object()

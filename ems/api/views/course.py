@@ -21,6 +21,9 @@ class CourseViewSet(viewsets.ModelViewSet):
         exam_type = params.get("exam_type")
         if exam_type:
             qs = qs.filter(exam_type=exam_type)
+        user = self.request.user
+        if user.is_authenticated and not user.is_staff and user.department_id:
+            qs = qs.filter(courses__department_id=user.department_id).distinct()
         return qs
 
     def get_permissions(self):

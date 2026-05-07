@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LayoutGrid, List } from "lucide-react";
 import { useHallAllocation } from "@/api/scheduling";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -31,9 +31,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export default function HallAllocationPage() {
   const [params] = useSearchParams();
-  const date = params.get("date") ?? undefined;
-  const period = (params.get("period") ?? "AM") as "AM" | "PM";
-  const hallId = params.get("hall_id");
+  const cleanParam = (v: string | null) =>
+    v && v !== "undefined" && v !== "null" ? v : undefined;
+  const date = cleanParam(params.get("date"));
+  const period = (cleanParam(params.get("period")) ?? "AM") as "AM" | "PM";
+  const hallId = cleanParam(params.get("hall_id"));
   const { user } = useAuth();
   const isAdmin = !!user?.is_staff;
   const qc = useQueryClient();
@@ -44,6 +46,32 @@ export default function HallAllocationPage() {
     hall_id: hallId ? Number(hallId) : undefined,
   });
   const [seatInputs, setSeatInputs] = useState<Record<number, string>>({});
+  const [placedView, setPlacedView] = useState<"list" | "grid">("list");
+
+  const courseColors = useMemo(() => {
+    const codes = Array.from(
+      new Set((data.data?.placed ?? []).map((p) => p.course.code)),
+    ).sort();
+    const hues = [12, 38, 68, 118, 165, 205, 235, 275, 310, 340];
+    const map: Record<string, { bg: string; fg: string; ring: string }> = {};
+    codes.forEach((code, i) => {
+      const h = hues[i % hues.length];
+      map[code] = {
+        bg: `oklch(0.66 0.22 ${h})`,
+        fg: `oklch(0.99 0.005 ${h})`,
+        ring: `oklch(0.46 0.2 ${h})`,
+      };
+    });
+    return map;
+  }, [data.data?.placed]);
+
+  const seatBySeatNumber = useMemo(() => {
+    const m = new Map<number, NonNullable<typeof data.data>["placed"][number]>();
+    (data.data?.placed ?? []).forEach((p) => {
+      if (p.seat_number != null) m.set(p.seat_number, p);
+    });
+    return m;
+  }, [data.data?.placed]);
 
   const onAssign = async (saId: number) => {
     const seat = seatInputs[saId];
@@ -68,14 +96,21 @@ export default function HallAllocationPage() {
   return (
     <div className="space-y-10">
       <Link
-        to={`/allocation?date=${date}&period=${period}`}
+        to={`/allocation${date ? `?date=${date}&period=${period}` : ""}`}
         className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3" strokeWidth={2.25} />
         Back to allocation
       </Link>
 
-      {data.isLoading ? (
+      {!date || !hallId ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Missing date or hall in the URL. Open this page from the allocation
+            list.
+          </AlertDescription>
+        </Alert>
+      ) : data.isLoading ? (
         <Skeleton className="h-32" />
       ) : data.error ? (
         <Alert variant="destructive">
@@ -128,6 +163,136 @@ export default function HallAllocationPage() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="placed">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  {placedView === "list"
+                    ? "Sorted by seat number"
+                    : `${data.data.hall.rows} × ${data.data.hall.columns} seat plan · color-coded by course`}
+                </p>
+                <div className="inline-flex items-center gap-1 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--card)] p-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={placedView === "list" ? "default" : "ghost"}
+                    className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.12em]"
+                    onClick={() => setPlacedView("list")}
+                  >
+                    <List className="size-3" strokeWidth={2.25} />
+                    List
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={placedView === "grid" ? "default" : "ghost"}
+                    className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.12em]"
+                    onClick={() => setPlacedView("grid")}
+                  >
+                    <LayoutGrid className="size-3" strokeWidth={2.25} />
+                    Grid
+                  </Button>
+                </div>
+              </div>
+              {placedView === "grid" ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    {data.data.placed.length === 0 ? (
+                      <p className="py-12 text-center font-serif italic text-muted-foreground">
+                        Nobody seated yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-8">
+                        <div className="flex items-center justify-center gap-3 border-b border-dashed border-[color:var(--border)] pb-4">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            ←
+                          </span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            Front of hall · Invigilator
+                          </span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            →
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <div
+                            className="mx-auto grid gap-1.5"
+                            style={{
+                              gridTemplateColumns: `repeat(${data.data.hall.columns}, minmax(56px, 1fr))`,
+                              maxWidth: `${data.data.hall.columns * 80}px`,
+                            }}
+                          >
+                            {Array.from({
+                              length:
+                                data.data.hall.rows * data.data.hall.columns,
+                            }).map((_, idx) => {
+                              const seatNumber = idx + 1;
+                              const placed = seatBySeatNumber.get(seatNumber);
+                              if (!placed) {
+                                return (
+                                  <div
+                                    key={seatNumber}
+                                    className="flex aspect-square flex-col items-center justify-center rounded-[4px] border border-dashed border-[color:var(--border)] bg-[color:var(--muted)]/40 p-1 text-muted-foreground/50"
+                                    title={`Seat #${seatNumber} — empty`}
+                                  >
+                                    <span className="font-mono text-[10px] tabular-nums">
+                                      {seatNumber}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              const palette = courseColors[placed.course.code];
+                              const initials = `${placed.student?.first_name?.[0] ?? ""}${placed.student?.last_name?.[0] ?? ""}`.toUpperCase();
+                              return (
+                                <div
+                                  key={seatNumber}
+                                  className="flex aspect-square flex-col items-center justify-center rounded-[4px] border p-1 transition-shadow hover:shadow-sm"
+                                  style={{
+                                    backgroundColor: palette?.bg,
+                                    color: palette?.fg,
+                                    borderColor: palette?.ring,
+                                  }}
+                                  title={`Seat #${seatNumber} · ${placed.course.code} · ${placed.student?.matric_no ?? "—"} · ${placed.student?.first_name ?? ""} ${placed.student?.last_name ?? ""}`.trim()}
+                                >
+                                  <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] opacity-90">
+                                    #{seatNumber}
+                                  </span>
+                                  <span className="mt-0.5 font-serif text-[15px] font-extrabold leading-none tracking-[-0.01em]">
+                                    {initials || "—"}
+                                  </span>
+                                  <span className="mt-0.5 font-mono text-[10px] font-bold tabular-nums">
+                                    {placed.course.code}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[color:var(--border)] pt-4">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                            Legend
+                          </span>
+                          {Object.entries(courseColors).map(([code, palette]) => (
+                            <span
+                              key={code}
+                              className="inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-0.5 font-mono text-[11px] tabular-nums"
+                              style={{
+                                backgroundColor: palette.bg,
+                                color: palette.fg,
+                                borderColor: palette.ring,
+                              }}
+                            >
+                              <span
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: palette.ring }}
+                              />
+                              {code}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
               <Card>
                 <CardContent className="pt-6">
                   <Table>
@@ -186,6 +351,7 @@ export default function HallAllocationPage() {
                   </Table>
                 </CardContent>
               </Card>
+              )}
             </TabsContent>
             <TabsContent value="unplaced">
               <Card>

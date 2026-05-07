@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,6 +8,19 @@ from rest_framework.views import APIView
 from ems import upload_handlers
 from ems.api.permissions import IsAdminStaff, UploadsUnlocked
 from ems.models import Class, Department
+
+
+def _require_dept_access(request, department: Department) -> None:
+    """Allow admins, or non-staff who belong to the target department.
+    Anyone else is denied."""
+    user = request.user
+    if user.is_staff:
+        return
+    if user.department_id and user.department_id == department.id:
+        return
+    raise PermissionDenied(
+        "You can only upload data for your own department."
+    )
 
 
 class _BaseUploadView(APIView):
@@ -62,8 +76,11 @@ class CourseUploadView(_BaseUploadView):
 
 
 class ClassesForDepartmentUploadView(_BaseUploadView):
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+
     def post(self, request, dept_slug):
         department = get_object_or_404(Department, slug=dept_slug)
+        _require_dept_access(request, department)
         f = self._file(request)
         if isinstance(f, Response):
             return f
@@ -75,8 +92,11 @@ class ClassesForDepartmentUploadView(_BaseUploadView):
 
 
 class ClassCoursesUploadView(_BaseUploadView):
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
+        _require_dept_access(request, cls.department)
         f = self._file(request)
         if isinstance(f, Response):
             return f
@@ -88,8 +108,11 @@ class ClassCoursesUploadView(_BaseUploadView):
 
 
 class ClassStudentsUploadView(_BaseUploadView):
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
+        _require_dept_access(request, cls.department)
         f = self._file(request)
         if isinstance(f, Response):
             return f

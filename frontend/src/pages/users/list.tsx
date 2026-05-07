@@ -50,6 +50,7 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
@@ -64,9 +65,16 @@ export default function UsersListPage() {
 
   const list = useUsers({ page, query: query || undefined });
   const remove = useDeleteUser();
+  const confirm = useConfirm();
 
   const onDelete = async (u: UserRow) => {
-    if (!confirm(`Delete user ${u.email}?`)) return;
+    const ok = await confirm({
+      title: "Delete user?",
+      description: `${u.email} will lose access immediately.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(u.id);
       toast({ title: "User deleted" });

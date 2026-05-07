@@ -78,9 +78,8 @@ export function JobProgressDialog({
             <Alert>
               <AlertTitle>Job completed</AlertTitle>
               <AlertDescription>
-                {event?.result
-                  ? JSON.stringify(event.result)
-                  : "No additional summary."}
+                {(event?.result as { message?: string } | null)?.message ??
+                  "Generation completed."}
               </AlertDescription>
             </Alert>
           )}

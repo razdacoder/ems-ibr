@@ -40,6 +40,7 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
@@ -65,9 +66,16 @@ export default function HallsListPage() {
 
   const list = useHalls({ page, query: query || undefined });
   const remove = useDeleteHall();
+  const confirm = useConfirm();
 
   const onDelete = async (h: Hall) => {
-    if (!confirm(`Delete hall ${h.name}?`)) return;
+    const ok = await confirm({
+      title: "Delete hall?",
+      description: `Hall ${h.name} will be permanently removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(h.id);
       toast({ title: "Hall deleted" });

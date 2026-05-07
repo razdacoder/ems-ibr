@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import {
   useUpdateClass,
 } from "@/api/classes";
 import { useDepartments } from "@/api/departments";
+import { useUploadClassesForDepartment } from "@/api/uploads";
 import {
   Dialog,
   DialogContent,
@@ -48,13 +49,14 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { Link } from "react-router-dom";
 
 export default function ClassesListPage() {
   const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
+  const isAdmin = !!user?.is_staff || !!user?.department;
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState<string>("__all__");
@@ -67,10 +69,37 @@ export default function ClassesListPage() {
     department: department === "__all__" ? undefined : department,
   });
   const remove = useDeleteClass();
-  const departments = useDepartments({ page: 1 });
+  const departments = useDepartments({ page: 1, enabled: !!user?.is_staff });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadClasses = useUploadClassesForDepartment(user?.department?.slug ?? "");
+  const canUploadClasses = !user?.is_staff && !!user?.department;
+
+  const onUploadClasses = async (file: File) => {
+    try {
+      const r = await uploadClasses.mutateAsync(file);
+      toast({
+        title: "Classes uploaded",
+        description: `Created ${r.created}, updated ${r.updated}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirm = useConfirm();
 
   const onDelete = async (c: Class) => {
-    if (!confirm(`Delete class "${c.name}"?`)) return;
+    const ok = await confirm({
+      title: "Delete class?",
+      description: `"${c.name}" will be permanently removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(c.id);
       toast({ title: "Class deleted" });
@@ -90,31 +119,59 @@ export default function ClassesListPage() {
         description="Class cohorts grouped under each department."
         toolbar={
           isAdmin && (
-            <Button onClick={() => { setEditing(null); setOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> New class
-            </Button>
+            <div className="flex items-center gap-2">
+              {canUploadClasses && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      await onUploadClasses(f);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadClasses.isPending}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {uploadClasses.isPending ? "Uploading…" : "Upload CSV"}
+                  </Button>
+                </>
+              )}
+              <Button onClick={() => { setEditing(null); setOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" /> New class
+              </Button>
+            </div>
           )
         }
         query={query}
         onQueryChange={(q) => { setQuery(q); setPage(1); }}
         searchPlaceholder="Search by class name"
         filters={
-          <Select
-            value={department}
-            onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All departments" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All departments</SelectItem>
-              {departments.data?.results.map((d) => (
-                <SelectItem key={d.id} value={d.slug}>
-                  {d.slug}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          user?.is_staff ? (
+            <Select
+              value={department}
+              onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All departments</SelectItem>
+                {departments.data?.results.map((d) => (
+                  <SelectItem key={d.id} value={d.slug}>
+                    {d.slug}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null
         }
         isLoading={list.isLoading}
         error={list.error}
@@ -234,6 +291,9 @@ function ClassFormDialog({
   initial: Class | null;
 }) {
   const isEdit = !!initial;
+  const { user } = useAuth();
+  const isStaffAdmin = !!user?.is_staff;
+  const userDept = user?.department ?? null;
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -241,7 +301,7 @@ function ClassFormDialog({
   });
   const create = useCreateClass();
   const update = useUpdateClass(initial?.id ?? 0);
-  const departments = useDepartments({ page: 1 });
+  const departments = useDepartments({ page: 1, enabled: isStaffAdmin });
 
   const departmentOptions = useMemo(
     () => departments.data?.results ?? [],
@@ -250,6 +310,7 @@ function ClassFormDialog({
 
   useEffect(() => {
     if (!open) return;
+    const fallbackDeptId = userDept?.id ?? 0;
     form.reset(
       initial
         ? {
@@ -257,10 +318,10 @@ function ClassFormDialog({
             size: initial.size,
             department_id: initial.department.id,
           }
-        : { name: "", size: 0, department_id: 0 },
+        : { name: "", size: 0, department_id: fallbackDeptId },
     );
     setTopError(null);
-  }, [open, initial, form]);
+  }, [open, initial, form, userDept?.id]);
 
   const onSubmit = async (v: Values) => {
     setTopError(null);
@@ -321,24 +382,30 @@ function ClassFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Department</FormLabel>
-                  <Select
-                    value={field.value ? String(field.value) : ""}
-                    onValueChange={(v) => field.onChange(Number(v))}
-                    disabled={isEdit}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a department" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {departmentOptions.map((d) => (
-                        <SelectItem key={d.id} value={String(d.id)}>
-                          {d.slug} — {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isStaffAdmin ? (
+                    <Select
+                      value={field.value ? String(field.value) : ""}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                      disabled={isEdit}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a department" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {departmentOptions.map((d) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.slug} — {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex h-9 items-center rounded-md border border-[color:var(--border)] bg-[color:var(--muted)] px-3 font-mono text-[12px] text-muted-foreground">
+                      {userDept ? `${userDept.slug} — ${userDept.name}` : "—"}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

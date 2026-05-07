@@ -108,7 +108,7 @@ export default function TimetablePage() {
           onValueChange={(v) => setDate(v ?? undefined)}
           disabled={!dates.data?.dates.length}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger>
             <SelectValue placeholder="Pick a date" />
           </SelectTrigger>
           <SelectContent>
@@ -123,7 +123,7 @@ export default function TimetablePage() {
           value={period}
           onValueChange={(v) => setPeriod(v as "AM" | "PM")}
         >
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

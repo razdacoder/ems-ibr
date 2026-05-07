@@ -9,6 +9,7 @@ import {
   useClass,
   useRemoveCourseFromClass,
 } from "@/api/classes";
+import { useCreateStudent, useStudents } from "@/api/students";
 import {
   useUploadClassCourses,
   useUploadClassStudents,
@@ -51,6 +52,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
@@ -60,11 +62,18 @@ export default function ClassDetailPage() {
   const cls = useClass(numericId);
   const remove = useRemoveCourseFromClass(numericId ?? 0);
   const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
+  const isAdmin = !!user?.is_staff || !!user?.department;
   const [open, setOpen] = useState(false);
+  const confirm = useConfirm();
 
   const onRemove = async (courseId: number, code: string) => {
-    if (!confirm(`Remove ${code} from this class?`)) return;
+    const ok = await confirm({
+      title: "Remove course?",
+      description: `${code} will be unlinked from this class.`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(courseId);
       toast({ title: "Course removed" });
@@ -202,6 +211,10 @@ export default function ClassDetailPage() {
             </CardContent>
           </Card>
 
+          {numericId !== undefined && (
+            <ClassStudentsCard classId={numericId} />
+          )}
+
           {numericId !== undefined && isAdmin && (
             <ClassUploadGrid classId={numericId} />
           )}
@@ -216,6 +229,286 @@ export default function ClassDetailPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function ClassStudentsCard({ classId }: { classId: number }) {
+  const [page, setPage] = useState(1);
+  const [addOpen, setAddOpen] = useState(false);
+  const { user } = useAuth();
+  const canAdd = !!user?.is_staff || !!user?.department;
+  const PAGE_SIZE = 25;
+  const list = useStudents({ class: classId, page });
+  const total = list.data?.count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Students</CardTitle>
+          <CardDescription>
+            Enrolled students in this class.
+          </CardDescription>
+        </div>
+        {canAdd && (
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add student
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        {list.isLoading ? (
+          <Skeleton className="h-32" />
+        ) : list.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {extractErrorEnvelope(list.error).detail}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[180px]">Matric no.</TableHead>
+                  <TableHead>Student</TableHead>
+                  <TableHead className="w-[260px]">Email</TableHead>
+                  <TableHead className="w-[140px]">Phone</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!list.data?.results.length ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-12 text-center font-serif italic text-muted-foreground"
+                    >
+                      No students enrolled yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  list.data.results.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>
+                        <span className="font-mono text-[12px] tracking-wide">
+                          {s.matric_no}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
+                        {s.first_name} {s.last_name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {s.email || "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {s.phone || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            {pageCount > 1 && (
+              <div className="mt-4 flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Page {page} of {pageCount} · {total} students
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+      <AddStudentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        classId={classId}
+      />
+    </Card>
+  );
+}
+
+const studentSchema = z.object({
+  first_name: z.string().trim().min(1, "First name is required"),
+  last_name: z.string().trim().min(1, "Last name is required"),
+  matric_no: z.string().trim().min(1, "Matric number is required"),
+  email: z.string().trim().email("Invalid email").or(z.literal("")),
+  phone: z.string().trim().optional().default(""),
+});
+type StudentValues = z.infer<typeof studentSchema>;
+
+function AddStudentDialog({
+  open,
+  onOpenChange,
+  classId,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  classId: number;
+}) {
+  const create = useCreateStudent();
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<StudentValues>({
+    resolver: zodResolver(studentSchema),
+    defaultValues: {
+      first_name: "",
+      last_name: "",
+      matric_no: "",
+      email: "",
+      phone: "",
+    },
+  });
+
+  const onSubmit = async (v: StudentValues) => {
+    setTopError(null);
+    try {
+      await create.mutateAsync({
+        first_name: v.first_name,
+        last_name: v.last_name,
+        matric_no: v.matric_no,
+        email: v.email,
+        phone: v.phone ?? "",
+        class_id: classId,
+      });
+      toast({ title: "Student added" });
+      form.reset();
+      onOpenChange(false);
+    } catch (err) {
+      const env = extractErrorEnvelope(err);
+      setTopError(env.detail);
+      if (env.errors) {
+        for (const [k, msgs] of Object.entries(env.errors)) {
+          if (
+            ["first_name", "last_name", "matric_no", "email", "phone"].includes(
+              k,
+            )
+          ) {
+            form.setError(k as keyof StudentValues, {
+              message: msgs.join(", "),
+            });
+          }
+        }
+      }
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add student</DialogTitle>
+          <DialogDescription>
+            The student will be enrolled in this class.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            {topError && (
+              <Alert variant="destructive">
+                <AlertDescription>{topError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="first_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>First name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="last_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="matric_no"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Matric number</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Saving…" : "Add student"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

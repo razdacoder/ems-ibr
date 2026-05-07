@@ -18,6 +18,7 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { CourseFormDialog } from "./course-form-dialog";
@@ -32,9 +33,16 @@ export default function CoursesListPage() {
 
   const list = useCourses({ page, query: query || undefined });
   const remove = useDeleteCourse();
+  const confirm = useConfirm();
 
   const onDelete = async (course: Course) => {
-    if (!confirm(`Delete course ${course.code}?`)) return;
+    const ok = await confirm({
+      title: "Delete course?",
+      description: `${course.code} will be permanently removed.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await remove.mutateAsync(course.id);
       toast({ title: "Course deleted" });

@@ -100,7 +100,7 @@ export default function DistributionPage() {
           onValueChange={(v) => setDate(v ?? undefined)}
           disabled={!dates.data?.dates.length}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger>
             <SelectValue placeholder="Pick a date" />
           </SelectTrigger>
           <SelectContent>
@@ -115,7 +115,7 @@ export default function DistributionPage() {
           value={period}
           onValueChange={(v) => setPeriod(v as "AM" | "PM")}
         >
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -22,14 +22,6 @@ import {
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface NavSection {
   label: string;
@@ -51,20 +43,39 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: "Catalog",
     items: [
-      { to: "/departments", label: "Departments", icon: Building2 },
+      {
+        to: "/departments",
+        label: "Departments",
+        icon: Building2,
+        adminOnly: true,
+      },
       { to: "/classes", label: "Classes", icon: School },
       { to: "/courses", label: "Courses", icon: ClipboardList },
       { to: "/students", label: "Students", icon: GraduationCap },
-      { to: "/halls", label: "Halls", icon: Grid3x3 },
+      { to: "/halls", label: "Halls", icon: Grid3x3, adminOnly: true },
     ],
   },
   {
     label: "Operations",
     items: [
-      { to: "/timetable", label: "Timetable", icon: CalendarDays },
-      { to: "/distribution", label: "Distribution", icon: ListChecks },
-      { to: "/allocation", label: "Allocation", icon: ListChecks },
-      { to: "/jobs", label: "Jobs", icon: ListChecks },
+      {
+        to: "/timetable",
+        label: "Timetable",
+        icon: CalendarDays,
+        adminOnly: true,
+      },
+      {
+        to: "/distribution",
+        label: "Distribution",
+        icon: ListChecks,
+        adminOnly: true,
+      },
+      {
+        to: "/allocation",
+        label: "Allocation",
+        icon: ListChecks,
+        adminOnly: true,
+      },
       { to: "/exports", label: "Exports", icon: Download },
     ],
   },
@@ -73,6 +84,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: "/uploads", label: "Uploads", icon: Upload, adminOnly: true },
       { to: "/users", label: "Users", icon: Users, adminOnly: true },
+      { to: "/jobs", label: "Jobs", icon: ListChecks, adminOnly: true },
       { to: "/settings", label: "Settings", icon: Settings, adminOnly: true },
     ],
   },
@@ -234,56 +246,48 @@ function SidebarContent({
           collapsed ? "p-2" : "p-3",
         )}
       >
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                title={collapsed ? user?.full_name ?? user?.email : undefined}
-                className={cn(
-                  "flex w-full items-center rounded-md text-left transition-colors hover:bg-[color:var(--muted)]",
-                  collapsed
-                    ? "justify-center p-1.5"
-                    : "gap-3 px-2.5 py-2",
-                )}
-              />
-            }
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground font-mono text-[11px] font-medium text-background">
-              {initials}
+        <div
+          className={cn(
+            "flex items-center",
+            collapsed ? "flex-col gap-2" : "gap-3 px-1",
+          )}
+          title={collapsed ? user?.full_name ?? user?.email : undefined}
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-foreground font-mono text-[11px] font-medium text-background">
+            {initials}
+          </span>
+          {!collapsed && (
+            <span className="flex-1 overflow-hidden">
+              <span className="block truncate text-[13px] font-medium text-foreground">
+                {user?.full_name ?? user?.email}
+              </span>
+              <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                {user?.is_staff
+                  ? "Administrator"
+                  : user?.department?.slug ?? "Staff"}
+              </span>
             </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              void logout();
+            }}
+            title="Sign out"
+            aria-label="Sign out"
+            className={cn(
+              "inline-flex items-center justify-center rounded-md border border-[color:var(--border)] bg-[color:var(--card)] text-muted-foreground transition-colors hover:bg-[color:var(--muted)] hover:text-foreground",
+              collapsed ? "size-7" : "h-8 gap-1.5 px-2.5",
+            )}
+          >
+            <LogOut className="size-3.5" strokeWidth={2} />
             {!collapsed && (
-              <span className="flex-1 overflow-hidden">
-                <span className="block truncate text-[13px] font-medium text-foreground">
-                  {user?.full_name ?? user?.email}
-                </span>
-                <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {user?.is_staff
-                    ? "Administrator"
-                    : user?.department?.slug ?? "Staff"}
-                </span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em]">
+                Sign out
               </span>
             )}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-[220px]"
-            side="top"
-            sideOffset={8}
-          >
-            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              {user?.email}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                void logout();
-              }}
-            >
-              <LogOut className="mr-2 h-4 w-4" strokeWidth={2} />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </button>
+        </div>
       </div>
     </>
   );

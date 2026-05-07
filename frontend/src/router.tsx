@@ -35,11 +35,25 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: "/dashboard", element: <DashboardPage /> },
-      { path: "/departments", element: <DepartmentsListPage /> },
+      {
+        path: "/departments",
+        element: (
+          <RequireAdmin>
+            <DepartmentsListPage />
+          </RequireAdmin>
+        ),
+      },
       { path: "/courses", element: <CoursesListPage /> },
       { path: "/classes", element: <ClassesListPage /> },
       { path: "/classes/:id", element: <ClassDetailPage /> },
-      { path: "/halls", element: <HallsListPage /> },
+      {
+        path: "/halls",
+        element: (
+          <RequireAdmin>
+            <HallsListPage />
+          </RequireAdmin>
+        ),
+      },
       { path: "/students", element: <StudentsListPage /> },
       {
         path: "/users",
@@ -57,11 +71,46 @@ export const router = createBrowserRouter([
           </RequireAdmin>
         ),
       },
-      { path: "/timetable", element: <TimetablePage /> },
-      { path: "/distribution", element: <DistributionPage /> },
-      { path: "/allocation", element: <AllocationPage /> },
-      { path: "/allocation/hall", element: <HallAllocationPage /> },
-      { path: "/jobs", element: <JobsListPage /> },
+      {
+        path: "/timetable",
+        element: (
+          <RequireAdmin>
+            <TimetablePage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/distribution",
+        element: (
+          <RequireAdmin>
+            <DistributionPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/allocation",
+        element: (
+          <RequireAdmin>
+            <AllocationPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/allocation/hall",
+        element: (
+          <RequireAdmin>
+            <HallAllocationPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/jobs",
+        element: (
+          <RequireAdmin>
+            <JobsListPage />
+          </RequireAdmin>
+        ),
+      },
       { path: "/exports", element: <ExportsPage /> },
       {
         path: "/settings",

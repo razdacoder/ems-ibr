@@ -11,6 +11,33 @@ class IsAdminStaff(permissions.BasePermission):
         return bool(user and user.is_authenticated and user.is_staff)
 
 
+class CanManageDepartmentScoped(permissions.BasePermission):
+    """Admins always pass. Non-staff users with a department may write only
+    to objects whose ``department_id`` matches their own. Read-only methods
+    are open to any authenticated user (queryset filtering happens in the
+    viewset)."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if user.is_staff:
+            return True
+        return bool(user.department_id)
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if user.is_staff:
+            return True
+        return getattr(obj, "department_id", None) == user.department_id
+
+
 class IsJobOwnerOrAdmin(permissions.BasePermission):
     """Admins see every BackgroundJob; everyone else sees only what they created."""
 

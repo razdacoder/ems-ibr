@@ -29,8 +29,6 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve"):
-            return [permissions.IsAuthenticated()]
         return [IsAdminStaff()]
 
     def perform_destroy(self, instance):

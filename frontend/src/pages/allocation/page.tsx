@@ -99,7 +99,7 @@ export default function AllocationPage() {
           onValueChange={(v) => setDate(v ?? undefined)}
           disabled={!dates.data?.dates.length}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger>
             <SelectValue placeholder="Pick a date" />
           </SelectTrigger>
           <SelectContent>
@@ -114,7 +114,7 @@ export default function AllocationPage() {
           value={period}
           onValueChange={(v) => setPeriod(v as "AM" | "PM")}
         >
-          <SelectTrigger className="w-[120px]">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -210,12 +210,17 @@ export default function AllocationPage() {
                         <TableCell className="text-right">
                           <Button
                             render={
-                              <Link
-                                to={`/allocation/hall?date=${date}&period=${period}&hall_id=${row.hall_id}`}
-                              />
+                              date ? (
+                                <Link
+                                  to={`/allocation/hall?date=${date}&period=${period}&hall_id=${row.hall_id}`}
+                                />
+                              ) : (
+                                <span />
+                              )
                             }
                             size="sm"
                             variant="outline"
+                            disabled={!date}
                           >
                             Open
                           </Button>

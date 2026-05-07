@@ -24,21 +24,24 @@ export interface PaginatedResponse<T> {
 export interface DepartmentListParams {
   page?: number;
   query?: string;
+  enabled?: boolean;
 }
 
 const KEY = ["departments"] as const;
 
 export function useDepartments(params: DepartmentListParams = {}) {
+  const { enabled = true, ...query } = params;
   return useQuery({
-    queryKey: [...KEY, params],
+    queryKey: [...KEY, query],
     queryFn: async () => {
       const res = await api.get<PaginatedResponse<Department>>(
         "/departments/",
-        { params },
+        { params: query },
       );
       return res.data;
     },
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
