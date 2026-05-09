@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -9,11 +9,15 @@ import {
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
+import { useReveal as useSharedReveal } from "@/lib/use-reveal";
 
 /* -----------------------------------------------------------
- * ExamNova — Editorial Landing
+ * AuraSchedule — Editorial Landing
  * Premium utilitarian minimalism. Warm bone canvas, editorial
  * serif headlines, monospace meta-data, asymmetric bento.
+ * Single accent: purple (var(--brand)).
  * --------------------------------------------------------- */
 
 const STATS = [
@@ -63,7 +67,7 @@ const FAQS = [
   },
   {
     q: "What happens after a generation run?",
-    a: "Ingestion is locked for that exam season. The generated artefacts (timetable, distribution, allocation, broadsheet) are versioned together so any later report can be reproduced from the same source of truth.",
+    a: "Ingestion is locked for that exam session. The generated artefacts (timetable, distribution, allocation, broadsheet) are versioned together so any later report can be reproduced from the same source of truth.",
   },
   {
     q: "Can a department override a seat assignment?",
@@ -79,7 +83,7 @@ const FAQS = [
   },
 ];
 
-/* --- Inline editorial illustration: continuous-line plus pastel shape --- */
+/* --- Inline editorial illustration: continuous-line plus solid purple shape --- */
 function GridSketch() {
   return (
     <svg
@@ -88,7 +92,7 @@ function GridSketch() {
       aria-hidden
       fill="none"
     >
-      <circle cx="142" cy="44" r="30" fill="var(--accent-yellow)" />
+      <circle cx="142" cy="44" r="30" fill="var(--brand-soft)" />
       <path
         d="M20 116 C 40 60, 80 38, 130 50 C 170 60, 184 92, 174 116"
         stroke="var(--foreground)"
@@ -158,12 +162,12 @@ function SeatGridSketch() {
               rx="2"
               fill={
                 accent
-                  ? "var(--accent-green)"
+                  ? "var(--brand-soft)"
                   : filled
                     ? "var(--muted)"
                     : "var(--card)"
               }
-              stroke={accent ? "var(--accent-green-fg)" : "var(--border)"}
+              stroke={accent ? "var(--brand)" : "var(--border)"}
               strokeWidth={accent ? 1.2 : 1}
             />
           );
@@ -176,6 +180,7 @@ function SeatGridSketch() {
 function CalendarSketch() {
   const days = ["M", "T", "W", "T", "F", "S"];
   const cells = Array.from({ length: 30 }, (_, i) => i + 1);
+  // AM = lighter purple, PM = deeper purple. Same hue, different intensity.
   const slots: Record<number, "am" | "pm" | "both"> = {
     3: "am",
     5: "pm",
@@ -202,17 +207,31 @@ function CalendarSketch() {
               key={n}
               className="relative aspect-square rounded-[3px] border border-border bg-background p-1"
             >
-              <span className="font-mono text-[9px] text-muted-foreground">{n}</span>
+              <span className="font-mono text-[9px] text-muted-foreground">
+                {n}
+              </span>
               {s === "am" && (
-                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-yellow)]" />
+                <span
+                  className="absolute inset-x-1 bottom-1 h-1 rounded-[1px]"
+                  style={{ backgroundColor: "var(--brand-soft)" }}
+                />
               )}
               {s === "pm" && (
-                <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-blue)]" />
+                <span
+                  className="absolute inset-x-1 bottom-1 h-1 rounded-[1px]"
+                  style={{ backgroundColor: "var(--brand)" }}
+                />
               )}
               {s === "both" && (
                 <>
-                  <span className="absolute inset-x-1 bottom-2.5 h-1 rounded-[1px] bg-[color:var(--accent-yellow)]" />
-                  <span className="absolute inset-x-1 bottom-1 h-1 rounded-[1px] bg-[color:var(--accent-blue)]" />
+                  <span
+                    className="absolute inset-x-1 bottom-2.5 h-1 rounded-[1px]"
+                    style={{ backgroundColor: "var(--brand-soft)" }}
+                  />
+                  <span
+                    className="absolute inset-x-1 bottom-1 h-1 rounded-[1px]"
+                    style={{ backgroundColor: "var(--brand)" }}
+                  />
                 </>
               )}
             </div>
@@ -252,28 +271,75 @@ function WindowChrome({
   );
 }
 
-/* --- Reveal hook --- */
-function useReveal() {
+/* --- Reveal hook (re-exported from lib for shared behaviour across pages) --- */
+const useReveal = useSharedReveal;
+
+/**
+ * Animates a numeric value from 0 → target when scrolled into view. Pass strings
+ * like "27,020" or "1,171" — separators and decimals are preserved. Non-numeric
+ * values (e.g. "<1s") are rendered untouched.
+ */
+function CountUp({
+  value,
+  durationMs = 1400,
+}: {
+  value: string;
+  durationMs?: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const match = value.match(/^([\d,.]+)(.*)$/);
+  const numStr = match?.[1] ?? "";
+  const hasDigits = /\d/.test(numStr);
+
   useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>("[data-reveal]");
-    if (!("IntersectionObserver" in window)) {
-      els.forEach((el) => el.classList.add("is-visible"));
+    if (!hasDigits) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const target = parseFloat(numStr.replace(/,/g, ""));
+    const suffix = match?.[2] ?? "";
+    const decimals = numStr.includes(".") ? numStr.split(".")[1].length : 0;
+    const format = (n: number) => {
+      const fixed = n.toFixed(decimals);
+      const [intPart, decPart] = fixed.split(".");
+      const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return decPart ? `${withCommas}.${decPart}${suffix}` : `${withCommas}${suffix}`;
+    };
+
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      el.textContent = format(target);
       return;
     }
+
+    el.textContent = format(0);
+    let raf = 0;
     const obs = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add("is-visible");
-            obs.unobserve(e.target);
-          }
+          if (!e.isIntersecting) continue;
+          const start = performance.now();
+          const tick = (t: number) => {
+            const k = Math.min((t - start) / durationMs, 1);
+            const eased = 1 - Math.pow(1 - k, 3);
+            el.textContent = format(target * eased);
+            if (k < 1) raf = requestAnimationFrame(tick);
+          };
+          raf = requestAnimationFrame(tick);
+          obs.disconnect();
+          return;
         }
       },
-      { rootMargin: "0px 0px -10% 0px", threshold: 0.05 },
+      { rootMargin: "0px 0px -10% 0px", threshold: 0.2 },
     );
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, []);
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [hasDigits, numStr, match, durationMs]);
+
+  if (!hasDigits) return <>{value}</>;
+  return <span ref={ref}>{value}</span>;
 }
 
 /* --- FAQ accordion item --- */
@@ -290,7 +356,9 @@ function FaqItem({ q, a, idx }: { q: string; a: string; idx: number }) {
         <span className="font-serif text-xl leading-snug text-foreground sm:text-[1.625rem]">
           {q}
         </span>
-        <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors group-hover:bg-muted">
+        <span
+          className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors group-hover:bg-[color:var(--brand-soft)] group-hover:border-[color:var(--brand)]/40 group-hover:text-[color:var(--brand-strong)]"
+        >
           {open ? (
             <Minus className="size-3.5" strokeWidth={2} />
           ) : (
@@ -318,11 +386,14 @@ function FaqItem({ q, a, idx }: { q: string; a: string; idx: number }) {
 /* --- Live status pill (animated dot, mono text) --- */
 function LiveStatus() {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-green-fg)]">
-      <span className="relative inline-flex size-1.5">
-        <span className="absolute inset-0 animate-ping rounded-full bg-[color:var(--accent-green-fg)]/60" />
-        <span className="relative size-1.5 rounded-full bg-[color:var(--accent-green-fg)]" />
-      </span>
+    <span
+      className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em]"
+      style={{ color: "var(--brand-strong)" }}
+    >
+      <span
+        className="size-1.5 rounded-full animate-pulse-soft"
+        style={{ backgroundColor: "var(--brand)" }}
+      />
       System nominal
     </span>
   );
@@ -332,24 +403,6 @@ export default function LandingPage() {
   useReveal();
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground antialiased">
-      {/* Ambient drift layer — radial warmth, very faint */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 80% 0%, rgba(149,100,0,0.05) 0%, transparent 60%), radial-gradient(50% 50% at 10% 30%, rgba(52,101,56,0.04) 0%, transparent 60%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="ambient-drift pointer-events-none fixed inset-0 -z-10 opacity-60"
-        style={{
-          backgroundImage:
-            "radial-gradient(40% 30% at 30% 80%, rgba(31,108,159,0.04) 0%, transparent 70%)",
-        }}
-      />
-
       {/* ============================ HEADER ============================ */}
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/70 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
@@ -357,34 +410,35 @@ export default function LandingPage() {
             to="/"
             className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
           >
-            <span
-              aria-hidden
-              className="inline-block size-2 rotate-45 bg-foreground"
-            />
-            ExamNova
+            <Logo size={20} />
+            AuraSchedule
           </Link>
 
           <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
-            <Link to="/features" className="hover:text-foreground">
+            <Link to="/features" className="hover:text-[color:var(--brand-strong)]">
               Modules
             </Link>
-            <a href="#pipeline" className="hover:text-foreground">
+            <a href="#pipeline" className="hover:text-[color:var(--brand-strong)]">
               Pipeline
             </a>
-            <a href="#evidence" className="hover:text-foreground">
+            <a href="#evidence" className="hover:text-[color:var(--brand-strong)]">
               Evidence
             </a>
-            <a href="#faq" className="hover:text-foreground">
+            <a href="#faq" className="hover:text-[color:var(--brand-strong)]">
               FAQ
             </a>
           </nav>
 
           <div className="flex items-center gap-3">
-            <LiveStatus />
+            <span className="hidden sm:inline-flex">
+              <LiveStatus />
+            </span>
+            <ThemeToggle size="sm" iconOnly />
             <Button
               render={<Link to="/login" />}
               size="sm"
-              className="rounded-md bg-foreground text-background hover:bg-foreground/85"
+              variant="brand"
+              className="rounded-md"
             >
               Sign in
               <ArrowUpRight className="ml-1 size-3.5" strokeWidth={2.25} />
@@ -398,14 +452,23 @@ export default function LandingPage() {
         <section className="relative">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-border"
           />
           <div className="mx-auto max-w-7xl px-6 pb-20 pt-16 sm:px-8 sm:pt-24 lg:pb-32 lg:pt-32">
             <div className="grid gap-16 lg:grid-cols-12 lg:gap-12">
               <div className="lg:col-span-7" data-reveal>
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent-yellow)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--accent-yellow-fg)]">
-                    <span className="size-1 rounded-full bg-[color:var(--accent-yellow-fg)]" />
+                  <span
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em]"
+                    style={{
+                      backgroundColor: "var(--brand-soft)",
+                      color: "var(--brand-strong)",
+                    }}
+                  >
+                    <span
+                      className="size-1 rounded-full"
+                      style={{ backgroundColor: "var(--brand-strong)" }}
+                    />
                     Operations OS for examinations
                   </span>
                   <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:inline">
@@ -416,7 +479,7 @@ export default function LandingPage() {
                 <h1 className="mt-8 font-serif text-[3rem] leading-[1.02] tracking-[-0.02em] text-foreground sm:text-[4.25rem] lg:text-[5.25rem]">
                   Run the entire
                   <br />
-                  <span className="italic text-foreground">exam season </span>
+                  <span className="italic text-foreground">exam session </span>
                   from
                   <br />
                   <span className="relative inline-block">
@@ -429,16 +492,22 @@ export default function LandingPage() {
                     >
                       <path
                         d="M2 13 C 80 4, 200 4, 318 12"
-                        stroke="var(--accent-green-fg)"
+                        stroke="var(--brand)"
                         strokeWidth="1.6"
                         strokeLinecap="round"
+                        pathLength={100}
+                        data-draw
+                        style={{
+                          ["--draw-len" as string]: "100",
+                          ["--reveal-delay" as string]: "600ms",
+                        }}
                       />
                     </svg>
                   </span>
                 </h1>
 
                 <p className="mt-8 max-w-2xl text-[1.0625rem] leading-[1.7] text-foreground/85">
-                  ExamNova schedules, distributes, seats, and documents every
+                  AuraSchedule schedules, distributes, seats, and documents every
                   exam — without spreadsheets and without weekend war rooms. Job
                   progress streams over WebSockets. Ingestion locks after the
                   first generation, so reports stay reproducible months later.
@@ -448,7 +517,8 @@ export default function LandingPage() {
                   <Button
                     render={<Link to="/login" />}
                     size="lg"
-                    className="h-11 rounded-md bg-foreground px-5 text-[14px] text-background hover:bg-foreground/85"
+                    variant="brand"
+                    className="h-11 rounded-md px-5 text-[14px]"
                   >
                     Open the dashboard
                     <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
@@ -458,7 +528,10 @@ export default function LandingPage() {
                     className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-foreground"
                   >
                     See every module
-                    <span className="relative inline-block h-px w-0 bg-foreground transition-all duration-300 group-hover:w-5" />
+                    <span
+                      className="relative inline-block h-px w-0 transition-all duration-300 group-hover:w-5"
+                      style={{ backgroundColor: "var(--brand)" }}
+                    />
                     <ArrowUpRight
                       className="size-4 transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
                       strokeWidth={2.25}
@@ -489,7 +562,7 @@ export default function LandingPage() {
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
                 <WindowChrome
-                  title="examnova/jobs"
+                  title="auraschedule/jobs"
                   meta="run #20260316-AM"
                 >
                   <div className="space-y-5 px-6 py-6">
@@ -497,7 +570,10 @@ export default function LandingPage() {
                       <p className="font-serif text-[1.25rem] tracking-tight">
                         Generation timeline
                       </p>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-green-fg)]">
+                      <p
+                        className="font-mono text-[10px] uppercase tracking-[0.12em]"
+                        style={{ color: "var(--brand-strong)" }}
+                      >
                         Done · 1m 12s
                       </p>
                     </div>
@@ -523,11 +599,17 @@ export default function LandingPage() {
                           state: "ok",
                           pct: 100,
                         },
-                      ].map((s) => (
+                      ].map((s, idx) => (
                         <li key={s.name}>
                           <div className="flex items-center justify-between text-[13px]">
                             <span className="flex items-center gap-2">
-                              <span className="inline-flex size-4 items-center justify-center rounded-full bg-[color:var(--accent-green)] text-[color:var(--accent-green-fg)]">
+                              <span
+                                className="inline-flex size-4 items-center justify-center rounded-full"
+                                style={{
+                                  backgroundColor: "var(--brand)",
+                                  color: "var(--brand-foreground)",
+                                }}
+                              >
                                 {s.state === "lock" ? (
                                   <Lock
                                     className="size-2.5"
@@ -550,8 +632,15 @@ export default function LandingPage() {
                           </div>
                           <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-muted">
                             <div
-                              className="h-full bg-foreground"
-                              style={{ width: `${s.pct}%` }}
+                              data-fill
+                              className="h-full"
+                              style={
+                                {
+                                  "--fill-w": `${s.pct}%`,
+                                  "--reveal-delay": `${300 + idx * 140}ms`,
+                                  backgroundColor: "var(--brand)",
+                                } as React.CSSProperties
+                              }
                             />
                           </div>
                         </li>
@@ -579,8 +668,14 @@ export default function LandingPage() {
 
                 <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   <span>Last run · 2026-03-16 06:42 WAT</span>
-                  <span className="flex items-center gap-1.5 text-[color:var(--accent-green-fg)]">
-                    <span className="size-1 rounded-full bg-[color:var(--accent-green-fg)]" />
+                  <span
+                    className="flex items-center gap-1.5"
+                    style={{ color: "var(--brand-strong)" }}
+                  >
+                    <span
+                      className="size-1 rounded-full"
+                      style={{ backgroundColor: "var(--brand)" }}
+                    />
                     Streamed live
                   </span>
                 </div>
@@ -608,7 +703,7 @@ export default function LandingPage() {
                   }}
                 >
                   <p className="font-serif text-[2.5rem] leading-none tabular-nums text-foreground sm:text-[3.25rem]">
-                    {s.value}
+                    <CountUp value={s.value} />
                   </p>
                   <p className="mt-3 text-[13px] text-foreground">{s.label}</p>
                   <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -647,11 +742,14 @@ export default function LandingPage() {
                     which hall, with which student in which seat — compound
                     into the difference between a quiet week and a war room.
                   </span>{" "}
-                  ExamNova exists so the quiet week is the default.
+                  AuraSchedule exists so the quiet week is the default.
                 </p>
                 <footer className="mt-10 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                  <span className="h-px w-10 bg-foreground" />
-                  Engineering note · ExamNova team
+                  <span
+                    className="h-px w-10"
+                    style={{ backgroundColor: "var(--brand)" }}
+                  />
+                  Engineering note · AuraSchedule team
                 </footer>
               </blockquote>
             </div>
@@ -692,7 +790,13 @@ export default function LandingPage() {
               >
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                   <div className="max-w-md">
-                    <span className="inline-block rounded-full bg-[color:var(--accent-green)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-green-fg)]">
+                    <span
+                      className="inline-block rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                      style={{
+                        backgroundColor: "var(--brand-soft)",
+                        color: "var(--brand-strong)",
+                      }}
+                    >
                       Scheduling
                     </span>
                     <h3 className="mt-4 font-serif text-[1.75rem] leading-[1.1] tracking-[-0.01em] sm:text-[2rem]">
@@ -719,7 +823,13 @@ export default function LandingPage() {
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "60ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[color:var(--accent-blue)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-blue-fg)]">
+                <span
+                  className="inline-block self-start rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
                   Distribution
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
@@ -733,8 +843,15 @@ export default function LandingPage() {
                   {[68, 92, 74, 88, 81, 95, 70].map((h, i) => (
                     <div
                       key={i}
-                      className="flex-1 rounded-t-[2px] bg-foreground/85"
-                      style={{ height: `${h * 0.6}px` }}
+                      data-grow
+                      className="flex-1 rounded-t-[2px]"
+                      style={
+                        {
+                          "--grow-h": `${h * 0.6}px`,
+                          "--reveal-delay": `${i * 70}ms`,
+                          backgroundColor: "var(--brand)",
+                        } as React.CSSProperties
+                      }
                     />
                   ))}
                 </div>
@@ -749,7 +866,13 @@ export default function LandingPage() {
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[color:var(--accent-red)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-red-fg)]">
+                <span
+                  className="inline-block self-start rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
                   Seating
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
@@ -769,7 +892,13 @@ export default function LandingPage() {
                 className="col-span-1 flex flex-col gap-4 rounded-[12px] border border-border bg-card p-7 sm:col-span-2"
                 data-reveal
               >
-                <span className="inline-block self-start rounded-full bg-[color:var(--accent-yellow)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-yellow-fg)]">
+                <span
+                  className="inline-block self-start rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
                   Reports
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
@@ -803,11 +932,11 @@ export default function LandingPage() {
                   Bulk CSV uploads. Locked after generation.
                 </h3>
                 <p className="text-[13.5px] leading-[1.65] text-background/65">
-                  Strict validation. Versioned per season. The source of truth
+                  Strict validation. Versioned per session. The source of truth
                   stays clean.
                 </p>
                 <div className="mt-3 rounded-[6px] border border-background/10 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-background/80">
-                  <span className="text-[color:var(--accent-yellow-fg)]">$</span> examnova ingest
+                  <span style={{ color: "var(--brand)" }}>$</span> auraschedule ingest
                   ./roster.csv
                   <br />
                   <span className="text-background/50">→</span> 27,020 rows · 0
@@ -821,7 +950,13 @@ export default function LandingPage() {
                 data-reveal
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
-                <span className="inline-block self-start rounded-full bg-[color:var(--accent-green)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--accent-green-fg)]">
+                <span
+                  className="inline-block self-start rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
                   Monitoring
                 </span>
                 <h3 className="font-serif text-[1.5rem] leading-tight tracking-[-0.01em]">
@@ -833,9 +968,19 @@ export default function LandingPage() {
                 <div className="relative mt-2 h-12 overflow-hidden rounded-[6px] bg-muted">
                   <div
                     aria-hidden
-                    className="absolute inset-y-0 left-0 w-2/3 bg-foreground transition-all"
+                    data-fill
+                    className="absolute inset-y-0 left-0"
+                    style={
+                      {
+                        "--fill-w": "67%",
+                        backgroundColor: "var(--brand)",
+                      } as React.CSSProperties
+                    }
                   />
-                  <span className="relative z-10 flex h-full items-center px-3 font-mono text-[10px] uppercase tracking-[0.14em] text-background">
+                  <span
+                    className="relative z-10 flex h-full items-center px-3 font-mono text-[10px] uppercase tracking-[0.14em]"
+                    style={{ color: "var(--brand-foreground)" }}
+                  >
                     Allocation · 67%
                   </span>
                 </div>
@@ -878,7 +1023,10 @@ export default function LandingPage() {
                         ["--reveal-delay" as string]: `${i * 80}ms`,
                       }}
                     >
-                      <span className="col-span-2 font-serif text-[1.5rem] tabular-nums text-muted-foreground sm:col-span-1">
+                      <span
+                        className="col-span-2 font-serif text-[1.5rem] tabular-nums sm:col-span-1"
+                        style={{ color: "var(--brand-strong)" }}
+                      >
                         {p.n}
                       </span>
                       <div className="col-span-10 sm:col-span-4">
@@ -905,14 +1053,6 @@ export default function LandingPage() {
           id="evidence"
           className="relative overflow-hidden bg-muted"
         >
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(40% 60% at 100% 0%, rgba(31,108,159,0.05), transparent 70%)",
-            }}
-          />
           <div className="relative mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
             <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
               <div className="lg:col-span-5" data-reveal>
@@ -924,7 +1064,7 @@ export default function LandingPage() {
                 </h2>
                 <p className="mt-5 text-[15px] leading-[1.7] text-foreground/85">
                   A single document captures every student's allocation across
-                  the season — hall, seat, slot, course code. Reproducible from
+                  the session — hall, seat, slot, course code. Reproducible from
                   the locked source data, exportable to Excel and PDF on demand.
                 </p>
 
@@ -953,7 +1093,7 @@ export default function LandingPage() {
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
                 <WindowChrome
-                  title="examnova/broadsheet"
+                  title="auraschedule/broadsheet"
                   meta="20260316_AM.xlsx"
                 >
                   <div className="overflow-hidden">
@@ -1003,7 +1143,10 @@ export default function LandingPage() {
                     </ul>
                     <div className="flex items-center justify-between border-t border-border bg-background px-5 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                       <span>showing 8 of 27,020</span>
-                      <span className="flex items-center gap-1.5 text-[color:var(--accent-green-fg)]">
+                      <span
+                        className="flex items-center gap-1.5"
+                        style={{ color: "var(--brand-strong)" }}
+                      >
                         <Lock className="size-3" strokeWidth={2.25} />
                         Sealed · 2026-03-16
                       </span>
@@ -1015,21 +1158,14 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================ TRUST MARQUEE ============================ */}
+        {/* ============================ TRUST MARQUEE ============================
+            Hidden until we have a confirmed list of partner institutions to ship.
         <section className="border-y border-border bg-card py-12">
           <div className="mx-auto max-w-7xl px-6 sm:px-8">
             <p className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               In production at universities and polytechnics
             </p>
             <div className="relative mt-6 overflow-hidden">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-card to-transparent"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-card to-transparent"
-              />
               <div className="marquee-track flex w-max items-center gap-16">
                 {[
                   ...[
@@ -1062,6 +1198,7 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        ============================ END TRUST MARQUEE ============================ */}
 
         {/* ============================ FAQ ============================ */}
         <section id="faq" className="bg-background">
@@ -1079,8 +1216,8 @@ export default function LandingPage() {
                 <p className="mt-5 text-[14px] leading-[1.65] text-muted-foreground">
                   Anything missing?{" "}
                   <a
-                    href="mailto:hello@examnova.app"
-                    className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
+                    href="mailto:hello@auraschedule.app"
+                    className="text-foreground underline underline-offset-4 decoration-border hover:decoration-[color:var(--brand)]"
                   >
                     Write to us
                   </a>
@@ -1102,30 +1239,20 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================ CTA ============================ */}
-        <section className="relative overflow-hidden border-t border-border bg-foreground text-background">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-60"
-            style={{
-              backgroundImage:
-                "radial-gradient(50% 60% at 80% 20%, rgba(251,243,219,0.06), transparent 65%), radial-gradient(40% 50% at 10% 80%, rgba(225,243,254,0.05), transparent 65%)",
-            }}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-              backgroundSize: "56px 56px",
-              maskImage:
-                "radial-gradient(60% 70% at 50% 40%, black, transparent 80%)",
-            }}
-          />
+        {/* ============================ CTA — solid purple ============================ */}
+        <section
+          className="relative overflow-hidden border-t border-border"
+          style={{
+            backgroundColor: "var(--brand)",
+            color: "var(--brand-foreground)",
+          }}
+        >
           <div className="relative mx-auto max-w-5xl px-6 py-28 text-center sm:px-8 lg:py-40">
             <p
-              className="font-mono text-[10px] uppercase tracking-[0.18em] text-background/60"
+              className="font-mono text-[10px] uppercase tracking-[0.18em]"
+              style={{
+                color: "color-mix(in oklch, var(--brand-foreground) 65%, transparent)",
+              }}
               data-reveal
             >
               Ready when you are
@@ -1135,9 +1262,14 @@ export default function LandingPage() {
               data-reveal
               style={{ ["--reveal-delay" as string]: "100ms" }}
             >
-              Cut your exam season
+              Cut your exam session
               <br />
-              <span className="italic text-background/85">
+              <span
+                className="italic"
+                style={{
+                  color: "color-mix(in oklch, var(--brand-foreground) 80%, transparent)",
+                }}
+              >
                 from a month to an afternoon.
               </span>
             </h2>
@@ -1156,7 +1288,10 @@ export default function LandingPage() {
               </Button>
               <Link
                 to="/features"
-                className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-background/85 hover:text-background"
+                className="group inline-flex items-center gap-1.5 text-[14px] font-medium"
+                style={{
+                  color: "color-mix(in oklch, var(--brand-foreground) 85%, transparent)",
+                }}
               >
                 Read the module index
                 <ArrowUpRight
@@ -1167,9 +1302,11 @@ export default function LandingPage() {
             </div>
 
             <div
-              className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 font-mono text-[10px] uppercase tracking-[0.14em] text-background/50"
+              className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 font-mono text-[10px] uppercase tracking-[0.14em]"
+              style={{
+                color: "color-mix(in oklch, var(--brand-foreground) 55%, transparent)",
+              }}
               data-reveal
-              style={{ ["--reveal-delay" as string]: "300ms" }}
             >
               <span>v4.2 · Mar 2026</span>
               <span>SOC 2 type II in progress</span>
@@ -1188,11 +1325,8 @@ export default function LandingPage() {
                   to="/"
                   className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight text-foreground"
                 >
-                  <span
-                    aria-hidden
-                    className="inline-block size-2 rotate-45 bg-foreground"
-                  />
-                  ExamNova
+                  <Logo size={22} />
+                  AuraSchedule
                 </Link>
                 <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-muted-foreground">
                   Operations OS for examinations. Schedule, distribute, seat,
@@ -1212,22 +1346,34 @@ export default function LandingPage() {
                 </p>
                 <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
-                    <Link to="/features" className="hover:text-[color:var(--accent-green-fg)]">
+                    <Link
+                      to="/features"
+                      className="hover:text-[color:var(--brand-strong)]"
+                    >
                       Modules
                     </Link>
                   </li>
                   <li>
-                    <a href="#pipeline" className="hover:text-[color:var(--accent-green-fg)]">
+                    <a
+                      href="#pipeline"
+                      className="hover:text-[color:var(--brand-strong)]"
+                    >
                       Pipeline
                     </a>
                   </li>
                   <li>
-                    <a href="#evidence" className="hover:text-[color:var(--accent-green-fg)]">
+                    <a
+                      href="#evidence"
+                      className="hover:text-[color:var(--brand-strong)]"
+                    >
                       Evidence
                     </a>
                   </li>
                   <li>
-                    <Link to="/login" className="hover:text-[color:var(--accent-green-fg)]">
+                    <Link
+                      to="/login"
+                      className="hover:text-[color:var(--brand-strong)]"
+                    >
                       Dashboard
                     </Link>
                   </li>
@@ -1240,7 +1386,10 @@ export default function LandingPage() {
                 </p>
                 <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
-                    <a href="#faq" className="hover:text-[color:var(--accent-green-fg)]">
+                    <a
+                      href="#faq"
+                      className="hover:text-[color:var(--brand-strong)]"
+                    >
                       FAQ
                     </a>
                   </li>
@@ -1257,10 +1406,10 @@ export default function LandingPage() {
                 <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
                     <a
-                      href="mailto:hello@examnova.app"
-                      className="hover:text-[color:var(--accent-green-fg)]"
+                      href="mailto:hello@auraschedule.app"
+                      className="hover:text-[color:var(--brand-strong)]"
                     >
-                      hello@examnova.app
+                      hello@auraschedule.app
                     </a>
                   </li>
                   <li className="text-muted-foreground">
@@ -1274,7 +1423,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col items-start justify-between gap-3 border-t border-border py-6 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center">
               <span>
-                &copy; {new Date().getFullYear()} ExamNova · All rights
+                &copy; {new Date().getFullYear()} AuraSchedule · All rights
                 reserved.
               </span>
               <span className="flex flex-wrap items-center gap-x-6 gap-y-1">

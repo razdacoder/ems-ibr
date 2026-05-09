@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>
+    :root { --c: oklch(0.55 0.22 285); }
+    @media (prefers-color-scheme: dark) {
+      :root { --c: oklch(0.7 0.2 285); }
+    }
+  </style>
+  <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--c)" stroke-width="1.5" opacity="0.35" />
+  <circle cx="12" cy="12" r="6.75" fill="none" stroke="var(--c)" stroke-width="1.75" />
+  <circle cx="12" cy="12" r="2.75" fill="var(--c)" />
+</svg>

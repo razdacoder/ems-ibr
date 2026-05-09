@@ -9,15 +9,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        brand:
+          "bg-[color:var(--brand)] text-[color:var(--brand-foreground)] shadow-[0_8px_22px_-12px_color-mix(in_oklch,var(--brand)_70%,transparent)] hover:bg-[color:var(--brand)]/90 hover:shadow-[0_14px_30px_-12px_color-mix(in_oklch,var(--brand)_70%,transparent)]",
         outline:
-          "border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-background shadow-xs hover:border-[color:var(--brand)]/30 hover:bg-[color:var(--brand-soft)] hover:text-[color:var(--accent-iris-fg)] aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-[color:var(--brand-soft)] hover:text-[color:var(--accent-iris-fg)] aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-[color:var(--accent-coral)] text-[color:var(--accent-coral-fg)] hover:bg-[color:var(--accent-coral)]/80 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+        link: "text-[color:var(--accent-iris-fg)] underline-offset-4 hover:underline",
       },
       size: {
         default:

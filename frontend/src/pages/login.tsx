@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -62,57 +64,61 @@ export default function LoginPage() {
 
   return (
     <div className="relative grid min-h-screen bg-background lg:grid-cols-[1.05fr_1fr]">
-      {/* Editorial pane */}
-      <div className="relative hidden overflow-hidden border-r border-[color:var(--border)] bg-[color:var(--muted)] lg:block">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(60% 50% at 80% 0%, rgba(149,100,0,0.06), transparent 60%), radial-gradient(50% 50% at 10% 90%, rgba(52,101,56,0.05), transparent 60%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(0,0,0,1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,1) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
-            maskImage:
-              "radial-gradient(60% 70% at 50% 50%, black, transparent 80%)",
-          }}
-        />
-
+      {/* Editorial pane — solid purple-soft */}
+      <div
+        className="relative hidden overflow-hidden border-r border-[color:var(--border)] lg:block"
+        style={{ backgroundColor: "var(--brand-soft)" }}
+      >
         <div className="relative flex h-full flex-col justify-between p-12 xl:p-16">
           <div className="flex items-center justify-between">
             <Link
               to="/"
               className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight"
             >
-              <span
-                aria-hidden
-                className="inline-block size-2 rotate-45 bg-foreground"
-              />
-              ExamNova
+              <Logo size={22} />
+              AuraSchedule
             </Link>
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <span
+              className="rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em]"
+              style={{
+                backgroundColor: "var(--card)",
+                color: "var(--brand-strong)",
+              }}
+            >
               v4.2 · Mar 2026
             </span>
           </div>
 
           <div className="max-w-xl">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              § Sign in
-            </p>
-            <h2 className="mt-4 font-serif text-[2.75rem] leading-[1.05] tracking-[-0.02em] text-foreground xl:text-[3.25rem]">
-              Run the exam season
+            <span
+              className="animate-fade-up inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
+              style={{
+                backgroundColor: "var(--brand)",
+                color: "var(--brand-foreground)",
+                ["--anim-delay" as string]: "60ms",
+              }}
+            >
+              <span
+                aria-hidden
+                className="size-1 rounded-full animate-pulse-soft"
+                style={{ backgroundColor: "var(--brand-foreground)" }}
+              />
+              Sign in
+            </span>
+            <h2
+              className="animate-fade-up mt-5 font-serif text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-foreground text-balance xl:text-[3.5rem]"
+              style={{ ["--anim-delay" as string]: "140ms" }}
+            >
+              Run the exam session
               <br />
-              <span className="italic text-muted-foreground">
+              <span className="italic" style={{ color: "var(--brand-strong)" }}>
                 from one quiet room.
               </span>
             </h2>
-            <p className="mt-6 max-w-md text-[15px] leading-[1.7] text-muted-foreground">
+            <p
+              className="animate-fade-up mt-6 max-w-md text-[15px] leading-[1.7] text-muted-foreground"
+              style={{ ["--anim-delay" as string]: "240ms" }}
+            >
               Schedule, distribute, seat, and document — every step in one
               place, with live progress over WebSockets.
             </p>
@@ -122,23 +128,38 @@ export default function LoginPage() {
                 "Conflict-free timetable in under a minute",
                 "Anti-cheating seat allocation with manual override",
                 "DOCX, Excel, and CSV exports ready for the printer",
-              ].map((line) => (
+              ].map((text, i) => (
                 <li
-                  key={line}
-                  className="flex items-start gap-3 text-[14px] text-foreground"
+                  key={text}
+                  className="animate-fade-up flex items-start gap-3 text-[14px] text-foreground"
+                  style={{
+                    ["--anim-delay" as string]: `${340 + i * 90}ms`,
+                  }}
                 >
-                  <span className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full bg-foreground/5">
+                  <span
+                    className="mt-0.5 inline-flex size-4 items-center justify-center rounded-full"
+                    style={{
+                      backgroundColor: "var(--brand)",
+                      color: "var(--brand-foreground)",
+                    }}
+                  >
                     <Check className="size-2.5" strokeWidth={3} />
                   </span>
-                  {line}
+                  {text}
                 </li>
               ))}
             </ul>
           </div>
 
           <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            <span>&copy; {new Date().getFullYear()} ExamNova</span>
-            <span className="flex items-center gap-1.5">
+            <span>&copy; {new Date().getFullYear()} AuraSchedule</span>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
+              style={{
+                backgroundColor: "var(--card)",
+                color: "var(--brand-strong)",
+              }}
+            >
               <Lock className="size-3" strokeWidth={2.25} />
               SOC 2 in progress · NDPR-aligned
             </span>
@@ -147,32 +168,59 @@ export default function LoginPage() {
       </div>
 
       {/* Form pane */}
-      <div className="flex flex-col">
+      <div className="relative flex flex-col">
+        {/* Theme toggle — anchored top-right of the form pane on desktop */}
+        <div className="absolute right-4 top-4 z-10 hidden lg:block">
+          <ThemeToggle size="sm" iconOnly />
+        </div>
         <div className="flex items-center justify-between border-b border-[color:var(--border)] px-6 py-5 lg:hidden">
           <Link
             to="/"
             className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
           >
-            <span
-              aria-hidden
-              className="inline-block size-1.5 rotate-45 bg-foreground"
-            />
-            ExamNova
+            <Logo size={18} />
+            AuraSchedule
           </Link>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            v4.2
-          </span>
+          <div className="flex items-center gap-2">
+            <ThemeToggle size="sm" iconOnly />
+            <span
+              className="rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+              style={{
+                backgroundColor: "var(--brand-soft)",
+                color: "var(--brand-strong)",
+              }}
+            >
+              v4.2
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-center px-6 py-16 lg:px-12">
           <div className="w-full max-w-[380px]">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              § Authenticate
-            </p>
-            <h1 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em]">
+            <span
+              className="animate-fade-up inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
+              style={{
+                backgroundColor: "var(--brand-soft)",
+                color: "var(--brand-strong)",
+              }}
+            >
+              <span
+                aria-hidden
+                className="size-1 rounded-full animate-pulse-soft"
+                style={{ backgroundColor: "var(--brand-strong)" }}
+              />
+              Authenticate
+            </span>
+            <h1
+              className="animate-fade-up mt-4 font-serif text-[2.5rem] leading-[1.02] tracking-[-0.02em]"
+              style={{ ["--anim-delay" as string]: "80ms" }}
+            >
               Sign in.
             </h1>
-            <p className="mt-3 text-[14px] leading-[1.65] text-muted-foreground">
+            <p
+              className="animate-fade-up mt-3 text-[14px] leading-[1.65] text-muted-foreground"
+              style={{ ["--anim-delay" as string]: "180ms" }}
+            >
               Use your work email and password. Need an account? Ask an
               administrator to invite you.
             </p>
@@ -180,11 +228,12 @@ export default function LoginPage() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="mt-10 space-y-5"
+                className="animate-fade-up mt-10 space-y-5"
+                style={{ ["--anim-delay" as string]: "260ms" }}
                 noValidate
               >
                 {topError && (
-                  <Alert variant="destructive" className="border-[color:var(--accent-red-fg)]/20 bg-[color:var(--accent-red)]/40 text-[color:var(--accent-red-fg)]">
+                  <Alert variant="destructive" className="border-[color:var(--destructive)]/30 bg-[color:var(--destructive)]/10 text-[color:var(--destructive)]">
                     <AlertDescription>{topError}</AlertDescription>
                   </Alert>
                 )}
@@ -232,6 +281,7 @@ export default function LoginPage() {
                 />
                 <Button
                   type="submit"
+                  variant="brand"
                   size="lg"
                   className="h-11 w-full rounded-md"
                   disabled={form.formState.isSubmitting}
@@ -245,10 +295,10 @@ export default function LoginPage() {
             </Form>
 
             <div className="mt-12 flex items-center gap-3 border-t border-[color:var(--border)] pt-6 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              <span className="relative inline-flex size-1.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-[color:var(--accent-green-fg)]/60" />
-                <span className="relative size-1.5 rounded-full bg-[color:var(--accent-green-fg)]" />
-              </span>
+              <span
+                className="size-1.5 rounded-full animate-pulse-soft"
+                style={{ backgroundColor: "var(--brand)" }}
+              />
               System nominal · 99.97% uptime · 90d
             </div>
           </div>

@@ -1,14 +1,33 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <title>ExamNova — Exam scheduling, hall distribution & seat allocation</title>
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>AuraSchedule — Exam scheduling, hall distribution & seat allocation</title>
     <meta
       name="description"
-      content="ExamNova schedules, distributes, seats, and documents every exam. Automated timetable generation, hall distribution, seat allocation, and broadsheet exports."
+      content="AuraSchedule schedules, distributes, seats, and documents every exam. Automated timetable generation, hall distribution, seat allocation, and broadsheet exports."
     />
+    <script>
+      // Apply theme before paint to avoid a flash of the wrong palette.
+      // Mirrors lib/theme.tsx — keep keys/values in sync.
+      (function () {
+        try {
+          var stored = localStorage.getItem("auraschedule:theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          var root = document.documentElement;
+          if (theme === "dark") root.classList.add("dark");
+          root.style.colorScheme = theme;
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

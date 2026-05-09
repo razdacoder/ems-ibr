@@ -73,7 +73,7 @@ export default function UploadsPage() {
           </AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
             <span>
-              A timetable already exists for this season. Re-enable uploads to
+              A timetable already exists for this session. Re-enable uploads to
               ingest new data — the existing timetable will be invalidated.
             </span>
             <Button

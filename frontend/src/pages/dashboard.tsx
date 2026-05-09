@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useDashboardStats } from "@/api/system";
 import { useAuth } from "@/lib/auth";
+import { useReveal } from "@/lib/use-reveal";
 import {
   ArrowUpRight,
   Building2,
@@ -9,43 +10,82 @@ import {
   GraduationCap,
   Grid3x3,
   School,
+  Sparkles,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const TILES = [
+const TILES: Array<{
+  key:
+    | "departments_count"
+    | "classes_count"
+    | "courses_count"
+    | "halls_count"
+    | "students_count";
+  label: string;
+  icon: typeof Building2;
+  to: string;
+  /** Admin-only routes/data — staff users should not see these tiles. */
+  adminOnly?: boolean;
+}> = [
   {
-    key: "departments_count" as const,
+    key: "departments_count",
     label: "Departments",
     icon: Building2,
     to: "/departments",
+    adminOnly: true,
   },
   {
-    key: "classes_count" as const,
+    key: "classes_count",
     label: "Classes",
     icon: School,
     to: "/classes",
   },
   {
-    key: "courses_count" as const,
+    key: "courses_count",
     label: "Courses",
     icon: ClipboardList,
     to: "/courses",
   },
   {
-    key: "halls_count" as const,
+    key: "halls_count",
     label: "Halls",
     icon: Grid3x3,
     to: "/halls",
+    adminOnly: true,
   },
   {
-    key: "students_count" as const,
+    key: "students_count",
     label: "Students",
     icon: GraduationCap,
     to: "/students",
   },
 ];
 
+const OPS = [
+  {
+    to: "/timetable",
+    label: "Timetable",
+    hint: "Generate or review the session grid.",
+  },
+  {
+    to: "/distribution",
+    label: "Distribution",
+    hint: "Capacity-aware hall assignment.",
+  },
+  {
+    to: "/allocation",
+    label: "Allocation",
+    hint: "Seat-by-seat anti-cheating placement.",
+  },
+  {
+    to: "/jobs",
+    label: "Jobs",
+    hint: "Live progress for in-flight runs.",
+  },
+];
+
 export default function DashboardPage() {
+  useReveal();
   const { user } = useAuth();
   const stats = useDashboardStats();
   const greeting = (() => {
@@ -61,48 +101,91 @@ export default function DashboardPage() {
     year: "numeric",
   });
 
+  const visibleTiles = TILES.filter((t) => !t.adminOnly || user?.is_staff);
+  // Static class strings so Tailwind can statically analyse them.
+  const tileColsClass =
+    visibleTiles.length >= 5
+      ? "lg:grid-cols-5"
+      : visibleTiles.length === 4
+        ? "lg:grid-cols-4"
+        : "lg:grid-cols-3";
+
   return (
-    <div className="space-y-12">
-      {/* HEADER */}
-      <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-10 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            § Overview · {today}
-          </p>
-          <h1 className="mt-3 font-serif text-[2.75rem] leading-[1.05] tracking-[-0.015em] sm:text-[3.25rem]">
-            {greeting},{" "}
-            <span className="italic text-muted-foreground">
-              {user?.first_name ?? user?.full_name ?? user?.email}
-            </span>
-            .
-          </h1>
-        </div>
-        <dl className="flex flex-col items-end gap-1 self-start sm:self-end">
-          <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            Active session
-          </dt>
-          {stats.isLoading ? (
-            <Skeleton className="h-7 w-32" />
-          ) : (
-            <dd className="font-serif text-[1.5rem] tabular-nums">
-              {stats.data?.settings.session}
-              <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                · {stats.data?.settings.semester}
+    <div className="space-y-14">
+      {/* HEADER — solid purple-soft pane */}
+      <header
+        data-reveal
+        className="relative overflow-hidden rounded-[20px] border border-[color:var(--border)]"
+        style={{ backgroundColor: "var(--brand-soft)" }}
+      >
+        <div className="relative flex flex-col gap-8 px-8 py-10 sm:flex-row sm:items-end sm:justify-between sm:px-12 sm:py-14">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em]"
+                style={{
+                  backgroundColor: "var(--brand)",
+                  color: "var(--brand-foreground)",
+                }}
+              >
+                <Sparkles className="size-3" strokeWidth={2.25} />
+                Overview
               </span>
-            </dd>
-          )}
-        </dl>
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                {today}
+              </span>
+            </div>
+            <h1 className="mt-5 max-w-[18ch] font-serif text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-balance sm:text-[3.5rem]">
+              {greeting},{" "}
+              <span
+                className="italic"
+                style={{ color: "var(--brand-strong)" }}
+              >
+                {user?.first_name ?? user?.full_name ?? user?.email}
+              </span>
+              .
+            </h1>
+          </div>
+          <dl className="flex flex-col items-end gap-1 self-start sm:self-end">
+            <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Active session
+            </dt>
+            {stats.isLoading ? (
+              <Skeleton className="h-7 w-32" />
+            ) : (
+              <dd className="font-serif text-[1.625rem] leading-tight tabular-nums">
+                {stats.data?.settings.session}
+                <span
+                  className="ml-2 inline-block rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--card)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
+                  {stats.data?.settings.semester}
+                </span>
+              </dd>
+            )}
+          </dl>
+        </div>
       </header>
 
-      {/* STATS */}
+      {/* STATS — purple-coded tiles */}
       <section>
-        <div className="mb-6 flex items-end justify-between">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            § 01 — Catalog
-          </p>
+        <div data-reveal className="mb-6 flex items-end justify-between">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full animate-pulse-soft"
+              style={{ backgroundColor: "var(--brand)" }}
+            />
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              01 — Catalog
+            </p>
+          </div>
           <Link
             to="/departments"
-            className="group inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+            className="group inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-[color:var(--brand-strong)]"
           >
             View all
             <ArrowUpRight
@@ -111,26 +194,43 @@ export default function DashboardPage() {
             />
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] border border-[color:var(--border)] bg-[color:var(--border)] sm:grid-cols-3 lg:grid-cols-5">
-          {TILES.map(({ key, label, icon: Icon, to }) => (
+        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${tileColsClass}`}>
+          {visibleTiles.map(({ key, label, icon: Icon, to }, i) => (
             <Link
               key={key}
               to={to}
-              className="group relative flex flex-col justify-between gap-6 bg-card p-6 transition-colors hover:bg-[color:var(--muted)]"
+              data-reveal
+              style={
+                {
+                  "--reveal-delay": `${i * 70}ms`,
+                } as React.CSSProperties
+              }
+              className="group relative flex flex-col justify-between gap-6 overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)]/40 hover:shadow-[0_18px_40px_-22px_color-mix(in_oklch,var(--brand)_55%,transparent)]"
             >
+              {/* Solid purple rail at top, scales in on hover */}
+              <span
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100"
+                style={{ backgroundColor: "var(--brand)" }}
+              />
               <div className="flex items-start justify-between">
                 <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   {label}
                 </span>
-                <Icon
-                  className="size-3.5 text-muted-foreground transition-colors group-hover:text-foreground"
-                  strokeWidth={2}
-                />
+                <span
+                  className="grid size-7 place-items-center rounded-md transition-colors"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
+                  <Icon className="size-3.5" strokeWidth={2} />
+                </span>
               </div>
               {stats.isLoading ? (
                 <Skeleton className="h-10 w-24" />
               ) : (
-                <div className="font-serif text-[2.5rem] leading-none tabular-nums tracking-[-0.01em]">
+                <div className="font-serif text-[2.5rem] leading-none tabular-nums tracking-[-0.02em]">
                   {(stats.data?.[key] ?? 0).toLocaleString()}
                 </div>
               )}
@@ -139,65 +239,54 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* OPERATIONS QUICK NAV */}
+      {/* OPERATIONS — purple chips, hint as the lead */}
       <section>
-        <div className="mb-6 flex items-end justify-between">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            § 02 — Operations
-          </p>
+        <div data-reveal className="mb-6 flex items-end justify-between">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full animate-pulse-soft"
+              style={{ backgroundColor: "var(--brand)" }}
+            />
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              02 — Operations
+            </p>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              to: "/timetable",
-              label: "Timetable",
-              hint: "Generate or review the season grid.",
-              accent: "var(--accent-yellow)",
-              accentFg: "var(--accent-yellow-fg)",
-            },
-            {
-              to: "/distribution",
-              label: "Distribution",
-              hint: "Capacity-aware hall assignment.",
-              accent: "var(--accent-blue)",
-              accentFg: "var(--accent-blue-fg)",
-            },
-            {
-              to: "/allocation",
-              label: "Allocation",
-              hint: "Seat-by-seat anti-cheating placement.",
-              accent: "var(--accent-red)",
-              accentFg: "var(--accent-red-fg)",
-            },
-            {
-              to: "/jobs",
-              label: "Jobs",
-              hint: "Live progress for in-flight runs.",
-              accent: "var(--accent-green)",
-              accentFg: "var(--accent-green-fg)",
-            },
-          ].map((op) => (
+          {OPS.map((op, i) => (
             <Link
               key={op.to}
               to={op.to}
-              className="group flex flex-col justify-between gap-6 rounded-[12px] border border-[color:var(--border)] bg-card p-5 transition-all duration-300 hover:-translate-y-px hover:border-foreground/20"
+              data-reveal
+              style={
+                {
+                  "--reveal-delay": `${i * 90}ms`,
+                } as React.CSSProperties
+              }
+              className="group relative flex flex-col justify-between gap-7 overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)]/40 hover:shadow-[0_22px_44px_-26px_color-mix(in_oklch,var(--brand)_60%,transparent)]"
             >
-              <div className="flex items-center justify-between">
+              <div className="relative flex items-center justify-between">
                 <span
-                  className="inline-block rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em]"
                   style={{
-                    backgroundColor: op.accent,
-                    color: op.accentFg,
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
                   }}
                 >
+                  <span
+                    aria-hidden
+                    className="size-1 rounded-full"
+                    style={{ backgroundColor: "var(--brand-strong)" }}
+                  />
                   {op.label}
                 </span>
                 <ArrowUpRight
-                  className="size-3.5 text-muted-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground"
+                  className="size-3.5 text-muted-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[color:var(--brand-strong)]"
                   strokeWidth={2.25}
                 />
               </div>
-              <p className="font-serif text-[1.25rem] leading-snug tracking-[-0.005em]">
+              <p className="relative font-serif text-[1.25rem] leading-snug tracking-[-0.005em]">
                 {op.hint}
               </p>
             </Link>
@@ -208,14 +297,27 @@ export default function DashboardPage() {
       {/* SHARED COURSES (admin) */}
       {user?.is_staff && (stats.data?.shared_courses_count ?? 0) > 0 && (
         <section>
-          <div className="mb-6 flex items-end justify-between">
+          <div data-reveal className="mb-6 flex items-end justify-between">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                § 03 — Cross-department
-              </p>
-              <h2 className="mt-2 flex items-center gap-3 font-serif text-[2rem] leading-[1.05] tracking-[-0.015em]">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full animate-pulse-soft"
+                  style={{ backgroundColor: "var(--brand)" }}
+                />
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  03 — Cross-department
+                </p>
+              </div>
+              <h2 className="mt-2 flex flex-wrap items-center gap-3 font-serif text-[2rem] leading-[1.05] tracking-[-0.015em]">
                 Shared courses
-                <span className="rounded-full bg-[color:var(--accent-yellow)] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--accent-yellow-fg)]">
+                <span
+                  className="rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                  style={{
+                    backgroundColor: "var(--brand-soft)",
+                    color: "var(--brand-strong)",
+                  }}
+                >
                   {stats.data?.shared_courses_count} flagged
                 </span>
               </h2>
@@ -226,78 +328,118 @@ export default function DashboardPage() {
             />
           </div>
           <p className="mb-6 max-w-2xl text-[14px] leading-[1.65] text-muted-foreground">
-            Courses appearing in classes across multiple departments — these
-            create cross-department timetable constraints. Review them before
-            generating the next run.
+            Courses appearing across multiple departments — each bar shows how
+            that course's classes are distributed. Hover a segment for the
+            department and class count.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {stats.data?.shared_courses.slice(0, 8).map((c) => {
-              const totalClasses = c.departments.reduce(
+
+          {(() => {
+            const courses = stats.data?.shared_courses.slice(0, 12) ?? [];
+            const courseTotals = courses.map((c) =>
+              c.departments.reduce(
                 (n, d) => n + d.classes.filter(Boolean).length,
                 0,
-              );
-              return (
-                <article
-                  key={c.code}
-                  className="group flex flex-col rounded-[12px] border border-[color:var(--border)] bg-card p-5 transition-colors hover:border-foreground/25"
-                >
-                  {/* Header */}
-                  <header className="flex items-start justify-between gap-4 border-b border-[color:var(--border)] pb-4">
-                    <div className="min-w-0">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                        {c.code}
-                      </p>
-                      <h3 className="mt-1.5 font-serif text-[1.125rem] leading-tight tracking-[-0.005em]">
-                        {c.name}
-                      </h3>
-                    </div>
-                    <span
-                      className="shrink-0 rounded-full bg-[color:var(--accent-yellow)] px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[color:var(--accent-yellow-fg)]"
-                      title="Departments × Classes coupled by this course"
-                    >
-                      {c.dept_count} × {totalClasses}
-                    </span>
-                  </header>
+              ),
+            );
+            const maxClasses = Math.max(1, ...courseTotals);
 
-                  {/* Department-grouped class lists */}
-                  <div
-                    className="mt-4 grid gap-x-5 gap-y-4"
-                    style={{
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(110px, 1fr))",
-                    }}
-                  >
-                    {c.departments.map((d) => (
-                      <div
-                        key={d.name}
-                        className="border-l border-[color:var(--border)] pl-3 transition-colors group-hover:border-foreground/40"
+            return (
+              <div
+                data-reveal
+                className="rounded-[16px] border border-[color:var(--border)] bg-card p-6 sm:p-7"
+              >
+                {/* Axis label */}
+                <div className="mb-5 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  <span>Course · departments</span>
+                  <span className="tabular-nums">
+                    classes 0 — {maxClasses}
+                  </span>
+                </div>
+
+                <ol className="space-y-3">
+                  {courses.map((c, idx) => {
+                    const total = courseTotals[idx];
+                    const widthPct = (total / maxClasses) * 100;
+                    const segments = c.departments
+                      .map((d) => ({
+                        name: d.name,
+                        cls: d.classes.filter(Boolean).length,
+                      }))
+                      .filter((s) => s.cls > 0);
+                    return (
+                      <li
+                        key={c.code}
+                        className="group/row grid items-center gap-x-3 gap-y-1"
+                        style={{
+                          gridTemplateColumns:
+                            "minmax(72px, 88px) minmax(0, 1fr) 28px",
+                        }}
                       >
-                        <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-foreground">
-                          {d.name}
-                        </p>
-                        <ul className="mt-2 space-y-0.5">
-                          {d.classes.map((cls, i) => (
-                            <li
-                              key={`${d.name}-${cls ?? i}`}
-                              className="font-mono text-[11px] tabular-nums text-muted-foreground"
-                            >
-                              {cls ?? "—"}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                        {/* Code */}
+                        <span
+                          title={c.name}
+                          className="truncate font-mono text-[11px] uppercase tracking-[0.14em] tabular-nums"
+                          style={{ color: "var(--brand-strong)" }}
+                        >
+                          {c.code}
+                        </span>
 
-          {(stats.data?.shared_courses_count ?? 0) > 8 && (
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Showing 8 of {stats.data?.shared_courses_count} flagged courses
-            </p>
-          )}
+                        {/* Stacked distribution bar */}
+                        <div className="relative h-7 overflow-hidden rounded-[6px] bg-muted">
+                          <div
+                            data-fill
+                            className="flex h-full"
+                            style={
+                              {
+                                "--fill-w": `${widthPct}%`,
+                                "--reveal-delay": `${idx * 70}ms`,
+                              } as React.CSSProperties
+                            }
+                          >
+                            {segments.map((s) => {
+                              const segPct = (s.cls / total) * 100;
+                              const label = `${s.cls === 1 ? "1 class" : `${s.cls} classes`}`;
+                              return (
+                                <span
+                                  key={s.name}
+                                  title={`${s.name} · ${label}`}
+                                  className="h-full transition-opacity duration-200 hover:opacity-90"
+                                  style={{
+                                    width: `${segPct}%`,
+                                    backgroundColor: "var(--brand)",
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Total */}
+                        <span className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+                          {total}
+                        </span>
+
+                        {/* Course name on a tight second line */}
+                        <span
+                          className="col-start-2 truncate font-serif text-[12.5px] italic leading-snug text-muted-foreground"
+                          title={c.name}
+                        >
+                          {c.name}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                {(stats.data?.shared_courses_count ?? 0) > 12 && (
+                  <p className="mt-5 border-t border-[color:var(--border)] pt-4 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Showing 12 of {stats.data?.shared_courses_count} flagged
+                    courses
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </section>
       )}
     </div>

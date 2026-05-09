@@ -37,6 +37,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -60,97 +64,139 @@
 
 :root {
   /* Warm bone canvas, off-black ink, ultra-light borders */
-  --background: oklch(0.985 0.003 90);
-  --foreground: oklch(0.18 0.005 90);
+  --background: oklch(0.985 0.004 90);
+  --foreground: oklch(0.18 0.008 285);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.005 90);
+  --card-foreground: oklch(0.18 0.008 285);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.005 90);
-  /* Primary: warm off-black — green stays a spot accent, not primary */
-  --primary: oklch(0.18 0.005 90);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.003 90);
-  --secondary-foreground: oklch(0.18 0.005 90);
-  --muted: oklch(0.97 0.003 90);
-  --muted-foreground: oklch(0.55 0.005 90);
-  --accent: oklch(0.97 0.003 90);
-  --accent-foreground: oklch(0.18 0.005 90);
-  --destructive: oklch(0.55 0.18 27);
-  --destructive-foreground: oklch(0.985 0.005 240);
-  --border: oklch(0.92 0.003 90);
-  --input: oklch(0.92 0.003 90);
-  --ring: oklch(0.55 0.005 90);
-  --radius: 0.5rem;
-  /* Editorial pastel accents — used by tags, status pills */
-  --accent-green: oklch(0.94 0.025 145);
-  --accent-green-fg: oklch(0.42 0.07 145);
-  --accent-blue: oklch(0.94 0.03 235);
-  --accent-blue-fg: oklch(0.45 0.1 235);
-  --accent-yellow: oklch(0.95 0.045 90);
-  --accent-yellow-fg: oklch(0.5 0.1 70);
-  --accent-red: oklch(0.94 0.025 25);
-  --accent-red-fg: oklch(0.5 0.13 25);
-  /* Charts retain a green-leaning data palette but desaturated */
-  --chart-1: oklch(0.65 0.08 145);
-  --chart-2: oklch(0.55 0.07 145);
-  --chart-3: oklch(0.45 0.06 145);
-  --chart-4: oklch(0.35 0.05 145);
-  --chart-5: oklch(0.25 0.03 145);
-  --sidebar: oklch(0.985 0.003 90);
-  --sidebar-foreground: oklch(0.18 0.005 90);
-  --sidebar-primary: oklch(0.18 0.005 90);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.97 0.003 90);
-  --sidebar-accent-foreground: oklch(0.18 0.005 90);
-  --sidebar-border: oklch(0.92 0.003 90);
-  --sidebar-ring: oklch(0.55 0.005 90);
+  --popover-foreground: oklch(0.18 0.008 285);
+
+  /* Brand: single purple — every accent in the system resolves to this. */
+  --brand: oklch(0.55 0.22 285);
+  --brand-foreground: oklch(0.99 0.005 285);
+  --brand-soft: oklch(0.95 0.045 285);
+  --brand-strong: oklch(0.42 0.21 285);
+
+  --primary: oklch(0.18 0.008 285);
+  --primary-foreground: oklch(0.99 0.003 90);
+  --secondary: oklch(0.97 0.005 285);
+  --secondary-foreground: oklch(0.18 0.008 285);
+  --muted: oklch(0.97 0.005 90);
+  --muted-foreground: oklch(0.5 0.012 285);
+  --accent: var(--brand-soft);
+  --accent-foreground: var(--brand-strong);
+  --destructive: oklch(0.6 0.21 25);
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(0.92 0.006 285);
+  --input: oklch(0.92 0.006 285);
+  --ring: var(--brand);
+  --radius: 0.625rem;
+
+  /* All semantic accent slots resolve to the same purple pair. Status
+     differentiation is carried by labels and icons, not hue. */
+  --accent-iris: var(--brand-soft);
+  --accent-iris-fg: var(--brand-strong);
+  --accent-amber: var(--brand-soft);
+  --accent-amber-fg: var(--brand-strong);
+  --accent-coral: var(--brand-soft);
+  --accent-coral-fg: var(--brand-strong);
+  --accent-teal: var(--brand-soft);
+  --accent-teal-fg: var(--brand-strong);
+  --accent-lime: var(--brand-soft);
+  --accent-lime-fg: var(--brand-strong);
+  --accent-plum: var(--brand-soft);
+  --accent-plum-fg: var(--brand-strong);
+
+  /* Legacy aliases — keep existing call sites working without churn. */
+  --accent-green: var(--brand-soft);
+  --accent-green-fg: var(--brand-strong);
+  --accent-blue: var(--brand-soft);
+  --accent-blue-fg: var(--brand-strong);
+  --accent-yellow: var(--brand-soft);
+  --accent-yellow-fg: var(--brand-strong);
+  --accent-red: var(--brand-soft);
+  --accent-red-fg: var(--brand-strong);
+
+  /* Chart series — purple shades from light to deep, no hue rotation. */
+  --chart-1: oklch(0.78 0.12 285);
+  --chart-2: oklch(0.66 0.18 285);
+  --chart-3: oklch(0.55 0.22 285);
+  --chart-4: oklch(0.42 0.21 285);
+  --chart-5: oklch(0.3 0.16 285);
+
+  --sidebar: oklch(0.985 0.004 90);
+  --sidebar-foreground: oklch(0.18 0.008 285);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: var(--brand-soft);
+  --sidebar-accent-foreground: var(--brand-strong);
+  --sidebar-border: oklch(0.92 0.006 285);
+  --sidebar-ring: var(--brand);
 }
 
 .dark {
-  /* Warm off-black canvas, soft warm white ink */
-  --background: oklch(0.155 0.005 90);
+  --background: oklch(0.155 0.012 285);
   --foreground: oklch(0.94 0.005 90);
-  --card: oklch(0.195 0.005 90);
+  --card: oklch(0.2 0.014 285);
   --card-foreground: oklch(0.94 0.005 90);
-  --popover: oklch(0.195 0.005 90);
+  --popover: oklch(0.2 0.014 285);
   --popover-foreground: oklch(0.94 0.005 90);
-  /* Primary inverts: warm off-white surface with off-black text */
+
+  --brand: oklch(0.7 0.2 285);
+  --brand-foreground: oklch(0.155 0.012 285);
+  --brand-soft: oklch(0.32 0.1 285);
+  --brand-strong: oklch(0.84 0.15 285);
+
   --primary: oklch(0.94 0.005 90);
-  --primary-foreground: oklch(0.155 0.005 90);
-  --secondary: oklch(0.22 0.005 90);
+  --primary-foreground: oklch(0.155 0.012 285);
+  --secondary: oklch(0.23 0.014 285);
   --secondary-foreground: oklch(0.94 0.005 90);
-  --muted: oklch(0.22 0.005 90);
-  --muted-foreground: oklch(0.68 0.005 90);
-  --accent: oklch(0.22 0.005 90);
-  --accent-foreground: oklch(0.94 0.005 90);
-  --destructive: oklch(0.62 0.18 25);
-  --destructive-foreground: oklch(0.985 0.005 240);
-  --border: oklch(0.28 0.005 90);
-  --input: oklch(0.28 0.005 90);
-  --ring: oklch(0.55 0.005 90);
-  /* Editorial pastel accents — deeper backgrounds, brighter foregrounds */
-  --accent-green: oklch(0.28 0.045 145);
-  --accent-green-fg: oklch(0.78 0.12 145);
-  --accent-blue: oklch(0.28 0.05 235);
-  --accent-blue-fg: oklch(0.78 0.13 235);
-  --accent-yellow: oklch(0.3 0.06 80);
-  --accent-yellow-fg: oklch(0.82 0.13 85);
-  --accent-red: oklch(0.3 0.06 25);
-  --accent-red-fg: oklch(0.78 0.14 25);
-  /* Charts: brighter at the top end for dark canvas legibility */
-  --chart-1: oklch(0.78 0.12 145);
-  --chart-2: oklch(0.66 0.1 145);
-  --chart-3: oklch(0.55 0.085 145);
-  --chart-4: oklch(0.45 0.07 145);
-  --chart-5: oklch(0.36 0.055 145);
-  --sidebar: oklch(0.165 0.005 90);
+  --muted: oklch(0.23 0.014 285);
+  --muted-foreground: oklch(0.7 0.012 285);
+  --accent: var(--brand-soft);
+  --accent-foreground: var(--brand-strong);
+  --destructive: oklch(0.66 0.22 25);
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(0.3 0.014 285);
+  --input: oklch(0.3 0.014 285);
+  --ring: var(--brand);
+
+  --accent-iris: var(--brand-soft);
+  --accent-iris-fg: var(--brand-strong);
+  --accent-amber: var(--brand-soft);
+  --accent-amber-fg: var(--brand-strong);
+  --accent-coral: var(--brand-soft);
+  --accent-coral-fg: var(--brand-strong);
+  --accent-teal: var(--brand-soft);
+  --accent-teal-fg: var(--brand-strong);
+  --accent-lime: var(--brand-soft);
+  --accent-lime-fg: var(--brand-strong);
+  --accent-plum: var(--brand-soft);
+  --accent-plum-fg: var(--brand-strong);
+
+  --accent-green: var(--brand-soft);
+  --accent-green-fg: var(--brand-strong);
+  --accent-blue: var(--brand-soft);
+  --accent-blue-fg: var(--brand-strong);
+  --accent-yellow: var(--brand-soft);
+  --accent-yellow-fg: var(--brand-strong);
+  --accent-red: var(--brand-soft);
+  --accent-red-fg: var(--brand-strong);
+
+  --chart-1: oklch(0.86 0.13 285);
+  --chart-2: oklch(0.78 0.18 285);
+  --chart-3: oklch(0.7 0.2 285);
+  --chart-4: oklch(0.55 0.18 285);
+  --chart-5: oklch(0.42 0.13 285);
+
+  --sidebar: oklch(0.165 0.012 285);
   --sidebar-foreground: oklch(0.94 0.005 90);
-  --sidebar-primary: oklch(0.94 0.005 90);
-  --sidebar-primary-foreground: oklch(0.155 0.005 90);
-  --sidebar-accent: oklch(0.22 0.005 90);
-  --sidebar-accent-foreground: oklch(0.94 0.005 90);
-  --sidebar-border: oklch(0.28 0.005 90);
-  --sidebar-ring: oklch(0.55 0.005 90);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: var(--brand-soft);
+  --sidebar-accent-foreground: var(--brand-strong);
+  --sidebar-border: oklch(0.3 0.014 285);
+  --sidebar-ring: var(--brand);
 }
 
 @layer base {
@@ -169,6 +215,10 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+  ::selection {
+    background-color: color-mix(in oklch, var(--brand) 28%, transparent);
+    color: var(--foreground);
+  }
 }
 
 @layer utilities {
@@ -179,6 +229,7 @@
     font-family: var(--font-mono);
   }
 
+  /* Reveal-on-scroll primitive (used across pages). */
   [data-reveal] {
     opacity: 0;
     transform: translateY(12px);
@@ -192,25 +243,60 @@
     opacity: 1;
     transform: none;
   }
+
+  /* SVG path draw-on-view. The path needs a finite stroke-dasharray length
+     declared via --draw-len (use the path's pathLength attribute, e.g. 100,
+     and set --draw-len: 100). */
+  [data-draw] {
+    stroke-dasharray: var(--draw-len, 100);
+    stroke-dashoffset: var(--draw-len, 100);
+    transition: stroke-dashoffset 1200ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  [data-draw].is-visible {
+    stroke-dashoffset: 0;
+  }
+
+  /* Bar/box height grows in. Target height supplied via --grow-h. */
+  [data-grow] {
+    height: 0;
+    transition: height 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: height;
+  }
+  [data-grow].is-visible {
+    height: var(--grow-h, 0);
+  }
+
+  /* Progress-bar width fills in. Target width supplied via --fill-w. */
+  [data-fill] {
+    width: 0;
+    transition: width 1400ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: width;
+  }
+  [data-fill].is-visible {
+    width: var(--fill-w, 0);
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    [data-reveal] {
+    [data-reveal],
+    [data-draw],
+    [data-grow],
+    [data-fill] {
       opacity: 1;
       transform: none;
       transition: none;
     }
-  }
-
-  @keyframes drift {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0);
+    [data-draw] {
+      stroke-dashoffset: 0;
     }
-    50% {
-      transform: translate3d(2%, -1%, 0);
+    [data-grow] {
+      height: var(--grow-h, auto);
     }
-  }
-  .ambient-drift {
-    animation: drift 24s ease-in-out infinite;
+    [data-fill] {
+      width: var(--fill-w, auto);
+    }
   }
 
   @keyframes marquee {
@@ -223,5 +309,89 @@
   }
   .marquee-track {
     animation: marquee 38s linear infinite;
+  }
+
+  /* First-paint fade-up — for elements that should animate in once on mount,
+     without the IntersectionObserver dance. */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .animate-fade-up {
+    animation: fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--anim-delay, 0ms);
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .animate-fade-in {
+    animation: fade-in 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--anim-delay, 0ms);
+  }
+
+  /* Slow continuous pulse for status dots / live indicators. */
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.85;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 2.4s ease-in-out infinite;
+  }
+
+  /* Hover underline draw — pair with `group` parent. */
+  .draw-underline {
+    position: relative;
+  }
+  .draw-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    height: 1px;
+    width: 100%;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .draw-underline:hover::after,
+  .group:hover .draw-underline::after {
+    transform: scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-up,
+    .animate-fade-in,
+    .animate-pulse-soft,
+    .marquee-track {
+      animation: none !important;
+    }
+    .draw-underline::after {
+      transition: none !important;
+    }
+  }
+
+  /* Solid purple shadow — replaces tinted/gradient shadow recipes. */
+  .shadow-brand {
+    box-shadow: 0 12px 28px -16px color-mix(in oklch, var(--brand) 55%, transparent);
   }
 }

@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 
+type Tone = "iris" | "amber" | "coral" | "teal" | "lime" | "plum";
+
 interface Props {
   section: string;
   title: string;
   description?: string;
   meta?: ReactNode;
   actions?: ReactNode;
+  /** Color tone for the section chip. Defaults to iris (brand). */
+  tone?: Tone;
   /** Reserved — currently only "editorial" is rendered. */
   variant?: "editorial";
 }
@@ -16,14 +20,26 @@ export function PageHeader({
   description,
   meta,
   actions,
+  tone = "iris",
 }: Props) {
   return (
     <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          § {section}
-        </p>
-        <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
+          style={{
+            backgroundColor: `var(--accent-${tone})`,
+            color: `var(--accent-${tone}-fg)`,
+          }}
+        >
+          <span
+            aria-hidden
+            className="size-1 rounded-full"
+            style={{ backgroundColor: `var(--accent-${tone}-fg)` }}
+          />
+          {section}
+        </span>
+        <h1 className="mt-4 font-serif text-[2.5rem] leading-[1.02] tracking-[-0.02em] text-balance sm:text-[3rem]">
           {title}
         </h1>
         {description && (
