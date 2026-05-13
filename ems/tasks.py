@@ -180,6 +180,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             fullday_threshold=constraints.cbe_fullday_threshold,
             daily_cap=constraints.cbe_daily_cap_per_period,
             pbe_utilization=float(constraints.pbe_hall_utilization),
+            cbe_group_count=constraints.cbe_group_count,
+            cbe_faculty_groups=constraints.cbe_faculty_groups or {},
         )
         
         print(f"[TASK] Timetable generation completed")

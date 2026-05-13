@@ -18,6 +18,8 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
             "cbe_autosplit_threshold",
             "cbe_fullday_threshold",
             "cbe_daily_cap_per_period",
+            "cbe_group_count",
+            "cbe_faculty_groups",
             "pbe_hall_utilization",
             "excluded_weekdays",
             "class_period_overrides",
@@ -68,6 +70,39 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Must be between 0 and 100.")
         return value
+
+    def validate_cbe_group_count(self, value):
+        if value is None or value < 2:
+            raise serializers.ValidationError("Must be at least 2.")
+        if value > 10:
+            raise serializers.ValidationError(
+                "Too many groups (max 10). Reduce and try again."
+            )
+        return value
+
+    def validate_cbe_faculty_groups(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(
+                "Expected an object mapping faculty slug → group number."
+            )
+        cleaned: dict[str, int] = {}
+        for slug, group in value.items():
+            if not isinstance(slug, str) or not slug.strip():
+                raise serializers.ValidationError(
+                    "Faculty slugs must be non-empty strings."
+                )
+            try:
+                num = int(group)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError(
+                    f"Group for '{slug}' must be an integer (got {group!r})."
+                )
+            if num < 1:
+                raise serializers.ValidationError(
+                    f"Group for '{slug}' must be ≥ 1."
+                )
+            cleaned[slug.strip()] = num
+        return cleaned
 
     def validate_class_period_overrides(self, value):
         if not isinstance(value, dict):
@@ -122,4 +157,27 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
                     )
                 }
             )
+
+        # Faculty-group numbers must fit within the configured group count.
+        group_count = attrs.get(
+            "cbe_group_count",
+            getattr(self.instance, "cbe_group_count", None),
+        )
+        faculty_groups = attrs.get(
+            "cbe_faculty_groups",
+            getattr(self.instance, "cbe_faculty_groups", None),
+        )
+        if group_count and faculty_groups:
+            out_of_range = sorted(
+                {slug for slug, g in faculty_groups.items() if g > group_count}
+            )
+            if out_of_range:
+                raise serializers.ValidationError(
+                    {
+                        "cbe_faculty_groups": (
+                            f"Group numbers exceed cbe_group_count={group_count}: "
+                            f"{', '.join(out_of_range)}."
+                        )
+                    }
+                )
         return attrs

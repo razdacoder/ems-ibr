@@ -2,12 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export type ClassPeriodOverrides = Record<string, "AM" | "PM">;
+export type FacultyGroupMap = Record<string, number>;
 
 export interface GenerationConstraints {
   id: number;
   cbe_autosplit_threshold: number;
   cbe_fullday_threshold: number;
   cbe_daily_cap_per_period: number;
+  cbe_group_count: number;
+  cbe_faculty_groups: FacultyGroupMap;
   pbe_hall_utilization: string; // DRF DecimalField serializes as string
   excluded_weekdays: number[];
   class_period_overrides: ClassPeriodOverrides;

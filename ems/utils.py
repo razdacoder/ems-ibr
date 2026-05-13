@@ -34,9 +34,16 @@ def get_halls():
 
 # Get courses to memory location
 def get_courses():
-    """To get courses based on classes object"""
+    """To get courses based on classes object.
+
+    Each class also carries its department + faculty slugs so the CBE
+    auto-split routine can bucket classes by faculty without re-querying.
+    """
     courses = Course.objects.prefetch_related(
-        Prefetch("courses", queryset=Class.objects.select_related("department"))
+        Prefetch(
+            "courses",
+            queryset=Class.objects.select_related("department__faculty"),
+        )
     ).all()
 
     return [
@@ -49,6 +56,12 @@ def get_courses():
                     "id": cls.id,
                     "name": cls.name,
                     "size": cls.size,
+                    "department_slug": cls.department.slug if cls.department else None,
+                    "faculty_slug": (
+                        cls.department.faculty.slug
+                        if cls.department and cls.department.faculty
+                        else None
+                    ),
                 }
                 for cls in course.courses.all()
             ],
@@ -102,74 +115,87 @@ def split_course(courses, class_period_overrides=None):
     return (AM_courses, PM_courses)
 
 
-# Automatically split large CBE courses into sections by distributing classes
-def auto_split_large_cbe_courses(courses, autosplit_threshold=9000):
+# Automatically split large CBE courses into N sections by faculty
+def auto_split_large_cbe_courses(
+    courses,
+    autosplit_threshold=9000,
+    group_count=2,
+    faculty_groups=None,
+):
     """
-    Automatically split CBE courses with >`autosplit_threshold` students into 2 sections by class.
-    Uses greedy algorithm to balance student counts between sections.
-    Returns modified course list with split courses.
+    Split each CBE course exceeding `autosplit_threshold` students into
+    `group_count` sections, bucketing each class by its faculty's configured
+    group number (1..group_count).
+
+    `faculty_groups` is a mapping `{faculty_slug: group_int}`. Generation
+    validation guarantees every faculty present in the system has an entry;
+    here we still skip empty buckets so we never emit a section with zero
+    classes.
     """
+    if group_count < 2:
+        group_count = 2
+    mapping = {(k or "").strip(): int(v) for k, v in (faculty_groups or {}).items()}
     new_courses = []
     split_count = 0
 
     for course in courses:
-        if course["exam_type"] == "CBE":
-            total_students = sum([cls["size"] for cls in course["classes"]])
-
-            # If course exceeds the threshold, split into 2 sections
-            if total_students > autosplit_threshold and len(course["classes"]) >= 2:
-                # Sort classes by size (descending) for better distribution
-                sorted_classes = sorted(course["classes"], key=lambda x: x["size"], reverse=True)
-                
-                # Distribute classes into 2 sections using greedy algorithm
-                # (always add to the section with fewer students)
-                section_a = []
-                section_b = []
-                sum_a = 0
-                sum_b = 0
-                
-                for cls in sorted_classes:
-                    if sum_a <= sum_b:
-                        section_a.append(cls)
-                        sum_a += cls["size"]
-                    else:
-                        section_b.append(cls)
-                        sum_b += cls["size"]
-                
-                # Create two course sections (keep original ID for database reference)
-                course_a = {
-                    "id": course["id"],
-                    "code": f"{course['code']}-A",
-                    "exam_type": course["exam_type"],
-                    "classes": section_a,
-                    "original_code": course["code"],
-                    "is_split": True
-                }
-                
-                course_b = {
-                    "id": course["id"],
-                    "code": f"{course['code']}-B",
-                    "exam_type": course["exam_type"],
-                    "classes": section_b,
-                    "original_code": course["code"],
-                    "is_split": True
-                }
-                
-                print(f"[AUTO-SPLIT] {course['code']} ({total_students} students) split into:")
-                print(f"  → Section A: {len(section_a)} classes, {sum_a} students")
-                print(f"  → Section B: {len(section_b)} classes, {sum_b} students")
-                
-                new_courses.append(course_a)
-                new_courses.append(course_b)
-                split_count += 1
-            else:
-                new_courses.append(course)
-        else:
+        if course["exam_type"] != "CBE":
             new_courses.append(course)
-    
+            continue
+
+        total_students = sum(cls["size"] for cls in course["classes"])
+        if not (
+            total_students > autosplit_threshold and len(course["classes"]) >= 2
+        ):
+            new_courses.append(course)
+            continue
+
+        # Bucket classes into the configured number of groups.
+        buckets: dict[int, list] = {g: [] for g in range(1, group_count + 1)}
+        for cls in course["classes"]:
+            slug = (cls.get("faculty_slug") or "").strip()
+            group = mapping.get(slug)
+            if not group:
+                # Generation gate should have caught this — fall back safely.
+                group = group_count
+            group = max(1, min(group_count, group))
+            buckets[group].append(cls)
+
+        emitted = 0
+        for g in range(1, group_count + 1):
+            members = buckets[g]
+            if not members:
+                continue
+            group_total = sum(c["size"] for c in members)
+            new_courses.append(
+                {
+                    "id": course["id"],
+                    "code": f"{course['code']}-G{g}",
+                    "exam_type": course["exam_type"],
+                    "classes": members,
+                    "original_code": course["code"],
+                    "is_split": True,
+                    "group": g,
+                }
+            )
+            emitted += 1
+            print(
+                f"[AUTO-SPLIT] {course['code']} → G{g}: "
+                f"{len(members)} classes, {group_total} students"
+            )
+
+        if emitted == 0:
+            # Shouldn't happen, but degrade gracefully.
+            new_courses.append(course)
+        else:
+            split_count += 1
+
     if split_count > 0:
-        print(f"[INFO] Auto-split {split_count} large CBE course(s) into {split_count * 2} sections\n")
-    
+        print(
+            f"[INFO] Auto-split {split_count} large CBE course(s) "
+            f"into up to {split_count * group_count} sections\n"
+        )
+
     return new_courses
 
 
@@ -462,13 +488,25 @@ def generate(
     fullday_threshold=4500,
     daily_cap=4500,
     pbe_utilization=0.9,
+    cbe_group_count=2,
+    cbe_faculty_groups=None,
 ):
     # Initialize schedules list
     Schedules = []
 
-    # Auto-split large CBE courses into sections by class
-    courses_AM = auto_split_large_cbe_courses(courses_AM, autosplit_threshold=autosplit_threshold)
-    courses_PM = auto_split_large_cbe_courses(courses_PM, autosplit_threshold=autosplit_threshold)
+    # Auto-split large CBE courses into N faculty-keyed sections
+    courses_AM = auto_split_large_cbe_courses(
+        courses_AM,
+        autosplit_threshold=autosplit_threshold,
+        group_count=cbe_group_count,
+        faculty_groups=cbe_faculty_groups,
+    )
+    courses_PM = auto_split_large_cbe_courses(
+        courses_PM,
+        autosplit_threshold=autosplit_threshold,
+        group_count=cbe_group_count,
+        faculty_groups=cbe_faculty_groups,
+    )
 
     # Track initial course counts
     initial_am_count = len(courses_AM)

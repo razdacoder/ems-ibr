@@ -52,6 +52,10 @@ def _default_class_period_overrides():
     return {}
 
 
+def _default_cbe_faculty_groups():
+    return {}
+
+
 # Kept only so historical migrations can import them by name.
 def _default_seating_patterns():
     return ["checkerboard", "diagonal", "sequential"]
@@ -63,6 +67,11 @@ class GenerationConstraints(models.Model):
     cbe_autosplit_threshold = models.PositiveIntegerField(default=9000)
     cbe_fullday_threshold = models.PositiveIntegerField(default=4500)
     cbe_daily_cap_per_period = models.PositiveIntegerField(default=4500)
+
+    # Number of buckets a large CBE course splits into, and the
+    # faculty-slug → group-number mapping that drives the split.
+    cbe_group_count = models.PositiveIntegerField(default=2)
+    cbe_faculty_groups = models.JSONField(default=_default_cbe_faculty_groups)
     pbe_hall_utilization = models.DecimalField(
         max_digits=3, decimal_places=2, default=0.90
     )

@@ -18,7 +18,9 @@ from ems.models import (
     BackgroundJob,
     Class,
     Course,
+    Department,
     Distribution,
+    Faculty,
     Hall,
     SeatArrangement,
 )
@@ -55,6 +57,47 @@ def _assert_generation_allowed() -> None:
                 "detail": (
                     "Configure at least one excluded weekday in Admin → "
                     "Constraints before generating."
+                )
+            }
+        )
+
+    # Every department must belong to a faculty so CBE auto-split can
+    # bucket classes by faculty.
+    deps_without_faculty = list(
+        Department.objects.filter(faculty__isnull=True)
+        .values_list("name", flat=True)
+        .order_by("name")
+    )
+    if deps_without_faculty:
+        sample = ", ".join(deps_without_faculty[:5])
+        suffix = "…" if len(deps_without_faculty) > 5 else ""
+        raise ValidationError(
+            {
+                "detail": (
+                    "These departments have no faculty assigned: "
+                    f"{sample}{suffix}. "
+                    "Assign every department to a faculty in Admin → Faculties "
+                    "before generating."
+                )
+            }
+        )
+
+    # Every faculty must be mapped to a CBE group in the constraints.
+    faculty_groups = constraints.cbe_faculty_groups or {}
+    unmapped = list(
+        Faculty.objects.exclude(slug__in=faculty_groups.keys())
+        .values_list("name", flat=True)
+        .order_by("name")
+    )
+    if unmapped:
+        sample = ", ".join(unmapped[:5])
+        suffix = "…" if len(unmapped) > 5 else ""
+        raise ValidationError(
+            {
+                "detail": (
+                    "These faculties have no CBE group assigned: "
+                    f"{sample}{suffix}. "
+                    "Set a group for each faculty in Admin → Constraints."
                 )
             }
         )
