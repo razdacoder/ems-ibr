@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { useClasses } from "@/api/classes";
 import {
   type ClassPeriodOverrides,
   type FacultyGroupMap,
@@ -7,8 +6,10 @@ import {
   useConstraints,
   useUpdateConstraints,
 } from "@/api/constraints";
-import { useClasses } from "@/api/classes";
 import { useFaculties } from "@/api/faculties";
+import { PageHeader } from "@/components/layout/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -16,15 +17,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { PageHeader } from "@/components/layout/page-header";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { cn } from "@/lib/utils";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 const WEEKDAYS = [
   { value: 0, label: "Mon" },
@@ -56,7 +56,9 @@ export default function ConstraintsPage() {
   const [form, setForm] = useState<FormState | null>(null);
   // Keyed by class NAME (case-preserving but matched insensitively).
   // "" means "auto" (= AM at runtime). "AM"/"PM" are explicit.
-  const [periodByName, setPeriodByName] = useState<Record<string, "" | "AM" | "PM">>({});
+  const [periodByName, setPeriodByName] = useState<
+    Record<string, "" | "AM" | "PM">
+  >({});
   // CBE faculty groups: faculty slug → group number (1..cbe_group_count).
   const [facultyGroups, setFacultyGroups] = useState<FacultyGroupMap>({});
   const [topError, setTopError] = useState<string | null>(null);
@@ -68,7 +70,9 @@ export default function ConstraintsPage() {
       const name = (c.name ?? "").trim();
       if (name) set.add(name);
     }
-    return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...set].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
   }, [classesQ.data]);
 
   useEffect(() => {
@@ -110,8 +114,7 @@ export default function ConstraintsPage() {
   }, [constraints.data, uniqueClassNames]);
 
   const unassignedCount = useMemo(
-    () =>
-      uniqueClassNames.filter((n) => (periodByName[n] ?? "") === "").length,
+    () => uniqueClassNames.filter((n) => (periodByName[n] ?? "") === "").length,
     [uniqueClassNames, periodByName],
   );
 
@@ -167,7 +170,9 @@ export default function ConstraintsPage() {
 
     const payload: GenerationConstraintsInput = {
       ...form,
-      pbe_hall_utilization: form.pbe_hall_utilization.toFixed(2) as unknown as string,
+      pbe_hall_utilization: form.pbe_hall_utilization.toFixed(
+        2,
+      ) as unknown as string,
       class_period_overrides,
       cbe_faculty_groups: cleanedFacultyGroups,
     };
@@ -307,7 +312,7 @@ export default function ConstraintsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="max-w-xs">
+          <div className="max-w-full">
             <NumberField
               label="Number of groups"
               hint="At least 2. Each large CBE course will produce up to this many sections (G1, G2, …)."
@@ -384,9 +389,11 @@ export default function ConstraintsPage() {
             (f) => !facultyGroups[f.slug],
           ) && (
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--accent-red-fg)]">
-              {(facultiesQ.data?.results ?? []).filter(
-                (f) => !facultyGroups[f.slug],
-              ).length}{" "}
+              {
+                (facultiesQ.data?.results ?? []).filter(
+                  (f) => !facultyGroups[f.slug],
+                ).length
+              }{" "}
               faculty unmapped — generation is blocked until all are set.
             </p>
           )}
@@ -398,9 +405,9 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Class period assignments</CardTitle>
           <CardDescription>
-            Assignment is by class name only — setting "Level 100" to AM
-            applies to every department that has a class called "Level 100".
-            Names left as Auto default to AM.{" "}
+            Assignment is by class name only — setting "Level 100" to AM applies
+            to every department that has a class called "Level 100". Names left
+            as Auto default to AM.{" "}
             <span className="text-foreground">
               {unassignedCount} unassigned
             </span>{" "}
@@ -458,10 +465,11 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Distribution</CardTitle>
           <CardDescription>
-            How leftover students are merged when distributing classes into halls.
+            How leftover students are merged when distributing classes into
+            halls.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4">
           <NumberField
             label="Remainder merge threshold"
             hint="If fewer than this many students remain after a split, place them all in the same hall instead of splitting again."

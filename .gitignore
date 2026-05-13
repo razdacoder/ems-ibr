@@ -16,6 +16,7 @@ env/
 .vscode/
 *.sublime-project
 *.sublime-workspace
+/seed_data
 
 # Ignore migrations, as they should be run on deployment
 # */migrations/
