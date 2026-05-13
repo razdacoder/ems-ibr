@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,24 +22,14 @@ import {
 } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  type Department,
-  type DepartmentInput,
-  useCreateDepartment,
-  useUpdateDepartment,
-} from "@/api/departments";
-import { useFaculties } from "@/api/faculties";
+  type Faculty,
+  type FacultyInput,
+  useCreateFaculty,
+  useUpdateFaculty,
+} from "@/api/faculties";
+import { useDepartments } from "@/api/departments";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
-import { useState } from "react";
-
-const NO_FACULTY = "__none__";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -49,7 +39,7 @@ const schema = z.object({
     .min(1, "Code is required")
     .max(50)
     .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores"),
-  faculty: z.number().nullable(),
+  department_ids: z.array(z.number()),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -57,17 +47,35 @@ type FormValues = z.infer<typeof schema>;
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initial: Department | null;
+  initial: Faculty | null;
 }
 
-export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
+export function FacultyFormDialog({ open, onOpenChange, initial }: Props) {
   const isEdit = !!initial;
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", slug: "", faculty: null },
+    defaultValues: { name: "", slug: "", department_ids: [] },
   });
+
+  const create = useCreateFaculty();
+  const update = useUpdateFaculty(initial?.slug ?? "");
+  const departmentsQ = useDepartments({
+    page: 1,
+    enabled: open,
+  });
+  const allDepartments = useMemo(
+    () => departmentsQ.data?.results ?? [],
+    [departmentsQ.data],
+  );
+
+  const initialId = initial?.id ?? null;
+  const selectableDepartments = useMemo(() => {
+    return allDepartments.filter(
+      (d) => d.faculty === null || d.faculty === initialId,
+    );
+  }, [allDepartments, initialId]);
 
   useEffect(() => {
     if (open) {
@@ -76,33 +84,28 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
           ? {
               name: initial.name,
               slug: initial.slug,
-              faculty: initial.faculty,
+              department_ids: initial.departments.map((d) => d.id),
             }
-          : { name: "", slug: "", faculty: null },
+          : { name: "", slug: "", department_ids: [] },
       );
       setTopError(null);
     }
   }, [open, initial, form]);
 
-  const create = useCreateDepartment();
-  const update = useUpdateDepartment(initial?.slug ?? "");
-  const facultiesQ = useFaculties({ page: 1, enabled: open });
-  const faculties = facultiesQ.data?.results ?? [];
-
   const onSubmit = async (values: FormValues) => {
     setTopError(null);
-    const payload: DepartmentInput = {
+    const payload: FacultyInput = {
       name: values.name.trim(),
       slug: values.slug.trim().toUpperCase(),
-      faculty: values.faculty,
+      department_ids: values.department_ids,
     };
     try {
       if (isEdit) {
         await update.mutateAsync(payload);
-        toast({ title: "Department updated" });
+        toast({ title: "Faculty updated" });
       } else {
         await create.mutateAsync(payload);
-        toast({ title: "Department created" });
+        toast({ title: "Faculty created" });
       }
       onOpenChange(false);
     } catch (err) {
@@ -120,15 +123,15 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit department" : "New department"}
+            {isEdit ? "Edit faculty" : "New faculty"}
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update the department name or code."
-              : "Add a new department to the system."}
+              ? "Update the faculty details and attached departments."
+              : "Create a new faculty and optionally attach departments."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -146,7 +149,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                   <FormLabel>Name</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Computer Science"
+                      placeholder="Faculty of Science"
                       autoComplete="off"
                       {...field}
                     />
@@ -163,7 +166,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                   <FormLabel>Code</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="CS"
+                      placeholder="SCI"
                       autoComplete="off"
                       {...field}
                       onChange={(e) =>
@@ -177,30 +180,58 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
             />
             <FormField
               control={form.control}
-              name="faculty"
+              name="department_ids"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Faculty</FormLabel>
-                  <Select
-                    value={field.value ? String(field.value) : NO_FACULTY}
-                    onValueChange={(v) =>
-                      field.onChange(v === NO_FACULTY ? null : Number(v))
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Unassigned" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NO_FACULTY}>Unassigned</SelectItem>
-                      {faculties.map((f) => (
-                        <SelectItem key={f.id} value={String(f.id)}>
-                          {f.slug} — {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>Departments</FormLabel>
+                  <FormControl>
+                    <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/20 max-h-56 overflow-y-auto divide-y divide-[color:var(--border)]/60">
+                      {departmentsQ.isLoading ? (
+                        <p className="px-3 py-3 font-mono text-[12px] text-muted-foreground">
+                          Loading departments…
+                        </p>
+                      ) : selectableDepartments.length === 0 ? (
+                        <p className="px-3 py-3 font-mono text-[12px] text-muted-foreground">
+                          No unattached departments. Detach them from their
+                          current faculty first.
+                        </p>
+                      ) : (
+                        selectableDepartments.map((d) => {
+                          const checked = field.value.includes(d.id);
+                          return (
+                            <label
+                              key={d.id}
+                              className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-[color:var(--muted)]/50"
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 accent-[color:var(--primary)]"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    field.onChange([...field.value, d.id]);
+                                  } else {
+                                    field.onChange(
+                                      field.value.filter((id) => id !== d.id),
+                                    );
+                                  }
+                                }}
+                              />
+                              <span className="font-mono text-[11px] tracking-wide text-muted-foreground">
+                                {d.slug}
+                              </span>
+                              <span className="font-serif text-[0.95rem]">
+                                {d.name}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </FormControl>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    {field.value.length} selected
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

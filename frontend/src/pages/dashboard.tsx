@@ -334,7 +334,7 @@ export default function DashboardPage() {
           </p>
 
           {(() => {
-            const courses = stats.data?.shared_courses.slice(0, 12) ?? [];
+            const courses = stats.data?.shared_courses ?? [];
             const courseTotals = courses.map((c) =>
               c.departments.reduce(
                 (n, d) => n + d.classes.filter(Boolean).length,
@@ -431,12 +431,6 @@ export default function DashboardPage() {
                   })}
                 </ol>
 
-                {(stats.data?.shared_courses_count ?? 0) > 12 && (
-                  <p className="mt-5 border-t border-[color:var(--border)] pt-4 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                    Showing 12 of {stats.data?.shared_courses_count} flagged
-                    courses
-                  </p>
-                )}
               </div>
             );
           })()}

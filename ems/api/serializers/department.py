@@ -1,16 +1,36 @@
 from rest_framework import serializers
 
 from ems.api.exceptions import Conflict
-from ems.models import Class, Department, User
+from ems.models import Class, Department, Faculty, User
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class_count = serializers.SerializerMethodField()
     student_count = serializers.SerializerMethodField()
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    faculty_name = serializers.CharField(
+        source="faculty.name", read_only=True, default=None
+    )
+    faculty_slug = serializers.CharField(
+        source="faculty.slug", read_only=True, default=None
+    )
 
     class Meta:
         model = Department
-        fields = ["id", "name", "slug", "class_count", "student_count"]
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "class_count",
+            "student_count",
+            "faculty",
+            "faculty_name",
+            "faculty_slug",
+        ]
         read_only_fields = ["id"]
         extra_kwargs = {
             "slug": {"validators": []},  # we enforce uniqueness explicitly below

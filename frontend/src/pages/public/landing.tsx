@@ -67,7 +67,7 @@ const FAQS = [
   },
   {
     q: "What happens after a generation run?",
-    a: "Ingestion is locked for that exam session. The generated artefacts (timetable, distribution, allocation, broadsheet) are versioned together so any later report can be reproduced from the same source of truth.",
+    a: "Ingestion is locked for that exam session. The generated artifacts (timetable, distribution, allocation, broadsheet) are versioned together so any later report can be reproduced from the same source of truth.",
   },
   {
     q: "Can a department override a seat assignment?",
@@ -394,7 +394,7 @@ function LiveStatus() {
         className="size-1.5 rounded-full animate-pulse-soft"
         style={{ backgroundColor: "var(--brand)" }}
       />
-      System nominal
+      System normal
     </span>
   );
 }
@@ -470,9 +470,6 @@ export default function LandingPage() {
                       style={{ backgroundColor: "var(--brand-strong)" }}
                     />
                     Operations OS for examinations
-                  </span>
-                  <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:inline">
-                    v4.2 · Mar 2026
                   </span>
                 </div>
 
@@ -665,20 +662,6 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </WindowChrome>
-
-                <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  <span>Last run · 2026-03-16 06:42 WAT</span>
-                  <span
-                    className="flex items-center gap-1.5"
-                    style={{ color: "var(--brand-strong)" }}
-                  >
-                    <span
-                      className="size-1 rounded-full"
-                      style={{ backgroundColor: "var(--brand)" }}
-                    />
-                    Streamed live
-                  </span>
-                </div>
               </div>
             </div>
           </div>
@@ -724,7 +707,7 @@ export default function LandingPage() {
                   className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
                   data-reveal
                 >
-                  § 01
+                  01
                   <br />
                   Position
                 </p>
@@ -762,7 +745,7 @@ export default function LandingPage() {
             <div className="mb-14 flex flex-wrap items-end justify-between gap-6">
               <div data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  § 02 — Modules
+                  02 — Modules
                 </p>
                 <h2 className="mt-3 max-w-3xl font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] text-foreground sm:text-[3rem]">
                   Every step from upload to attendance sheet.
@@ -995,7 +978,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  § 03 — Pipeline
+                  03 — Pipeline
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   Five stages,
@@ -1003,7 +986,7 @@ export default function LandingPage() {
                   <span className="italic">one source of truth.</span>
                 </h2>
                 <p className="mt-5 max-w-md text-[15px] leading-[1.65] text-muted-foreground">
-                  Each stage produces a versioned artefact and emits a
+                  Each stage produces a versioned artifact and emits a
                   WebSocket event. Re-run any stage in isolation; the rest
                   remain valid.
                 </p>
@@ -1057,7 +1040,7 @@ export default function LandingPage() {
             <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
               <div className="lg:col-span-5" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  § 04 — Evidence
+                  04 — Evidence
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   The broadsheet, generated.
@@ -1206,7 +1189,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  § 05 — Questions
+                  05 — Questions
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   The five most
@@ -1308,9 +1291,6 @@ export default function LandingPage() {
               }}
               data-reveal
             >
-              <span>v4.2 · Mar 2026</span>
-              <span>SOC 2 type II in progress</span>
-              <span>NDPR-aligned</span>
               <span>Single-tenant deployments</span>
             </div>
           </div>
@@ -1334,9 +1314,6 @@ export default function LandingPage() {
                 </p>
                 <div className="mt-6 flex items-center gap-3">
                   <LiveStatus />
-                  <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                    99.97% uptime · 90d
-                  </span>
                 </div>
               </div>
 
@@ -1413,9 +1390,9 @@ export default function LandingPage() {
                     </a>
                   </li>
                   <li className="text-muted-foreground">
-                    Mokola, Ibadan
+                    Ikeja, Lagos
                     <br />
-                    Oyo State, Nigeria
+                    Nigeria
                   </li>
                 </ul>
               </div>

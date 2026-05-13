@@ -1,17 +1,12 @@
 import { useState } from "react";
 import { Plus, Search } from "lucide-react";
 import {
-  type Department,
-  useDeleteDepartment,
-  useDepartments,
-} from "@/api/departments";
+  type Faculty,
+  useDeleteFaculty,
+  useFaculties,
+} from "@/api/faculties";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -23,38 +18,34 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { PageHeader } from "@/components/layout/page-header";
-import { DepartmentFormDialog } from "./department-form-dialog";
+import { FacultyFormDialog } from "./faculty-form-dialog";
 
-export default function DepartmentsListPage() {
-  const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
-
+export default function FacultiesListPage() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Department | null>(null);
+  const [editing, setEditing] = useState<Faculty | null>(null);
 
-  const list = useDepartments({ page, query: query || undefined });
-  const remove = useDeleteDepartment();
+  const list = useFaculties({ page, query: query || undefined });
+  const remove = useDeleteFaculty();
   const confirm = useConfirm();
 
-  const handleDelete = async (dept: Department) => {
+  const handleDelete = async (fac: Faculty) => {
     const ok = await confirm({
-      title: "Delete department?",
-      description: `"${dept.name}" will be permanently removed.`,
+      title: "Delete faculty?",
+      description: `"${fac.name}" will be permanently removed.`,
       confirmLabel: "Delete",
       destructive: true,
     });
     if (!ok) return;
     try {
-      await remove.mutateAsync(dept.slug);
-      toast({ title: "Department deleted" });
+      await remove.mutateAsync(fac.slug);
+      toast({ title: "Faculty deleted" });
     } catch (err) {
       const envelope = extractErrorEnvelope(err);
       toast({
@@ -68,29 +59,27 @@ export default function DepartmentsListPage() {
   return (
     <div className="space-y-10">
       <PageHeader
-        section="Catalog · Departments"
-        title="Departments."
-        description="Manage academic departments and their codes."
+        section="Admin · Faculties"
+        title="Faculties."
+        description="Group departments under faculties. Each faculty may contain many departments."
         actions={
-          isAdmin && (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setDialogOpen(true);
-              }}
-              size="lg"
-              className="h-10"
-            >
-              <Plus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
-              New department
-            </Button>
-          )
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+            size="lg"
+            className="h-10"
+          >
+            <Plus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+            New faculty
+          </Button>
         }
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-          All departments
+          All faculties
         </span>
         <div className="relative w-full sm:max-w-xs">
           <Search
@@ -122,90 +111,85 @@ export default function DepartmentsListPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[120px]">Code</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead className="w-[180px]">Faculty</TableHead>
-                <TableHead className="w-[140px] text-right">Classes</TableHead>
-                <TableHead className="w-[140px] text-right">Students</TableHead>
-                {isAdmin && (
-                  <TableHead className="w-[200px] text-right">Actions</TableHead>
-                )}
+                <TableHead>Faculty</TableHead>
+                <TableHead>Departments</TableHead>
+                <TableHead className="w-[120px] text-right">Count</TableHead>
+                <TableHead className="w-[200px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    <TableCell colSpan={isAdmin ? 6 : 5}>
+                    <TableCell colSpan={5}>
                       <Skeleton className="h-6 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : list.data?.results.length ? (
-                list.data.results.map((d) => (
-                  <TableRow key={d.id}>
+                list.data.results.map((f) => (
+                  <TableRow key={f.id}>
                     <TableCell>
                       <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[11px] tracking-wide">
-                        {d.slug}
+                        {f.slug}
                       </kbd>
                     </TableCell>
                     <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
-                      {d.name}
+                      {f.name}
                     </TableCell>
                     <TableCell>
-                      {d.faculty_slug ? (
-                        <div className="flex items-center gap-2">
-                          <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[11px] tracking-wide">
-                            {d.faculty_slug}
-                          </kbd>
-                          <span className="font-serif text-[0.95rem] text-muted-foreground">
-                            {d.faculty_name}
-                          </span>
-                        </div>
-                      ) : (
+                      {f.departments.length === 0 ? (
                         <span className="font-serif italic text-muted-foreground">
-                          Unassigned
+                          —
                         </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {f.departments.map((d) => (
+                            <span
+                              key={d.id}
+                              className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-2 py-0.5 font-mono text-[11px] tracking-wide"
+                              title={d.name}
+                            >
+                              {d.slug}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono tabular-nums">
-                      {d.class_count.toLocaleString()}
+                      {f.department_count.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {d.student_count.toLocaleString()}
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditing(f);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDelete(f)}
+                          disabled={remove.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditing(d);
-                              setDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(d)}
-                            disabled={remove.isPending}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={isAdmin ? 6 : 5}
+                    colSpan={5}
                     className="py-12 text-center font-serif italic text-muted-foreground"
                   >
-                    No departments found.
+                    No faculties found.
                   </TableCell>
                 </TableRow>
               )}
@@ -222,7 +206,7 @@ export default function DepartmentsListPage() {
         </CardContent>
       </Card>
 
-      <DepartmentFormDialog
+      <FacultyFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         initial={editing}

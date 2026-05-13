@@ -145,9 +145,6 @@ export default function FeaturesPage() {
                     Open the dashboard
                     <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
                   </Button>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                    v4.2 · Mar 2026
-                  </span>
                 </div>
               </div>
             </div>
@@ -160,17 +157,7 @@ export default function FeaturesPage() {
           style={{ backgroundColor: "var(--brand-soft)" }}
         >
           <div className="mx-auto max-w-7xl px-6 py-16 sm:px-8 lg:py-24">
-            <div data-reveal className="mb-10 flex items-end justify-between">
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="size-1.5 rounded-full animate-pulse-soft"
-                  style={{ backgroundColor: "var(--brand)" }}
-                />
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  01 — Index
-                </p>
-              </div>
+            <div data-reveal className="mb-10 flex items-end justify-end">
               <p className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:block">
                 {features.data?.length ?? 0} modules
               </p>

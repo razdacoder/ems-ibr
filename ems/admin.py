@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Department, Course, Class, TimeTable, Hall, Distribution, DistributionItem, SeatArrangement, Student, SystemSettings, BackgroundJob
+from .models import User, Department, Course, Class, TimeTable, Hall, Distribution, DistributionItem, SeatArrangement, Student, SystemSettings, BackgroundJob, Faculty
 
 
 # Register your models here.
@@ -19,6 +19,7 @@ class BackgroundJobAdmin(admin.ModelAdmin):
 
 
 admin.site.register(User)
+admin.site.register(Faculty)
 admin.site.register(Department)
 admin.site.register(Course)
 admin.site.register(Class)

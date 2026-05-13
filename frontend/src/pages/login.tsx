@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, useLocation, Navigate, Link } from "react-router-dom";
-import { ArrowRight, Check, Lock } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -78,15 +78,6 @@ export default function LoginPage() {
               <Logo size={22} />
               AuraSchedule
             </Link>
-            <span
-              className="rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em]"
-              style={{
-                backgroundColor: "var(--card)",
-                color: "var(--brand-strong)",
-              }}
-            >
-              v4.2 · Mar 2026
-            </span>
           </div>
 
           <div className="max-w-xl">
@@ -153,16 +144,6 @@ export default function LoginPage() {
 
           <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             <span>&copy; {new Date().getFullYear()} AuraSchedule</span>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
-              style={{
-                backgroundColor: "var(--card)",
-                color: "var(--brand-strong)",
-              }}
-            >
-              <Lock className="size-3" strokeWidth={2.25} />
-              SOC 2 in progress · NDPR-aligned
-            </span>
           </div>
         </div>
       </div>
@@ -183,15 +164,6 @@ export default function LoginPage() {
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />
-            <span
-              className="rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
-              style={{
-                backgroundColor: "var(--brand-soft)",
-                color: "var(--brand-strong)",
-              }}
-            >
-              v4.2
-            </span>
           </div>
         </div>
 
@@ -294,13 +266,6 @@ export default function LoginPage() {
               </form>
             </Form>
 
-            <div className="mt-12 flex items-center gap-3 border-t border-[color:var(--border)] pt-6 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              <span
-                className="size-1.5 rounded-full animate-pulse-soft"
-                style={{ backgroundColor: "var(--brand)" }}
-              />
-              System nominal · 99.97% uptime · 90d
-            </div>
           </div>
         </div>
       </div>

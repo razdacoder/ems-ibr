@@ -12,6 +12,9 @@ export interface Department {
   slug: string;
   class_count: number;
   student_count: number;
+  faculty: number | null;
+  faculty_name: string | null;
+  faculty_slug: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -59,6 +62,7 @@ export function useDepartment(slug: string | undefined) {
 export interface DepartmentInput {
   name: string;
   slug: string;
+  faculty?: number | null;
 }
 
 export function useCreateDepartment() {

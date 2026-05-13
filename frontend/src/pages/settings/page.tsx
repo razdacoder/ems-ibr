@@ -209,7 +209,7 @@ export default function SettingsPage() {
       <Card className="border-[color:var(--accent-red-fg)]/30 bg-[color:var(--accent-red)]/30">
         <CardHeader>
           <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[color:var(--accent-red-fg)]">
-            § Danger zone
+            Danger zone
           </p>
           <CardTitle className="font-serif text-[1.5rem] tracking-tight text-[color:var(--accent-red-fg)]">
             Reset the system.

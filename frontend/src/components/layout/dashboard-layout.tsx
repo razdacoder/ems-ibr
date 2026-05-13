@@ -9,20 +9,31 @@ import {
   Download,
   GraduationCap,
   Grid3x3,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   LogOut,
   Menu,
+  Moon,
   School,
   Settings,
+  Sun,
   Upload,
   Users,
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/logo";
 
 interface NavSection {
@@ -90,6 +101,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Admin",
     tone: "teal",
     items: [
+      { to: "/faculties", label: "Faculties", icon: Landmark, adminOnly: true },
       { to: "/uploads", label: "Uploads", icon: Upload, adminOnly: true },
       { to: "/users", label: "Users", icon: Users, adminOnly: true },
       { to: "/jobs", label: "Jobs", icon: ListChecks, adminOnly: true },
@@ -112,6 +124,8 @@ function SidebarContent({
   onNavigate?: () => void;
 }) {
   const { user, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const isDark = theme === "dark";
   const initials = (() => {
     const first = user?.first_name?.[0] ?? "";
     const last = user?.last_name?.[0] ?? "";
@@ -132,15 +146,6 @@ function SidebarContent({
           <>
             <span className="font-serif text-[1.25rem] tracking-tight">
               AuraSchedule
-            </span>
-            <span
-              className="ml-auto rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
-              style={{
-                backgroundColor: "var(--brand-soft)",
-                color: "var(--accent-iris-fg)",
-              }}
-            >
-              v4.2
             </span>
           </>
         )}
@@ -276,57 +281,68 @@ function SidebarContent({
           collapsed ? "p-2" : "p-3",
         )}
       >
-        <div
-          className={cn(
-            "flex items-center",
-            collapsed ? "flex-col gap-2" : "gap-3 px-1",
-          )}
-          title={collapsed ? user?.full_name ?? user?.email : undefined}
-        >
-          <span
-            className="grid size-8 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium"
-            style={{
-              backgroundColor: "var(--brand)",
-              color: "var(--brand-foreground)",
-              boxShadow:
-                "0 4px 14px -6px color-mix(in oklch, var(--brand) 60%, transparent)",
-            }}
-          >
-            {initials}
-          </span>
-          {!collapsed && (
-            <span className="flex-1 overflow-hidden">
-              <span className="block truncate text-[13px] font-medium text-foreground">
-                {user?.full_name ?? user?.email}
-              </span>
-              <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                {user?.is_staff
-                  ? "Administrator"
-                  : user?.department?.slug ?? "Staff"}
-              </span>
-            </span>
-          )}
-          <ThemeToggle size="sm" iconOnly />
-          <button
-            type="button"
-            onClick={() => {
-              void logout();
-            }}
-            title="Sign out"
-            aria-label="Sign out"
+        <DropdownMenu>
+          <DropdownMenuTrigger
             className={cn(
-              "inline-flex items-center justify-center rounded-md border border-[color:var(--border)] bg-[color:var(--card)] text-muted-foreground transition-all hover:border-[color:var(--brand)]/30 hover:bg-[color:var(--brand-soft)] hover:text-[color:var(--brand-strong)]",
-              collapsed ? "size-7" : "h-8 gap-1.5 px-2.5",
+              "flex w-full items-center rounded-md text-left transition-colors hover:bg-[color:var(--brand-soft)]/40 focus:outline-none focus:ring-1 focus:ring-[color:var(--brand)]/40",
+              collapsed ? "justify-center p-1.5" : "gap-3 p-2",
             )}
+            title={collapsed ? user?.full_name ?? user?.email : "Account menu"}
           >
-            <LogOut className="size-3.5" strokeWidth={2} />
+            <span
+              className="grid size-8 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium"
+              style={{
+                backgroundColor: "var(--brand)",
+                color: "var(--brand-foreground)",
+                boxShadow:
+                  "0 4px 14px -6px color-mix(in oklch, var(--brand) 60%, transparent)",
+              }}
+            >
+              {initials}
+            </span>
             {!collapsed && (
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em]">
-                Sign out
+              <span className="flex-1 overflow-hidden">
+                <span className="block truncate text-[13px] font-medium text-foreground">
+                  {user?.full_name ?? user?.email}
+                </span>
+                <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  {user?.is_staff
+                    ? "Administrator"
+                    : user?.department?.slug ?? "Staff"}
+                </span>
               </span>
             )}
-          </button>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            side="top"
+            sideOffset={8}
+            className="min-w-[200px]"
+          >
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                toggleTheme();
+              }}
+            >
+              {isDark ? (
+                <Sun className="mr-2 size-3.5" strokeWidth={2} />
+              ) : (
+                <Moon className="mr-2 size-3.5" strokeWidth={2} />
+              )}
+              {isDark ? "Light mode" : "Dark mode"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                void logout();
+              }}
+            >
+              <LogOut className="mr-2 size-3.5" strokeWidth={2} />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </>
   );

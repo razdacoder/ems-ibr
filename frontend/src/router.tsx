@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import DepartmentsListPage from "@/pages/departments/list";
+import FacultiesListPage from "@/pages/faculties/list";
 import CoursesListPage from "@/pages/courses/list";
 import ClassesListPage from "@/pages/classes/list";
 import ClassDetailPage from "@/pages/classes/detail";
@@ -40,6 +41,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAdmin>
             <DepartmentsListPage />
+          </RequireAdmin>
+        ),
+      },
+      {
+        path: "/faculties",
+        element: (
+          <RequireAdmin>
+            <FacultiesListPage />
           </RequireAdmin>
         ),
       },

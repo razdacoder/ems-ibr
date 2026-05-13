@@ -42,7 +42,7 @@ export function ListShell({
       <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            § Catalog · {title}
+            Catalog · {title}
           </p>
           <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
             {title}.

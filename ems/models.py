@@ -7,9 +7,28 @@ from django.contrib.auth.models import (
 from django.db import models
 
 
+class Faculty(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+
+    class Meta:
+        verbose_name_plural = "Faculties"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return str(self.name)
+
+
 class Department(models.Model):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=50, unique=True)
+    faculty = models.ForeignKey(
+        Faculty,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="departments",
+    )
 
     def __str__(self) -> str:
         return str(self.name)
