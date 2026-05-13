@@ -8,6 +8,8 @@ import { api } from "@/lib/api";
 import type { Course } from "./courses";
 import type { DepartmentRef, PaginatedResponse } from "./types";
 
+export type ExamPeriod = "" | "AM" | "PM";
+
 export interface Class {
   id: number;
   name: string | null;

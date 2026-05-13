@@ -44,6 +44,56 @@ class SystemSettings(models.Model):
         return str(f"{self.session} ' - ' {self.semester}")
 
 
+def _default_excluded_weekdays():
+    return [6]
+
+
+def _default_class_period_overrides():
+    return {}
+
+
+# Kept only so historical migrations can import them by name.
+def _default_seating_patterns():
+    return ["checkerboard", "diagonal", "sequential"]
+
+
+class GenerationConstraints(models.Model):
+    """Singleton row holding admin-tunable generation knobs."""
+
+    cbe_autosplit_threshold = models.PositiveIntegerField(default=9000)
+    cbe_fullday_threshold = models.PositiveIntegerField(default=4500)
+    cbe_daily_cap_per_period = models.PositiveIntegerField(default=4500)
+    pbe_hall_utilization = models.DecimalField(
+        max_digits=3, decimal_places=2, default=0.90
+    )
+    excluded_weekdays = models.JSONField(default=_default_excluded_weekdays)
+
+    # Map of class-name → "AM" or "PM". Applies to every department that uses
+    # that name (e.g. "Level 100" sets AM/PM for every department's Level 100).
+    # Missing/blank names default to AM. CBE courses always go AM regardless.
+    class_period_overrides = models.JSONField(default=_default_class_period_overrides)
+
+    remainder_merge_threshold = models.PositiveIntegerField(default=5)
+
+    placement_success_threshold_pct = models.PositiveIntegerField(default=60)
+
+    configured_at = models.DateTimeField(null=True, blank=True)
+    configured_by = models.ForeignKey(
+        "User", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Generation constraints"
+        verbose_name_plural = "Generation constraints"
+
+    def __str__(self):
+        return (
+            f"GenerationConstraints (configured: "
+            f"{'yes' if self.configured_at else 'no'})"
+        )
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:

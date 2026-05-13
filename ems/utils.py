@@ -45,7 +45,11 @@ def get_courses():
             "code": course.code,
             "exam_type": course.exam_type,
             "classes": [
-                {"id": cls.id, "name": cls.name, "size": cls.size}
+                {
+                    "id": cls.id,
+                    "name": cls.name,
+                    "size": cls.size,
+                }
                 for cls in course.courses.all()
             ],
         }
@@ -70,44 +74,50 @@ def save_to_timetable_db(schedules):
     TimeTable.objects.bulk_create(timetables)
 
 
-# Check for the Class type to detect AM or PM courses (ND1, PND1, HND1 = "AM" ND2, PND2, HND2 = "PM") for only PBE courses
-def check_course_period(course):
-    for item in course["classes"]:
-        if item["name"].endswith("II") or item["name"].endswith("2"):
-            return True
-    return False
-
-
-# Split courses into AM And PM periods respectively bases on exam type
-def split_course(courses):
+# Split courses into AM and PM periods.
+# `class_period_overrides` maps class NAME → "AM"/"PM" (case-insensitive),
+# so a single "Level 100": "AM" applies across every department.
+# Names absent from the map default to AM. CBE always goes AM.
+def split_course(courses, class_period_overrides=None):
+    overrides = {
+        (k or "").strip().lower(): (v or "").upper()
+        for k, v in (class_period_overrides or {}).items()
+    }
     AM_courses, PM_courses = [], []
     for course in courses:
-        if course["exam_type"] == "PBE":
-            if check_course_period(course):
-                PM_courses.append(course)
-            else:
-                AM_courses.append(course)
+        if course["exam_type"] != "PBE":
+            AM_courses.append(course)
+            continue
+        period = "AM"
+        for cls in course["classes"]:
+            key = (cls.get("name") or "").strip().lower()
+            mapped = overrides.get(key)
+            if mapped == "PM":
+                period = "PM"
+                break
+        if period == "PM":
+            PM_courses.append(course)
         else:
             AM_courses.append(course)
     return (AM_courses, PM_courses)
 
 
 # Automatically split large CBE courses into sections by distributing classes
-def auto_split_large_cbe_courses(courses):
+def auto_split_large_cbe_courses(courses, autosplit_threshold=9000):
     """
-    Automatically split CBE courses with >9000 students into 2 sections by class.
+    Automatically split CBE courses with >`autosplit_threshold` students into 2 sections by class.
     Uses greedy algorithm to balance student counts between sections.
     Returns modified course list with split courses.
     """
     new_courses = []
     split_count = 0
-    
+
     for course in courses:
         if course["exam_type"] == "CBE":
             total_students = sum([cls["size"] for cls in course["classes"]])
-            
-            # If course has >9000 students, split it into 2 sections
-            if total_students > 9000 and len(course["classes"]) >= 2:
+
+            # If course exceeds the threshold, split into 2 sections
+            if total_students > autosplit_threshold and len(course["classes"]) >= 2:
                 # Sort classes by size (descending) for better distribution
                 sorted_classes = sorted(course["classes"], key=lambda x: x["size"], reverse=True)
                 
@@ -173,8 +183,8 @@ def is_class_scheduled(course, date, Schedules):
 
 
 # Helper function to get total available seats per period
-def get_total_seats(Halls):
-    return int(sum([Hall["capacity"] * 0.9 for Hall in Halls]))
+def get_total_seats(Halls, utilization=0.9):
+    return int(sum([Hall["capacity"] * float(utilization) for Hall in Halls]))
 
 
 # Get total CBE students scheduled for a given date
@@ -199,26 +209,31 @@ def has_cbe_on_date(schedules, date):
 
 
 # Check if entire day is available for a full-day CBE course
-def can_schedule_full_day_cbe(schedules, date, course):
+def can_schedule_full_day_cbe(
+    schedules,
+    date,
+    course,
+    fullday_threshold=4500,
+    autosplit_threshold=9000,
+):
     """Check if a large CBE course can be scheduled (only checks class conflicts)"""
     if course["exam_type"] != "CBE":
         return False
-    
+
     course_students = sum([cls["size"] for cls in course["classes"]])
-    
-    # Only courses with >4500 students need full day
-    if course_students <= 4500:
+
+    # Only courses above the full-day threshold need full day
+    if course_students <= fullday_threshold:
         return False
-    
-    # Course must be ≤9000 students (4500 AM + 4500 PM)
-    if course_students > 9000:
+
+    # Course must fit within autosplit cap (fullday_threshold AM + same PM)
+    if course_students > autosplit_threshold:
         return False
-    
+
     # Only check if any class in this course is already scheduled
-    # (Removed CBE date conflict check to ensure all courses get scheduled)
     if is_class_scheduled(course, date, schedules):
         return False
-    
+
     return True
 
 
@@ -228,33 +243,47 @@ def can_schedule_cbe(schedules, date, course, max_students=4500):
     # Only check for CBE courses
     if course["exam_type"] != "CBE":
         return True
-    
+
     # Calculate students in the candidate course
     course_students = sum([cls["size"] for cls in course["classes"]])
-    
+
     # Get current CBE student count for this date
     current_cbe_students = get_cbe_student_count(schedules, date)
-    
+
     # Check if adding this course would exceed the limit
     return (current_cbe_students + course_students) <= max_students
 
 
 # Helper function to check if timetable can still be scheduled based on the number of seats remaining
-def can_continue(date, seat_remaining, courses, Schedules):
+def can_continue(
+    date,
+    seat_remaining,
+    courses,
+    Schedules,
+    fullday_threshold=4500,
+    autosplit_threshold=9000,
+    daily_cap=4500,
+):
     for course in courses:
         # For CBE courses, check if within daily student limit (no seat constraint)
         if course["exam_type"] == "CBE":
             course_students = sum([cls["size"] for cls in course["classes"]])
-            
-            # Large CBE courses (>4500) need full day
-            if course_students > 4500:
-                if can_schedule_full_day_cbe(Schedules, date, course):
+
+            # Large CBE courses (> fullday_threshold) need full day
+            if course_students > fullday_threshold:
+                if can_schedule_full_day_cbe(
+                    Schedules, date, course,
+                    fullday_threshold=fullday_threshold,
+                    autosplit_threshold=autosplit_threshold,
+                ):
                     return True
             # Small CBE courses check student limit
             else:
                 if (
                     not is_class_scheduled(course, date, Schedules)
-                    and can_schedule_cbe(Schedules, date, course)
+                    and can_schedule_cbe(
+                        Schedules, date, course, max_students=daily_cap
+                    )
                 ):
                     return True
         # For PBE courses, check seat availability
@@ -265,39 +294,48 @@ def can_continue(date, seat_remaining, courses, Schedules):
                 and not is_class_scheduled(course, date, Schedules)
             ):
                 return True
-    
+
     # Log why we can't continue
     print(f"[INFO] Cannot continue scheduling for {date} (AM). Remaining seats: {seat_remaining}")
     current_cbe_count = get_cbe_student_count(Schedules, date)
-    print(f"[INFO] Current CBE students for {date}: {current_cbe_count}/4500")
-    
+    print(f"[INFO] Current CBE students for {date}: {current_cbe_count}/{daily_cap}")
+
     for course in courses:
         reasons = []
         if course["exam_type"] == "CBE":
             course_students = sum([cls["size"] for cls in course["classes"]])
-            
-            if course_students > 4500:
+
+            if course_students > fullday_threshold:
                 # Large CBE course logic
                 if is_class_scheduled(course, date, Schedules):
                     reasons.append("classes already scheduled")
-                elif not can_schedule_full_day_cbe(Schedules, date, course):
+                elif not can_schedule_full_day_cbe(
+                    Schedules, date, course,
+                    fullday_threshold=fullday_threshold,
+                    autosplit_threshold=autosplit_threshold,
+                ):
                     reasons.append("cannot get full day (classes conflict)")
             else:
                 # Small CBE course logic
                 if is_class_scheduled(course, date, Schedules):
                     reasons.append("class already scheduled")
-                if not can_schedule_cbe(Schedules, date, course):
-                    reasons.append(f"would exceed daily CBE limit (current: {current_cbe_count}, course needs: {course_students}, max: 4500)")
+                if not can_schedule_cbe(
+                    Schedules, date, course, max_students=daily_cap
+                ):
+                    reasons.append(
+                        f"would exceed daily CBE limit (current: {current_cbe_count}, "
+                        f"course needs: {course_students}, max: {daily_cap})"
+                    )
         else:
             Seat_Required = sum([Class["size"] for Class in course["classes"]])
             if seat_remaining < Seat_Required:
                 reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
             if is_class_scheduled(course, date, Schedules):
                 reasons.append("class already scheduled")
-        
+
         if reasons:
             print(f"[SKIP] Course {course['code']} ({course['exam_type']}) skipped: {', '.join(reasons)}")
-    
+
     return False
 
 
@@ -325,20 +363,34 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
     return False
 
 
-def filter_courses(date, seat_remaining, courses, schedules):
+def filter_courses(
+    date,
+    seat_remaining,
+    courses,
+    schedules,
+    fullday_threshold=4500,
+    autosplit_threshold=9000,
+    daily_cap=4500,
+):
     eligible_courses = []
     for course in courses:
         # CBE courses don't require seats
         if course["exam_type"] == "CBE":
             course_students = sum([cls["size"] for cls in course["classes"]])
-            
-            # Large CBE courses (>4500) need full day
-            if course_students > 4500:
-                if can_schedule_full_day_cbe(schedules, date, course):
+
+            # Large CBE courses (> fullday_threshold) need full day
+            if course_students > fullday_threshold:
+                if can_schedule_full_day_cbe(
+                    schedules, date, course,
+                    fullday_threshold=fullday_threshold,
+                    autosplit_threshold=autosplit_threshold,
+                ):
                     eligible_courses.append(course)
             # Small CBE courses check student limit
             else:
-                if not is_class_scheduled(course, date, schedules) and can_schedule_cbe(schedules, date, course):
+                if not is_class_scheduled(course, date, schedules) and can_schedule_cbe(
+                    schedules, date, course, max_students=daily_cap
+                ):
                     eligible_courses.append(course)
         # PBE courses require seat availability
         else:
@@ -351,74 +403,128 @@ def filter_courses(date, seat_remaining, courses, schedules):
 
 
 # Get the next valid course to schedule
-def get_next_course(date, seat_remaining, courses, Schedules):
-    # Prioritize large CBE courses (>4500 students) FIRST - they need full days
-    large_cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and sum([cls["size"] for cls in c["classes"]]) > 4500 and can_schedule_full_day_cbe(Schedules, date, c)]
+def get_next_course(
+    date,
+    seat_remaining,
+    courses,
+    Schedules,
+    fullday_threshold=4500,
+    autosplit_threshold=9000,
+    daily_cap=4500,
+):
+    # Prioritize large CBE courses FIRST - they need full days
+    large_cbe_courses = [
+        c
+        for c in courses
+        if c["exam_type"] == "CBE"
+        and sum([cls["size"] for cls in c["classes"]]) > fullday_threshold
+        and can_schedule_full_day_cbe(
+            Schedules, date, c,
+            fullday_threshold=fullday_threshold,
+            autosplit_threshold=autosplit_threshold,
+        )
+    ]
     if large_cbe_courses:
         return random.choice(large_cbe_courses)
-    
-    # Then small CBE courses (≤4500 students)
-    small_cbe_courses = [c for c in courses if c["exam_type"] == "CBE" and sum([cls["size"] for cls in c["classes"]]) <= 4500 and not is_class_scheduled(c, date, Schedules) and can_schedule_cbe(Schedules, date, c)]
+
+    # Then small CBE courses (≤ fullday_threshold)
+    small_cbe_courses = [
+        c
+        for c in courses
+        if c["exam_type"] == "CBE"
+        and sum([cls["size"] for cls in c["classes"]]) <= fullday_threshold
+        and not is_class_scheduled(c, date, Schedules)
+        and can_schedule_cbe(Schedules, date, c, max_students=daily_cap)
+    ]
     if small_cbe_courses:
         return random.choice(small_cbe_courses)
-    
+
     # Then handle PBE courses with seat constraints
-    courses_to_select = filter_courses(date, seat_remaining, courses, Schedules)
+    courses_to_select = filter_courses(
+        date, seat_remaining, courses, Schedules,
+        fullday_threshold=fullday_threshold,
+        autosplit_threshold=autosplit_threshold,
+        daily_cap=daily_cap,
+    )
     if courses_to_select:
         return random.choice(courses_to_select)
     return None
 
 
 # Function to generate the timetable and save it to the DB
-def generate(dates, courses_AM, courses_PM, Halls):
+def generate(
+    dates,
+    courses_AM,
+    courses_PM,
+    Halls,
+    *,
+    autosplit_threshold=9000,
+    fullday_threshold=4500,
+    daily_cap=4500,
+    pbe_utilization=0.9,
+):
     # Initialize schedules list
     Schedules = []
-    
-    # Auto-split large CBE courses (>9000 students) into sections by class
-    courses_AM = auto_split_large_cbe_courses(courses_AM)
-    courses_PM = auto_split_large_cbe_courses(courses_PM)
-    
+
+    # Auto-split large CBE courses into sections by class
+    courses_AM = auto_split_large_cbe_courses(courses_AM, autosplit_threshold=autosplit_threshold)
+    courses_PM = auto_split_large_cbe_courses(courses_PM, autosplit_threshold=autosplit_threshold)
+
     # Track initial course counts
     initial_am_count = len(courses_AM)
     initial_pm_count = len(courses_PM)
-    
+
     print(f"\n{'='*60}")
     print(f"[START] Timetable generation for {len(dates)} dates")
     print(f"[INFO] Total AM courses: {initial_am_count}, Total PM courses: {initial_pm_count}")
-    print(f"[INFO] Total hall capacity per period: {get_total_seats(Halls)} seats")
+    print(f"[INFO] Total hall capacity per period: {get_total_seats(Halls, utilization=pbe_utilization)} seats")
     print(f"{'='*60}\n")
-    
+
     # Loop through the dates
     for Date in dates:
         print(f"\n[DATE] Processing: {Date}")
         print(f"[INFO] Remaining courses - AM: {len(courses_AM)}, PM: {len(courses_PM)}")
-        
-        Total_Seats_AM = get_total_seats(Halls)
-        Total_Seats_PM = get_total_seats(Halls)
-        
+
+        Total_Seats_AM = get_total_seats(Halls, utilization=pbe_utilization)
+        Total_Seats_PM = get_total_seats(Halls, utilization=pbe_utilization)
+
         print(f"[INFO] Available seats - AM: {Total_Seats_AM}, PM: {Total_Seats_PM}")
 
         AM_scheduling = True
         am_scheduled_count = 0
         # While there are still seats available and courses to add
         while AM_scheduling:
-            if not can_continue(Date, Total_Seats_AM, courses_AM, Schedules):
+            if not can_continue(
+                Date, Total_Seats_AM, courses_AM, Schedules,
+                fullday_threshold=fullday_threshold,
+                autosplit_threshold=autosplit_threshold,
+                daily_cap=daily_cap,
+            ):
                 AM_scheduling = False
                 print(f"[INFO] Stopped AM scheduling for {Date}. Courses scheduled: {am_scheduled_count}")
                 break
-            
-            Course = get_next_course(Date, Total_Seats_AM, courses_AM, Schedules)
+
+            Course = get_next_course(
+                Date, Total_Seats_AM, courses_AM, Schedules,
+                fullday_threshold=fullday_threshold,
+                autosplit_threshold=autosplit_threshold,
+                daily_cap=daily_cap,
+            )
             if Course is None:
                 print(f"[WARN] No valid course found for AM on {Date}")
                 AM_scheduling = False
                 break
-            
+
             if Course["exam_type"] == "CBE":
                 course_students = sum([cls["size"] for cls in Course["classes"]])
-                
-                # Check if course needs full day (>4500 students)
-                if course_students > 4500:
-                    if can_schedule_full_day_cbe(Schedules, Date, Course):
+
+                # Check if course needs full day (> fullday_threshold)
+                if course_students > fullday_threshold:
+                    if can_schedule_full_day_cbe(
+                        Schedules, Date, Course,
+                        fullday_threshold=fullday_threshold,
+                        autosplit_threshold=autosplit_threshold,
+                    ):
                         # Schedule for both AM and PM periods
                         Schedule_AM = {"course": Course, "date": Date, "period": "AM"}
                         Schedule_PM = {"course": Course, "date": Date, "period": "PM"}
@@ -434,8 +540,8 @@ def generate(dates, courses_AM, courses_PM, Halls):
                         # Don't remove - let it try again on next date
                         print(f"[DEFER] {Course['code']} (CBE) - Deferring to next date (classes already scheduled today)")
                 
-                # Regular scheduling for courses ≤4500 students
-                elif can_schedule_cbe(Schedules, Date, Course):
+                # Regular scheduling for courses ≤ fullday_threshold
+                elif can_schedule_cbe(Schedules, Date, Course, max_students=daily_cap):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
                     current_cbe_total = get_cbe_student_count(Schedules, Date)
@@ -461,14 +567,18 @@ def generate(dates, courses_AM, courses_PM, Halls):
                         AM_scheduling = False
                         print(f"[INFO] AM period full for {Date}")
                     if (
-                        len(filter_courses(Date, Total_Seats_AM, courses_AM, Schedules))
-                        == 0
+                        len(filter_courses(
+                            Date, Total_Seats_AM, courses_AM, Schedules,
+                            fullday_threshold=fullday_threshold,
+                            autosplit_threshold=autosplit_threshold,
+                            daily_cap=daily_cap,
+                        )) == 0
                     ):
                         AM_scheduling = False
                 else:
                     print(f"[SKIP] {Course['code']} (AM) - needs {Seat_Required} seats, only {Total_Seats_AM} available")
                     courses_AM.remove(Course)
-        
+
         #  Schedule PM Courses
         PM_scheduling = True
         pm_scheduled_count = 0
@@ -478,7 +588,12 @@ def generate(dates, courses_AM, courses_PM, Halls):
                 print(f"[INFO] Stopped PM scheduling for {Date}. Courses scheduled: {pm_scheduled_count}")
                 break
             else:
-                Course = get_next_course(Date, Total_Seats_PM, courses_PM, Schedules)
+                Course = get_next_course(
+                    Date, Total_Seats_PM, courses_PM, Schedules,
+                    fullday_threshold=fullday_threshold,
+                    autosplit_threshold=autosplit_threshold,
+                    daily_cap=daily_cap,
+                )
                 if Course is None:
                     print(f"[WARN] No valid course found for PM on {Date}")
                     PM_scheduling = False
@@ -498,8 +613,12 @@ def generate(dates, courses_AM, courses_PM, Halls):
                         PM_scheduling = False
                         print(f"[INFO] PM period full for {Date}")
                     if (
-                        len(filter_courses(Date, Total_Seats_PM, courses_PM, Schedules))
-                        == 0
+                        len(filter_courses(
+                            Date, Total_Seats_PM, courses_PM, Schedules,
+                            fullday_threshold=fullday_threshold,
+                            autosplit_threshold=autosplit_threshold,
+                            daily_cap=daily_cap,
+                        )) == 0
                     ):
                         PM_scheduling = False
                 else:
@@ -609,7 +728,7 @@ def is_course_in_hall(hall, course_code):
     return False
 
 
-def distribute_classes_to_halls(timetables, halls):
+def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
     class_schedules = make_schedules(timetables=timetables)
     results = []
     for hall in halls:
@@ -624,7 +743,7 @@ def distribute_classes_to_halls(timetables, halls):
                 number_of_students = hall["max_students"]
                 if number_of_students >= schedule["size"]:
                     number_of_students = schedule["size"]
-                if schedule["size"] - number_of_students < 5:
+                if schedule["size"] - number_of_students < remainder_threshold:
                     number_of_students = schedule["size"]
 
                 res = {
@@ -951,13 +1070,40 @@ def process_department_class_csv(class_file_path, department):
 ##########################################################################################
 
 
-def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
+_ADJACENCY_DIRECTIONS = {
+    "8-dir": [
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1),           (0, 1),
+        (1, -1),  (1, 0),  (1, 1),
+    ],
+    "4-dir": [(-1, 0), (1, 0), (0, -1), (0, 1)],
+    "off": [],
+}
+
+
+def allocate_students_to_seats(
+    students,
+    rows,
+    cols,
+    max_attempts=10000,
+    *,
+    adjacency_mode="8-dir",
+    attempts_pass2=100,
+    attempts_pass3=300,
+    attempts_pass4=500,
+    success_threshold_pct=60,
+    pattern_order=None,
+):
     """
-    Optimized seat allocation with multi-pass approach and flexible constraints.
-    Uses pattern-based seating and fallback mechanisms to maximize placement.
+    Optimized seat allocation with multi-pass approach.
+    `adjacency_mode` controls which neighbouring cells block same-course placement.
     """
     if not students:  # Check if students list is empty
         return {}, students, 0  # Return all students as unplaced with 0% placement
+
+    if pattern_order is None:
+        pattern_order = ["checkerboard", "diagonal", "sequential"]
+    directions = _ADJACENCY_DIRECTIONS.get(adjacency_mode, _ADJACENCY_DIRECTIONS["8-dir"])
 
     # Initialize seat grid and student tracking
     seats = [[None for _ in range(cols)] for _ in range(rows)]
@@ -972,24 +1118,12 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
         course_groups[course].append(student)
 
     def is_valid_position(student_name, row, col):
-        """Check if position is valid - STRICT enforcement of adjacency constraints"""
+        """Adjacency check honoring the configured mode."""
+        if not directions:  # adjacency_mode == "off"
+            return True
         course = next(
             student["course"] for student in students if student["name"] == student_name
         )
-
-        # Define adjacency directions (8-directional) - ALWAYS check all directions
-        # This ensures NO students from same course can sit adjacent horizontally, vertically, or diagonally
-        directions = [
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-            (0, -1),
-            (0, 1),
-            (1, -1),
-            (1, 0),
-            (1, 1),
-        ]
-
         for dr, dc in directions:
             r, c = row + dr, col + dc
             if 0 <= r < rows and 0 <= c < cols and seats[r][c]:
@@ -1060,15 +1194,14 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
 
         return placed
 
-    # Multi-pass allocation strategy with STRICT adjacency enforcement
+    # Multi-pass allocation strategy with configurable adjacency
     total_placed = 0
 
-    # Pass 1: Pattern-based placement for each course
-    patterns = ["checkerboard", "diagonal", "sequential"]
+    # Pass 1: Pattern-based placement per course in admin-configured order
     for course, course_students in course_groups.items():
         random.shuffle(course_students)  # Randomize within course
 
-        for pattern in patterns:
+        for pattern in pattern_order:
             remaining = [
                 s for s in course_students if student_positions[s["name"]] is None
             ]
@@ -1079,16 +1212,22 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
             if placed > 0:
                 break  # If pattern worked, move to next course
 
-    # Pass 2: Random placement with strict constraints - increased attempts
+    # Pass 2: Random placement with constraint-respecting placement
     remaining_students = [s for s in students if student_positions[s["name"]] is None]
     if remaining_students:
-        placed = try_random_placement(remaining_students, 300)
+        placed = try_random_placement(remaining_students, attempts_pass2)
         total_placed += placed
 
-    # Pass 3: Final attempt with more intensive random placement
+    # Pass 3: More attempts
     remaining_students = [s for s in students if student_positions[s["name"]] is None]
     if remaining_students:
-        placed = try_random_placement(remaining_students, 500)
+        placed = try_random_placement(remaining_students, attempts_pass3)
+        total_placed += placed
+
+    # Pass 4: Final attempt with the highest budget
+    remaining_students = [s for s in students if student_positions[s["name"]] is None]
+    if remaining_students:
+        placed = try_random_placement(remaining_students, attempts_pass4)
         total_placed += placed
 
     # NOTE: Removed relaxed and force placement passes to maintain strict adjacency constraints
@@ -1124,18 +1263,40 @@ def allocate_students_to_seats(students, rows, cols, max_attempts=10000):
     print(f"Unplaced students: {len(unplaced_students)}")
     print(f"Percentage placed: {percentage_placed:.2f}%")
 
-    # Lower the threshold to 60% and always return results
-    if percentage_placed >= 60:
+    # Honour admin-configured success threshold (returns partial either way)
+    if percentage_placed >= success_threshold_pct:
         return seat_positions, unplaced_students, percentage_placed
     else:
         # Even if below threshold, return partial results instead of empty
         return seat_positions, unplaced_students, percentage_placed
 
 
-def print_seating_arrangement(students, rows, cols, date, period, hall_id):
+def print_seating_arrangement(
+    students,
+    rows,
+    cols,
+    date,
+    period,
+    hall_id,
+    *,
+    adjacency_mode="8-dir",
+    attempts_pass2=100,
+    attempts_pass3=300,
+    attempts_pass4=500,
+    success_threshold_pct=60,
+    pattern_order=None,
+):
     from .models import Student  # Import here to avoid circular imports
 
-    result = allocate_students_to_seats(students, rows, cols)
+    result = allocate_students_to_seats(
+        students, rows, cols,
+        adjacency_mode=adjacency_mode,
+        attempts_pass2=attempts_pass2,
+        attempts_pass3=attempts_pass3,
+        attempts_pass4=attempts_pass4,
+        success_threshold_pct=success_threshold_pct,
+        pattern_order=pattern_order,
+    )
     if result is None:
         print("Error: allocate_students_to_seats returned None.")
         return

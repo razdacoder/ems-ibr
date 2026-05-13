@@ -12,6 +12,8 @@ from rest_framework.views import APIView
 from ems.api.exceptions import Conflict
 from ems.api.permissions import IsAdminStaff, IsJobOwnerOrAdmin
 from ems.api.serializers.job import BackgroundJobSerializer
+from ems.api.views.constraints import get_or_create_constraints
+from ems.api.views.system import _get_or_create_settings
 from ems.models import (
     BackgroundJob,
     Class,
@@ -20,6 +22,42 @@ from ems.models import (
     Hall,
     SeatArrangement,
 )
+
+
+def _assert_generation_allowed() -> None:
+    """Block generation until session/semester/constraints/excluded-days are set."""
+    settings_row = _get_or_create_settings()
+    if not (settings_row.session or "").strip() or not (
+        settings_row.semester or ""
+    ).strip():
+        raise ValidationError(
+            {
+                "detail": (
+                    "Academic session and semester must be set in System Settings "
+                    "before generation."
+                )
+            }
+        )
+
+    constraints = get_or_create_constraints()
+    if constraints.configured_at is None:
+        raise ValidationError(
+            {
+                "detail": (
+                    "Generation constraints have not been initialized. "
+                    "Open Admin → Constraints and save once before generating."
+                )
+            }
+        )
+    if not constraints.excluded_weekdays:
+        raise ValidationError(
+            {
+                "detail": (
+                    "Configure at least one excluded weekday in Admin → "
+                    "Constraints before generating."
+                )
+            }
+        )
 
 
 class JobViewSet(viewsets.ReadOnlyModelViewSet):
@@ -164,6 +202,7 @@ class GenerateTimetableView(_BaseGenerateView):
     job_type = "timetable"
 
     def post(self, request):
+        _assert_generation_allowed()
         start = request.data.get("start_date")
         end = request.data.get("end_date")
         if not start or not end:
@@ -208,11 +247,12 @@ class GenerateTimetableView(_BaseGenerateView):
                 {"detail": "End date must be on or after start date."}
             )
 
-        # Sundays excluded — match existing semantics
+        # Use admin-configured excluded weekdays
+        excluded = set(get_or_create_constraints().excluded_weekdays or [])
         days_available = 0
         cursor = start_d
         while cursor <= end_d:
-            if cursor.weekday() != 6:
+            if cursor.weekday() not in excluded:
                 days_available += 1
             cursor += timedelta(days=1)
         max_courses = max(
@@ -239,6 +279,7 @@ class GenerateDistributionView(_BaseGenerateView):
     job_type = "distribution"
 
     def post(self, request):
+        _assert_generation_allowed()
         date = request.data.get("date")
         period = request.data.get("period")
         if not date or not period:
@@ -256,6 +297,7 @@ class GenerateAllocationView(_BaseGenerateView):
     job_type = "allocation"
 
     def post(self, request):
+        _assert_generation_allowed()
         date = request.data.get("date")
         period = request.data.get("period")
         if not date or not period:

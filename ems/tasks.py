@@ -5,13 +5,21 @@ import random
 import string
 from .models import User
 from .models import (
-    BackgroundJob, Class, Course, Distribution, Hall, TimeTable,
-    SeatArrangement, DistributionItem, Student, Department
+    BackgroundJob, Class, Course, Distribution, GenerationConstraints,
+    Hall, TimeTable, SeatArrangement, DistributionItem, Student, Department
 )
 from .utils import (
     get_courses, get_halls, split_course, generate,
     distribute_classes_to_halls, save_to_db, print_seating_arrangement
 )
+
+
+def _load_constraints():
+    """Load the singleton GenerationConstraints, materializing defaults if absent."""
+    obj = GenerationConstraints.objects.first()
+    if not obj:
+        obj = GenerationConstraints.objects.create()
+    return obj
 
 
 def generate_random_students(num_students=100):
@@ -99,16 +107,19 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         # Parse dates
         startDate = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         endDate = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-        
-        # Generate weekday dates (exclude Sundays)
+
+        constraints = _load_constraints()
+        excluded_days = set(constraints.excluded_weekdays or [])
+
+        # Generate dates honouring admin-configured excluded weekdays
         dates = []
         currentDate = startDate
         while currentDate <= endDate:
-            if currentDate.weekday() != 6:  # Exclude Sundays
+            if currentDate.weekday() not in excluded_days:
                 dates.append(currentDate)
             currentDate = currentDate + timedelta(days=1)
-        
-        print(f"[TASK] Generated {len(dates)} valid dates (excluding Sundays)")
+
+        print(f"[TASK] Generated {len(dates)} valid dates (excluded weekdays: {sorted(excluded_days)})")
         
         total_steps = len(dates) * 2  # Rough estimate
         job.total_steps = total_steps
@@ -130,8 +141,10 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 20, 'status': 'Splitting courses...'})
         
-        # Split courses into AM and PM periods
-        AM_courses, PM_courses = split_course(courses)
+        # Split courses into AM and PM periods using admin-configured map
+        AM_courses, PM_courses = split_course(
+            courses, class_period_overrides=constraints.class_period_overrides
+        )
         
         print(f"[TASK] Split courses - AM: {len(AM_courses)}, PM: {len(PM_courses)}")
         
@@ -157,8 +170,17 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         TimeTable.objects.all().delete()
         print(f"[TASK] Deleted existing timetables, starting generation...")
         
-        # Capture the summary returned by generate()
-        summary = generate(dates, AM_courses, PM_courses, halls)
+        # Capture the summary returned by generate(), threading admin constraints
+        summary = generate(
+            dates,
+            AM_courses,
+            PM_courses,
+            halls,
+            autosplit_threshold=constraints.cbe_autosplit_threshold,
+            fullday_threshold=constraints.cbe_fullday_threshold,
+            daily_cap=constraints.cbe_daily_cap_per_period,
+            pbe_utilization=float(constraints.pbe_hall_utilization),
+        )
         
         print(f"[TASK] Timetable generation completed")
         print(f"[TASK] Summary: {summary}")
@@ -257,8 +279,13 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 50, 'status': 'Distributing classes to halls...'})
         
-        # Distribute classes
-        result = distribute_classes_to_halls(list(timetables), halls_list)
+        # Distribute classes (honour admin-configured remainder threshold)
+        constraints = _load_constraints()
+        result = distribute_classes_to_halls(
+            list(timetables),
+            halls_list,
+            remainder_threshold=constraints.remainder_merge_threshold,
+        )
         
         # Update progress: 60%
         job.progress = 60
@@ -313,7 +340,9 @@ def generate_allocation_task(self, job_id, user_id, date, period):
     try:
         job.status = 'running'
         job.save()
-        
+
+        constraints = _load_constraints()
+
         # Check if students exist, if not generate random ones
         if not Student.objects.exists():
             self.update_state(state='PROGRESS', meta={'progress': 2, 'status': 'No students found, generating random students...'})
@@ -426,11 +455,14 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             if len(students) == 0:
                 continue
             
-            # Perform seat allocation
+            # Perform seat allocation. Only the success threshold is
+            # admin-configurable; adjacency, attempts, and pattern order
+            # use the algorithm's baked-in defaults.
             print_seating_arrangement(
                 students, rows, cols,
                 datetime.strptime(date, "%Y-%m-%d").date(),
-                period, distribution.hall.id
+                period, distribution.hall.id,
+                success_threshold_pct=constraints.placement_success_threshold_pct,
             )
             
             # Count results for this hall

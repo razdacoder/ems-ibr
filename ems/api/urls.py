@@ -2,6 +2,7 @@ from django.urls import include, path
 
 from ems.api.routers import router
 from ems.api.views.auth import LoginView, LogoutView, MeView
+from ems.api.views.constraints import GenerationConstraintsView
 from ems.api.views.system import (
     DashboardStatsView,
     EnableBulkUploadView,
@@ -54,6 +55,11 @@ system_patterns = [
         "enable-bulk-upload/",
         EnableBulkUploadView.as_view(),
         name="api-enable-bulk-upload",
+    ),
+    path(
+        "constraints/",
+        GenerationConstraintsView.as_view(),
+        name="api-constraints",
     ),
 ]
 
