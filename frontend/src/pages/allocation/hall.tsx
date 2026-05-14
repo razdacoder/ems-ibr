@@ -49,18 +49,23 @@ export default function HallAllocationPage() {
   const [placedView, setPlacedView] = useState<"list" | "grid">("list");
 
   const courseColors = useMemo(() => {
+    // Fixed six-color palette. Foreground is chosen for ≥ 4.5:1 contrast
+    // against the background; ring is a darker shade of the same hue for
+    // borders/accents (and gives white a visible outline).
+    const palette: Array<{ bg: string; fg: string; ring: string }> = [
+      { bg: "#dc2626", fg: "#ffffff", ring: "#7f1d1d" }, // Red
+      { bg: "#2563eb", fg: "#ffffff", ring: "#1e3a8a" }, // Blue
+      { bg: "#16a34a", fg: "#ffffff", ring: "#14532d" }, // Green
+      { bg: "#facc15", fg: "#111827", ring: "#a16207" }, // Yellow
+      { bg: "#9333ea", fg: "#ffffff", ring: "#581c87" }, // Purple
+      { bg: "#ffffff", fg: "#111827", ring: "#9ca3af" }, // White
+    ];
     const codes = Array.from(
       new Set((data.data?.placed ?? []).map((p) => p.course.code)),
     ).sort();
-    const hues = [12, 38, 68, 118, 165, 205, 235, 275, 310, 340];
     const map: Record<string, { bg: string; fg: string; ring: string }> = {};
     codes.forEach((code, i) => {
-      const h = hues[i % hues.length];
-      map[code] = {
-        bg: `oklch(0.66 0.22 ${h})`,
-        fg: `oklch(0.99 0.005 ${h})`,
-        ring: `oklch(0.46 0.2 ${h})`,
-      };
+      map[code] = palette[i % palette.length];
     });
     return map;
   }, [data.data?.placed]);
