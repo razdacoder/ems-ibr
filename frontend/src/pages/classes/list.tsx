@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import {
   useUpdateClass,
 } from "@/api/classes";
 import { useDepartments } from "@/api/departments";
+import { useSystemSettings } from "@/api/system";
 import { useUploadClassesForDepartment } from "@/api/uploads";
 import {
   Dialog,
@@ -70,9 +71,11 @@ export default function ClassesListPage() {
   });
   const remove = useDeleteClass();
   const departments = useDepartments({ page: 1, enabled: !!user?.is_staff });
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const settings = useSystemSettings();
   const uploadClasses = useUploadClassesForDepartment(user?.department?.slug ?? "");
   const canUploadClasses = !user?.is_staff && !!user?.department;
+  const uploadsLocked = !!settings.data?.has_timetable;
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const onUploadClasses = async (file: File) => {
     try {
@@ -81,6 +84,7 @@ export default function ClassesListPage() {
         title: "Classes uploaded",
         description: `Created ${r.created}, updated ${r.updated}`,
       });
+      setUploadOpen(false);
     } catch (err) {
       toast({
         title: "Upload failed",
@@ -121,28 +125,19 @@ export default function ClassesListPage() {
           isAdmin && (
             <div className="flex items-center gap-2">
               {canUploadClasses && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      await onUploadClasses(f);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadClasses.isPending}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    {uploadClasses.isPending ? "Uploading…" : "Upload CSV"}
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  onClick={() => setUploadOpen(true)}
+                  disabled={uploadClasses.isPending}
+                  title={
+                    uploadsLocked
+                      ? "Uploads are locked — a timetable already exists."
+                      : undefined
+                  }
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadClasses.isPending ? "Uploading…" : "Upload CSV"}
+                </Button>
               )}
               <Button onClick={() => { setEditing(null); setOpen(true); }}>
                 <Plus className="mr-2 h-4 w-4" /> New class
@@ -269,7 +264,83 @@ export default function ClassesListPage() {
         </Table>
       </ListShell>
       <ClassFormDialog open={open} onOpenChange={setOpen} initial={editing} />
+      {canUploadClasses && (
+        <UploadClassesDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          onUpload={onUploadClasses}
+          isPending={uploadClasses.isPending}
+          locked={uploadsLocked}
+        />
+      )}
     </>
+  );
+}
+
+function UploadClassesDialog({
+  open,
+  onOpenChange,
+  onUpload,
+  isPending,
+  locked,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onUpload: (file: File) => Promise<void>;
+  isPending: boolean;
+  locked: boolean;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!open) setFile(null);
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Upload classes CSV</DialogTitle>
+          <DialogDescription>
+            CSV columns: Class name, Size. Existing classes are matched by name
+            and updated.
+          </DialogDescription>
+        </DialogHeader>
+        {locked && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Uploads are locked because a timetable already exists. Ask an
+              administrator to reset the system or re-enable uploads.
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="space-y-3">
+          <Input
+            type="file"
+            accept=".csv,text/csv"
+            disabled={locked || isPending}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => file && onUpload(file)}
+            disabled={!file || locked || isPending}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isPending ? "Uploading…" : "Upload"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

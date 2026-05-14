@@ -132,6 +132,34 @@ export function useGenerateAllocation() {
   });
 }
 
+export function useGenerateDistributionAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ job_id: string }>(
+        "/distribution/generate-all/",
+        {},
+      );
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export function useGenerateAllocationAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await api.post<{ job_id: string }>(
+        "/allocation/generate-all/",
+        {},
+      );
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 /** Subscribe to real-time job progress over WebSocket. Falls back to REST
  *  polling if the socket can't be opened. Returns ``null`` until the first
  *  event arrives. */

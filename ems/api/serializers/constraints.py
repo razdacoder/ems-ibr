@@ -3,6 +3,7 @@ from rest_framework import serializers
 from ems.models import GenerationConstraints
 
 VALID_PERIODS = {"AM", "PM"}
+VALID_SEAT_PATTERNS = {"checkerboard", "sequential"}
 
 
 class GenerationConstraintsSerializer(serializers.ModelSerializer):
@@ -21,6 +22,7 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
             "cbe_group_count",
             "cbe_faculty_groups",
             "pbe_hall_utilization",
+            "seat_pattern",
             "excluded_weekdays",
             "class_period_overrides",
             "remainder_merge_threshold",
@@ -63,6 +65,13 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
         if value is None or value <= 0 or value > 1:
             raise serializers.ValidationError(
                 "Utilization must be greater than 0 and at most 1."
+            )
+        return value
+
+    def validate_seat_pattern(self, value):
+        if value not in VALID_SEAT_PATTERNS:
+            raise serializers.ValidationError(
+                f"Must be one of: {sorted(VALID_SEAT_PATTERNS)}."
             )
         return value
 

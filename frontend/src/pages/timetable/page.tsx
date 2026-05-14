@@ -3,7 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { CalendarPlus } from "lucide-react";
-import { useTimetable, useTimetableDates } from "@/api/scheduling";
+import {
+  useTimetable,
+  useTimetableDates,
+  useTimetableEstimate,
+} from "@/api/scheduling";
 import { useGenerateTimetable } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,14 +57,43 @@ import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
+const todayIso = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 const generateSchema = z
   .object({
     start_date: z.string().min(1, "Start date is required"),
     end_date: z.string().min(1, "End date is required"),
   })
-  .refine((v) => v.end_date >= v.start_date, {
-    message: "End date must be on or after the start date",
-    path: ["end_date"],
+  .superRefine((v, ctx) => {
+    const today = todayIso();
+    if (v.start_date && v.start_date <= today) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["start_date"],
+        message: "Start date must be in the future",
+      });
+    }
+    if (v.end_date && v.end_date <= today) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end_date"],
+        message: "End date must be in the future",
+      });
+    }
+    if (v.start_date && v.end_date && v.end_date < v.start_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end_date"],
+        message: "End date must be on or after the start date",
+      });
+    }
   });
 
 type GenerateValues = z.infer<typeof generateSchema>;
@@ -131,6 +164,18 @@ export default function TimetablePage() {
             <SelectItem value="PM">PM</SelectItem>
           </SelectContent>
         </Select>
+        {(() => {
+          const ds = dates.data?.dates ?? [];
+          if (!ds.length) return null;
+          const days = ds.length;
+          const weeks = Math.round((days / 7) * 10) / 10;
+          return (
+            <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              {days} day{days === 1 ? "" : "s"} · {weeks} week
+              {weeks === 1 ? "" : "s"} available
+            </span>
+          );
+        })()}
       </div>
 
       <Card>
@@ -237,6 +282,7 @@ function GenerateTimetableDialog({
   onLaunched: (jobId: string) => void;
 }) {
   const generate = useGenerateTimetable();
+  const estimate = useTimetableEstimate(open);
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<GenerateValues>({
     resolver: zodResolver(generateSchema),
@@ -249,6 +295,43 @@ function GenerateTimetableDialog({
       setTopError(null);
     }
   }, [open, form]);
+
+  const minStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const watchedStart = form.watch("start_date");
+  const watchedEnd = form.watch("end_date");
+
+  const excludedSet = new Set(estimate.data?.excluded_weekdays ?? [6]);
+  // JS getDay(): Sun=0..Sat=6 → Python weekday(): Mon=0..Sun=6
+  const toPyWeekday = (jsDay: number) => (jsDay + 6) % 7;
+  const validExamDaysInWindow = (() => {
+    if (!watchedStart || !watchedEnd || watchedEnd < watchedStart) return 0;
+    let count = 0;
+    const cursor = new Date(watchedStart);
+    const end = new Date(watchedEnd);
+    while (cursor <= end) {
+      if (!excludedSet.has(toPyWeekday(cursor.getDay()))) count++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return count;
+  })();
+
+  const spanLabel = (() => {
+    if (!watchedStart || !watchedEnd || watchedEnd < watchedStart) return null;
+    const ms = new Date(watchedEnd).getTime() - new Date(watchedStart).getTime();
+    const calendarDays = Math.round(ms / 86_400_000) + 1;
+    const weeks = Math.round((calendarDays / 7) * 10) / 10;
+    return `${calendarDays} calendar day${calendarDays === 1 ? "" : "s"} · ${validExamDaysInWindow} exam day${validExamDaysInWindow === 1 ? "" : "s"} · ${weeks} week${weeks === 1 ? "" : "s"}`;
+  })();
+
+  const windowTooShort =
+    !!estimate.data &&
+    validExamDaysInWindow > 0 &&
+    validExamDaysInWindow < estimate.data.min_exam_days;
 
   const onSubmit = async (v: GenerateValues) => {
     setTopError(null);
@@ -277,6 +360,47 @@ function GenerateTimetableDialog({
                 <AlertDescription>{topError}</AlertDescription>
               </Alert>
             )}
+            {estimate.data && estimate.data.class_count > 0 && (
+              <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/40 p-3 text-[12px]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Recommended window
+                </p>
+                <p className="mt-1 font-serif text-[1.0625rem] leading-snug tracking-[-0.005em]">
+                  {estimate.data.recommended_exam_days} exam day
+                  {estimate.data.recommended_exam_days === 1 ? "" : "s"}
+                  {" · "}
+                  {estimate.data.min_calendar_days} calendar day
+                  {estimate.data.min_calendar_days === 1 ? "" : "s"}
+                  {" ("}
+                  {estimate.data.min_calendar_weeks} week
+                  {estimate.data.min_calendar_weeks === 1 ? "" : "s"}
+                  {")"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Minimum {estimate.data.min_exam_days} exam day
+                  {estimate.data.min_exam_days === 1 ? "" : "s"}.{" "}
+                  {estimate.data.bottleneck === "seat_throughput" ? (
+                    <>
+                      Bottleneck: hall seat throughput — AM demand{" "}
+                      {estimate.data.am_seat_demand.toLocaleString()}, PM{" "}
+                      {estimate.data.pm_seat_demand.toLocaleString()} vs{" "}
+                      {estimate.data.seats_per_period.toLocaleString()} seats
+                      per period (needs{" "}
+                      {estimate.data.throughput_min_days} days). Per-class
+                      limit only needs {estimate.data.per_class_min_days}.
+                    </>
+                  ) : (
+                    <>
+                      Bottleneck: the busiest class has AM{" "}
+                      {estimate.data.worst_class_am} · PM{" "}
+                      {estimate.data.worst_class_pm} exams across{" "}
+                      {estimate.data.class_count} classes. Choose at least this
+                      many days for maximum efficiency.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
             <FormField
               control={form.control}
               name="start_date"
@@ -284,7 +408,7 @@ function GenerateTimetableDialog({
                 <FormItem>
                   <FormLabel>Start date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="date" min={minStart} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -297,12 +421,31 @@ function GenerateTimetableDialog({
                 <FormItem>
                   <FormLabel>End date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input
+                      type="date"
+                      min={form.watch("start_date") || minStart}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {spanLabel && (
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                Window: {spanLabel}
+              </p>
+            )}
+            {windowTooShort && estimate.data && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  This window has only {validExamDaysInWindow} valid exam day
+                  {validExamDaysInWindow === 1 ? "" : "s"}, but the busiest
+                  class needs {estimate.data.min_exam_days}. Extend the end
+                  date for a clean schedule.
+                </AlertDescription>
+              </Alert>
+            )}
             <DialogFooter>
               <Button
                 type="button"

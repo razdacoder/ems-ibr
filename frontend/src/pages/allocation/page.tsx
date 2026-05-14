@@ -5,7 +5,7 @@ import {
   useAllocation,
   useTimetableDates,
 } from "@/api/scheduling";
-import { useGenerateAllocation } from "@/api/jobs";
+import { useGenerateAllocationAll } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,17 +49,16 @@ export default function AllocationPage() {
   }, [date, dates.data]);
 
   const list = useAllocation({ date, period });
-  const generate = useGenerateAllocation();
+  const generate = useGenerateAllocationAll();
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
 
   const onGenerate = async () => {
-    if (!date || !period) return;
     try {
-      const out = await generate.mutateAsync({ date, period });
+      const out = await generate.mutateAsync();
       setJobId(out.job_id);
       setProgressOpen(true);
-      toast({ title: "Allocation generation started" });
+      toast({ title: "Seat allocation started for all slots" });
     } catch (err) {
       toast({
         title: "Could not start",
@@ -74,17 +73,17 @@ export default function AllocationPage() {
       <PageHeader
         section="Operations · Allocation"
         title="Seat allocation."
-        description="Per-hall placement of students for each exam slot. Anti-cheating adjacency rules with manual override."
+        description="Per-hall placement of students with anti-cheating adjacency rules. Generate once for every exam slot in the timetable; filter below to view a specific slot."
         actions={
           isAdmin && (
             <Button
               onClick={onGenerate}
-              disabled={!date || generate.isPending}
+              disabled={generate.isPending}
               size="lg"
               className="h-10"
             >
               <Sparkles className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
-              Generate allocation
+              {generate.isPending ? "Starting…" : "Generate for all slots"}
             </Button>
           )
         }

@@ -42,6 +42,7 @@ type FormState = {
   cbe_daily_cap_per_period: number;
   cbe_group_count: number;
   pbe_hall_utilization: number;
+  seat_pattern: "checkerboard" | "sequential";
   excluded_weekdays: number[];
   remainder_merge_threshold: number;
   placement_success_threshold_pct: number;
@@ -83,6 +84,7 @@ export default function ConstraintsPage() {
         cbe_daily_cap_per_period: constraints.data.cbe_daily_cap_per_period,
         cbe_group_count: constraints.data.cbe_group_count,
         pbe_hall_utilization: Number(constraints.data.pbe_hall_utilization),
+        seat_pattern: constraints.data.seat_pattern ?? "checkerboard",
         excluded_weekdays: [...constraints.data.excluded_weekdays],
         remainder_merge_threshold: constraints.data.remainder_merge_threshold,
         placement_success_threshold_pct:
@@ -296,6 +298,54 @@ export default function ConstraintsPage() {
               value={form.pbe_hall_utilization}
               onChange={(v) => set("pbe_hall_utilization", v)}
             />
+          </div>
+          <div className="space-y-2 max-w-md">
+            <label className="block font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Seat pattern
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  {
+                    value: "checkerboard" as const,
+                    title: "Checkerboard",
+                    hint: "Strict spacing · ~50% capacity",
+                  },
+                  {
+                    value: "sequential" as const,
+                    title: "Sequential",
+                    hint: "Full capacity · adjacency-only spacing",
+                  },
+                ]
+              ).map((opt) => {
+                const active = form.seat_pattern === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => set("seat_pattern", opt.value)}
+                    className={
+                      "rounded-md border px-3 py-2 text-left transition-colors " +
+                      (active
+                        ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)]/60"
+                        : "border-[color:var(--border)] hover:bg-[color:var(--muted)]")
+                    }
+                  >
+                    <div className="font-serif text-[0.95rem]">{opt.title}</div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      {opt.hint}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[12px] text-muted-foreground">
+              Drives timetable seat budgeting, distribution packing, and
+              allocation placement. Sequential roughly doubles per-period
+              capacity (and so halves the required exam window) but only
+              spaces same-course students by direct adjacency, not by a full
+              empty cell.
+            </p>
           </div>
         </CardContent>
       </Card>

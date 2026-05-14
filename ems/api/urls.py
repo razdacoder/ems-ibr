@@ -19,7 +19,9 @@ from ems.api.views.uploads import (
     HallUploadView,
 )
 from ems.api.views.jobs import (
+    GenerateAllocationAllView,
     GenerateAllocationView,
+    GenerateDistributionAllView,
     GenerateDistributionView,
     GenerateTimetableView,
     ManualSeatAssignmentView,
@@ -30,6 +32,7 @@ from ems.api.views.scheduling import (
     DistributionStatisticsView,
     HallAllocationView,
     TimetableDatesView,
+    TimetableEstimateView,
     TimetableListView,
 )
 from ems.api.views.exports import (
@@ -95,6 +98,11 @@ scheduling_patterns = [
         name="api-timetable-dates",
     ),
     path(
+        "timetable/estimate/",
+        TimetableEstimateView.as_view(),
+        name="api-timetable-estimate",
+    ),
+    path(
         "timetable/generate/",
         GenerateTimetableView.as_view(),
         name="api-generate-timetable",
@@ -110,6 +118,11 @@ scheduling_patterns = [
         GenerateDistributionView.as_view(),
         name="api-generate-distribution",
     ),
+    path(
+        "distribution/generate-all/",
+        GenerateDistributionAllView.as_view(),
+        name="api-generate-distribution-all",
+    ),
     path("allocation/", AllocationListView.as_view(), name="api-allocation"),
     path(
         "allocation/hall/",
@@ -120,6 +133,11 @@ scheduling_patterns = [
         "allocation/generate/",
         GenerateAllocationView.as_view(),
         name="api-generate-allocation",
+    ),
+    path(
+        "allocation/generate-all/",
+        GenerateAllocationAllView.as_view(),
+        name="api-generate-allocation-all",
     ),
     path(
         "allocation/manual-assign/",

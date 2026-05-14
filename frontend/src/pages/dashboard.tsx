@@ -180,7 +180,7 @@ export default function DashboardPage() {
               style={{ backgroundColor: "var(--brand)" }}
             />
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              01 — Catalog
+              01 — Statistics
             </p>
           </div>
           <Link
@@ -249,7 +249,7 @@ export default function DashboardPage() {
               style={{ backgroundColor: "var(--brand)" }}
             />
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              02 — Operations
+              02 — Quick Actions
             </p>
           </div>
         </div>

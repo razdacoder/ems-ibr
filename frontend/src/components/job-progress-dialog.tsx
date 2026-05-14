@@ -39,14 +39,7 @@ export function JobProgressDialog({
   const isTerminal = status === "success" || status === "failed";
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        // Don't allow closing while running
-        if (!o && !isTerminal && status === "running") return;
-        onOpenChange(o);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -89,7 +82,6 @@ export function JobProgressDialog({
           <Button
             variant={isTerminal ? "default" : "outline"}
             onClick={() => onOpenChange(false)}
-            disabled={!isTerminal && status === "running"}
           >
             {isTerminal ? "Close" : "Hide"}
           </Button>

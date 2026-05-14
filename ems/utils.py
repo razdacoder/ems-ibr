@@ -24,10 +24,20 @@ from .models import (
 # Get Halls to memory location
 
 
-def get_halls():
-    """To get all Halls into memory location"""
+def get_halls(pattern: str = "checkerboard"):
+    """All halls for timetable seat-budgeting.
+
+    ``capacity`` here is the **allocation-reachable** seat count for the
+    configured ``pattern`` (not the raw seat count). Keeping timetable,
+    distribution, and allocation on the same capacity model is what prevents
+    courses from being scheduled into a period they can't physically fit.
+    """
     return [
-        {"id": hall.id, "name": hall.name, "capacity": hall.capacity}
+        {
+            "id": hall.id,
+            "name": hall.name,
+            "capacity": hall_effective_capacity(hall.rows, hall.columns, pattern),
+        }
         for hall in Hall.objects.all()
     ]
 
@@ -210,7 +220,9 @@ def is_class_scheduled(course, date, Schedules):
 
 # Helper function to get total available seats per period
 def get_total_seats(Halls, utilization=0.9):
-    return int(sum([Hall["capacity"] * float(utilization) for Hall in Halls]))
+    # Floor per hall to match distribution's per-hall rounding, so the
+    # timetable budget never overshoots what distribution can actually absorb.
+    return sum(int(Hall["capacity"] * float(utilization)) for Hall in Halls)
 
 
 # Get total CBE students scheduled for a given date
@@ -725,18 +737,78 @@ def get_total_no_seats_needed(timetables):
     return sum
 
 
-def convert_hall_to_dict(halls):
+# Allocation runs the checkerboard pattern under 8-dir adjacency. That means:
+#   - The pattern itself uses cells where (r + c) % 2 == 0 → about half the grid.
+#   - For a single course, two students one step diagonally apart (e.g. (0,0)
+#     and (1,1)) are both even-parity and 8-dir adjacent, so they conflict.
+#     Safely packing one course needs every-other-row × every-other-col →
+#     about a quarter of the grid.
+# Distribution must respect both bounds, otherwise the allocator overflows
+# into the unplaced bucket.
+
+def hall_effective_capacity(rows: int, cols: int, pattern: str = "checkerboard") -> int:
+    """Total seats the allocator can fill in this hall under ``pattern``.
+
+    * ``checkerboard``: only even-parity cells → ceil(rows*cols / 2).
+    * ``sequential``  : all cells → rows * cols.
+    """
+    if rows <= 0 or cols <= 0:
+        return 0
+    if pattern == "sequential":
+        return rows * cols
+    return (rows * cols + 1) // 2  # checkerboard
+
+
+def hall_per_course_slice(rows: int, cols: int, pattern: str = "checkerboard") -> int:
+    """Largest course that's guaranteed to fit any quarter of the hall.
+
+    Each course is confined to one ``(r%2, c%2)`` parity quarter so all its
+    students stay pairwise non-8-dir-adjacent. When ``rows`` or ``cols`` is
+    odd the four quarters have unequal sizes (e.g. a 15×20 hall has two
+    80-cell and two 70-cell quarters). To guarantee zero adjacency-overflow
+    we cap at the *smallest* quarter — ``floor(r/2) × floor(c/2)`` — rather
+    than the largest. Pattern is irrelevant; same-course adjacency binds.
+    """
+    del pattern
+    if rows <= 0 or cols <= 0:
+        return 0
+    return max(1, rows // 2) * max(1, cols // 2)
+
+
+def convert_hall_to_dict(
+    halls,
+    safety_factor: float = 0.90,
+    pattern: str = "checkerboard",
+):
+    """Hall list for distribution.
+
+    ``safety_factor`` defaults to 0.9 and is expected to match
+    ``GenerationConstraints.pbe_hall_utilization``. ``pattern`` matches
+    ``GenerationConstraints.seat_pattern``. Together they keep timetable,
+    distribution, and allocation on one capacity model.
+    """
     halls_dict = []
     for hall in halls:
-        hall_dict = {
-            "id": hall.id,
-            "name": hall.name,
-            "capacity": hall.capacity,
-            "max_students": hall.max_students,
-            "min_courses": hall.min_courses,
-            "classes": [],
-        }
-        halls_dict.append(hall_dict)
+        effective = hall_effective_capacity(hall.rows, hall.columns, pattern)
+        halls_dict.append(
+            {
+                "id": hall.id,
+                "name": hall.name,
+                "rows": hall.rows,
+                "columns": hall.columns,
+                # Pattern-aware seat budget; replaces raw hall.capacity for
+                # distribution. Headroom keeps the allocator's randomized
+                # passes from running out of free seats.
+                "capacity": int(effective * safety_factor),
+                # Slice equals the smallest quarter, so the deterministic
+                # quarter placer always finds room — no headroom multiplier
+                # needed.
+                "per_course_slice": hall_per_course_slice(
+                    hall.rows, hall.columns, pattern
+                ),
+                "classes": [],
+            }
+        )
     return halls_dict
 
 
@@ -767,38 +839,58 @@ def is_course_in_hall(hall, course_code):
 
 
 def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
-    class_schedules = make_schedules(timetables=timetables)
-    results = []
-    for hall in halls:
-        for schedule in class_schedules:
-            if (
-                is_course_in_hall(hall, schedule["course"])
-                or len(hall["classes"]) == hall["min_courses"]
-                or schedule["size"] == 0
-            ):
-                pass
-            else:
-                number_of_students = hall["max_students"]
-                if number_of_students >= schedule["size"]:
-                    number_of_students = schedule["size"]
-                if schedule["size"] - number_of_students < remainder_threshold:
-                    number_of_students = schedule["size"]
+    """Pack timetable rows into halls under allocation-aware caps.
 
-                res = {
+    Each hall carries two budgets (set by :func:`convert_hall_to_dict`):
+      * ``capacity``           — total students the hall can absorb under
+                                  checkerboard + 8-dir adjacency, with safety
+                                  headroom (≈ 0.45 × rows × cols).
+      * ``per_course_slice``    — max students of any one course in the hall
+                                  (≈ rows × cols / 4).
+
+    Largest schedules go first so they aren't fragmented across many halls.
+    Halls are visited largest-capacity first for the same reason.
+    """
+    class_schedules = make_schedules(timetables=timetables)
+    # make_schedules already random-shuffles. Stable-sort by size desc to
+    # place big courses first while keeping intra-size randomness.
+    class_schedules.sort(key=lambda s: s["size"], reverse=True)
+    halls.sort(key=lambda h: h.get("capacity", 0), reverse=True)
+
+    for hall in halls:
+        slice_cap = hall.get("per_course_slice", 0)
+        for schedule in class_schedules:
+            if schedule["size"] == 0:
+                continue
+            if is_course_in_hall(hall, schedule["course"]):
+                # Keep slices of the same course in different halls — this is
+                # what lets the allocator spread same-course adjacency risk.
+                continue
+            seats_remaining = hall["capacity"]
+            if seats_remaining <= 0:
+                break
+
+            take = min(schedule["size"], seats_remaining, slice_cap)
+            if take <= 0:
+                continue
+            # Sweep up a tiny tail rather than spilling it to another hall —
+            # but only if it still fits within both budgets.
+            tail = schedule["size"] - take
+            if 0 < tail < remainder_threshold and tail <= seats_remaining - take:
+                take += tail
+
+            hall["classes"].append(
+                {
                     "id": schedule["id"],
                     "class": schedule["class"],
                     "course": schedule["course"],
-                    "student_range": number_of_students,
+                    "student_range": take,
                 }
-                hall["classes"].append(res)
-                hall["capacity"] -= number_of_students
-                schedule["size"] -= number_of_students
-    for hall in halls:
-        if len(hall["classes"]) == 0:
-            pass
-        else:
-            results.append(hall)
-    return results
+            )
+            hall["capacity"] -= take
+            schedule["size"] -= take
+
+    return [hall for hall in halls if hall["classes"]]
 
 
 def save_to_db(res, date, period):
@@ -1232,8 +1324,65 @@ def allocate_students_to_seats(
 
         return placed
 
+    def try_quarter_placement():
+        """Deterministic 'quarter' placement — the only layout that's
+        provably safe under 8-dir same-course adjacency.
+
+        The grid is partitioned into four ``(r%2, c%2)`` quarters. Any two
+        cells in the same quarter are at least two apart in row or column,
+        so they're never 8-dir adjacent — meaning *any* set of same-course
+        students placed in one quarter is automatically conflict-free. A
+        single course must stay in one quarter (different quarters touch);
+        different courses can share a quarter freely.
+
+        Courses are placed largest-first into the most-empty quarter. With
+        distribution capping each course at ``ceil(r/2)*ceil(c/2)`` × safety,
+        every course fits its chosen quarter in full.
+        """
+        if not directions:
+            return 0
+        quarter_cells = {
+            (ro, co): [
+                (r, c)
+                for r in range(rows)
+                for c in range(cols)
+                if r % 2 == ro and c % 2 == co and not seats[r][c]
+            ]
+            for ro in (0, 1)
+            for co in (0, 1)
+        }
+        courses_sorted = sorted(
+            course_groups.items(),
+            key=lambda kv: -sum(
+                1 for s in kv[1] if student_positions[s["name"]] is None
+            ),
+        )
+        placed_here = 0
+        for _course_code, course_students in courses_sorted:
+            remaining = [
+                s for s in course_students if student_positions[s["name"]] is None
+            ]
+            if not remaining:
+                continue
+            # Pick the quarter with the most room.
+            best_key = max(quarter_cells, key=lambda k: len(quarter_cells[k]))
+            cells = quarter_cells[best_key]
+            for student in remaining:
+                if not cells:
+                    break  # this course's tail will fall through to later passes
+                row, col = cells.pop(0)
+                seats[row][col] = student["name"]
+                student_positions[student["name"]] = (row, col)
+                placed_here += 1
+        return placed_here
+
     # Multi-pass allocation strategy with configurable adjacency
     total_placed = 0
+
+    # Pass 0: Deterministic quarter placement — guarantees no same-course
+    # 8-dir adjacency for everything it seats, achieving the theoretical max
+    # without burning attempts on random dead-ends.
+    total_placed += try_quarter_placement()
 
     # Pass 1: Pattern-based placement per course in admin-configured order
     for course, course_students in course_groups.items():
@@ -2075,3 +2224,117 @@ def process_student_csv(file_path, class_obj, department_slug):
         raise ValueError(f"Validation failed: {'; '.join(validation_result['errors'])}")
 
     return process_validated_student_csv(file_path, validation_result)
+
+
+def reconcile_unplaced(date, period):
+    """Cross-hall reconciliation: seat any students left unplaced in one
+    hall into another hall (same date/period) that still has empty cells
+    *and* room for that course's quarter.
+
+    Runs after every hall has been allocated independently. Walks every
+    ``SeatArrangement`` row with ``seat_number=NULL`` and, course-by-course,
+    finds a destination hall whose empty parity quarter can absorb the
+    student without breaking 8-dir same-course adjacency.
+
+    Returns the number of students reseated.
+    """
+    from .models import SeatArrangement, Hall
+
+    unplaced_qs = (
+        SeatArrangement.objects.filter(
+            date=date, period=period, seat_number__isnull=True
+        )
+        .select_related("course", "cls", "hall")
+        .order_by("course_id")
+    )
+    if not unplaced_qs.exists():
+        return 0
+
+    halls = list(Hall.objects.all())
+
+    # Build per-hall occupancy maps once.
+    hall_state: dict[int, dict] = {}
+    for hall in halls:
+        r, c = hall.rows, hall.columns
+        grid = [[None] * c for _ in range(r)]
+        existing = SeatArrangement.objects.filter(
+            date=date, period=period, hall=hall, seat_number__isnull=False
+        ).select_related("course")
+        for sa in existing:
+            seat = sa.seat_number - 1  # 1-based → 0-based
+            row, col = divmod(seat, c)
+            if 0 <= row < r and 0 <= col < c:
+                grid[row][col] = sa.course_id
+        # Free cells grouped by parity quarter.
+        quarters: dict[tuple[int, int], list[tuple[int, int]]] = {
+            (ro, co): [] for ro in (0, 1) for co in (0, 1)
+        }
+        for row in range(r):
+            for col in range(c):
+                if grid[row][col] is None:
+                    quarters[(row % 2, col % 2)].append((row, col))
+        # Per-quarter occupancy of course_ids so we don't seat a student in
+        # a quarter that already has same-course students stuck there.
+        quarter_courses: dict[tuple[int, int], set[int]] = {
+            (ro, co): set() for ro in (0, 1) for co in (0, 1)
+        }
+        for row in range(r):
+            for col in range(c):
+                cid = grid[row][col]
+                if cid is not None:
+                    quarter_courses[(row % 2, col % 2)].add(cid)
+        hall_state[hall.id] = {
+            "rows": r,
+            "cols": c,
+            "grid": grid,
+            "quarters": quarters,
+            "quarter_courses": quarter_courses,
+        }
+
+    reseated = 0
+    for sa in unplaced_qs:
+        target_id = None
+        target_pos = None
+        target_quarter = None
+        # Prefer halls with the most empty cells and a quarter that already
+        # has this course (extending an existing same-course quarter is
+        # always safe) or any quarter the course hasn't entered.
+        sorted_halls = sorted(
+            hall_state.items(),
+            key=lambda kv: -sum(len(v) for v in kv[1]["quarters"].values()),
+        )
+        for hall_id, state in sorted_halls:
+            quarters = state["quarters"]
+            qcourses = state["quarter_courses"]
+            # Try quarters that already host this course first — guaranteed
+            # safe (cells inside one quarter are never 8-dir adjacent).
+            preferred = [
+                key for key, courses in qcourses.items()
+                if sa.course_id in courses and quarters[key]
+            ]
+            fallback = [
+                key for key, courses in qcourses.items()
+                if sa.course_id not in courses and quarters[key]
+            ]
+            for key in preferred + fallback:
+                row, col = quarters[key].pop()
+                state["grid"][row][col] = sa.course_id
+                qcourses[key].add(sa.course_id)
+                target_id = hall_id
+                target_pos = (row, col)
+                target_quarter = key
+                break
+            if target_id is not None:
+                break
+        if target_id is None:
+            continue  # genuinely no room anywhere
+        del target_quarter  # only used while choosing
+        # Persist the move.
+        row, col = target_pos
+        cols = hall_state[target_id]["cols"]
+        sa.hall_id = target_id
+        sa.seat_number = row * cols + col + 1
+        sa.save(update_fields=["hall_id", "seat_number"])
+        reseated += 1
+
+    return reseated

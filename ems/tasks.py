@@ -132,7 +132,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         
         # Get courses and halls
         courses = get_courses()
-        halls = get_halls()
+        halls = get_halls(pattern=constraints.seat_pattern)
         
         print(f"[TASK] Loaded {len(courses)} courses and {len(halls)} halls")
         
@@ -272,17 +272,22 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 30, 'status': 'Converting halls...'})
         
-        # Convert halls (pass the entire queryset, not individual halls)
-        from .utils import convert_hall_to_dict
-        halls_list = convert_hall_to_dict(halls)
-        
         # Update progress: 50%
         job.progress = 50
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 50, 'status': 'Distributing classes to halls...'})
-        
-        # Distribute classes (honour admin-configured remainder threshold)
+
+        # Convert halls with the same safety factor timetable uses, so both
+        # stages see one shared capacity model.
         constraints = _load_constraints()
+        from .utils import convert_hall_to_dict
+        halls_list = convert_hall_to_dict(
+            halls,
+            safety_factor=float(constraints.pbe_hall_utilization),
+            pattern=constraints.seat_pattern,
+        )
+
+        # Distribute classes (honour admin-configured remainder threshold)
         result = distribute_classes_to_halls(
             list(timetables),
             halls_list,
@@ -457,9 +462,12 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             if len(students) == 0:
                 continue
             
-            # Perform seat allocation. Only the success threshold is
-            # admin-configurable; adjacency, attempts, and pattern order
-            # use the algorithm's baked-in defaults.
+            # Perform seat allocation. We always use the full per-course
+            # fallback (checkerboard → diagonal → sequential): the first
+            # course in a hall takes even-parity cells, the second takes
+            # odd-parity, and subsequent courses land randomly under the
+            # adjacency check. This gives the highest placement rate
+            # regardless of which seat_pattern was used to size the hall.
             print_seating_arrangement(
                 students, rows, cols,
                 datetime.strptime(date, "%Y-%m-%d").date(),
@@ -483,8 +491,18 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         # Update progress: 90% - all halls processed
         job.progress = 90
         job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Finalizing allocation...'})
-        
+        self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Reconciling unplaced students...'})
+
+        # ─── Cross-hall reconciliation ────────────────────────────────
+        # Move unplaced students into any other hall that still has empty
+        # seats and adjacency-room for that course. Uses the same quarter
+        # rule as the per-hall placer: a student lands in a parity quarter
+        # where their course doesn't already conflict.
+        from .utils import reconcile_unplaced
+        reconciled = reconcile_unplaced(date, period)
+        total_allocated += reconciled
+        total_unplaced -= reconciled
+
         # Complete job
         job.status = 'success'
         job.progress = 100
@@ -494,6 +512,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'total_allocated': total_allocated,
             'total_unplaced': total_unplaced,
             'halls_processed': processed_halls,
+            'reconciled_across_halls': reconciled,
             'date': date,
             'period': period
         }
@@ -503,7 +522,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'status': 'success',
             'message': f'Allocated {total_allocated} students across {processed_halls} halls. {total_unplaced} unplaced.'
         }
-        
+
     except Exception as e:
         import traceback
         job.status = 'failed'
@@ -513,6 +532,152 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'error': str(e),
             'error_type': type(e).__name__,
             'traceback': traceback.format_exc()
+        }
+        job.completed_at = timezone.now()
+        job.save()
+        raise
+
+
+@shared_task(bind=True)
+def generate_distribution_all_task(self, job_id, user_id):
+    """Distribute every (date, period) slot present in the timetable.
+    Skips any slot that already has a Distribution row."""
+    from .utils import convert_hall_to_dict
+    job = BackgroundJob.objects.get(job_id=job_id)
+    try:
+        job.status = 'running'
+        job.total_steps = 100
+        job.save()
+        constraints = _load_constraints()
+        slots = list(
+            TimeTable.objects.values_list('date', 'period').distinct().order_by('date', 'period')
+        )
+        if not slots:
+            raise ValueError('No timetable rows found — generate the timetable first.')
+        total = len(slots)
+        results = []
+        for i, (date, period) in enumerate(slots):
+            progress = int((i / total) * 95)
+            self.update_state(state='PROGRESS', meta={
+                'progress': progress,
+                'status': f'Distributing {date} {period} ({i+1}/{total})',
+            })
+            job.progress = progress
+            job.save()
+            if Distribution.objects.filter(date=str(date), period=period).exists():
+                results.append({'date': str(date), 'period': period, 'skipped': True})
+                continue
+            timetables = TimeTable.objects.filter(
+                date=date, period=period
+            ).select_related('course', 'class_obj', 'class_obj__department')
+            halls_list = convert_hall_to_dict(
+                Hall.objects.all(),
+                safety_factor=float(constraints.pbe_hall_utilization),
+                pattern=constraints.seat_pattern,
+            )
+            result = distribute_classes_to_halls(
+                list(timetables),
+                halls_list,
+                remainder_threshold=constraints.remainder_merge_threshold,
+            )
+            save_to_db(result, str(date), period)
+            results.append({'date': str(date), 'period': period, 'halls_used': len(result)})
+
+        job.status = 'success'
+        job.progress = 100
+        job.completed_at = timezone.now()
+        skipped = sum(1 for r in results if r.get('skipped'))
+        job.result_data = {
+            'message': f'Bulk distribution completed across {total} slot(s) ({skipped} skipped)',
+            'slots_processed': total,
+            'slots_skipped': skipped,
+            'slots': results,
+        }
+        job.save()
+        return {'status': 'success', 'message': job.result_data['message']}
+    except Exception as e:
+        import traceback
+        job.status = 'failed'
+        job.error_message = str(e)
+        job.result_data = {
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc(),
+        }
+        job.completed_at = timezone.now()
+        job.save()
+        raise
+
+
+@shared_task(bind=True)
+def generate_allocation_all_task(self, job_id, user_id):
+    """Allocate every (date, period) slot that has a Distribution but no
+    SeatArrangement yet. Re-uses the per-slot allocation task by inline
+    invocation."""
+    job = BackgroundJob.objects.get(job_id=job_id)
+    try:
+        job.status = 'running'
+        job.total_steps = 100
+        job.save()
+        slots = list(
+            Distribution.objects.values_list('date', 'period').distinct().order_by('date', 'period')
+        )
+        if not slots:
+            raise ValueError('No distributions found — generate distribution first.')
+        total = len(slots)
+        results = []
+        for i, (date, period) in enumerate(slots):
+            progress = int((i / total) * 95)
+            self.update_state(state='PROGRESS', meta={
+                'progress': progress,
+                'status': f'Allocating {date} {period} ({i+1}/{total})',
+            })
+            job.progress = progress
+            job.save()
+            if SeatArrangement.objects.filter(date=str(date), period=period).exists():
+                results.append({'date': str(date), 'period': period, 'skipped': True})
+                continue
+            sub_id = f'{job_id}::{date}::{period}'
+            sub_job = BackgroundJob.objects.create(
+                job_id=sub_id,
+                job_type='allocation',
+                status='pending',
+                created_by_id=user_id,
+                params={'date': str(date), 'period': period},
+            )
+            # Inline call — bypasses the broker, runs in this worker.
+            generate_allocation_task.apply(args=[sub_id, user_id, str(date), period])
+            sub_job.refresh_from_db()
+            rd = sub_job.result_data or {}
+            results.append({
+                'date': str(date),
+                'period': period,
+                'status': sub_job.status,
+                'allocated': rd.get('total_allocated'),
+                'unplaced': rd.get('total_unplaced'),
+                'reconciled': rd.get('reconciled_across_halls'),
+            })
+
+        job.status = 'success'
+        job.progress = 100
+        job.completed_at = timezone.now()
+        skipped = sum(1 for r in results if r.get('skipped'))
+        job.result_data = {
+            'message': f'Bulk allocation completed across {total} slot(s) ({skipped} skipped)',
+            'slots_processed': total,
+            'slots_skipped': skipped,
+            'slots': results,
+        }
+        job.save()
+        return {'status': 'success', 'message': job.result_data['message']}
+    except Exception as e:
+        import traceback
+        job.status = 'failed'
+        job.error_message = str(e)
+        job.result_data = {
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc(),
         }
         job.completed_at = timezone.now()
         job.save()

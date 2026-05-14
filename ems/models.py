@@ -61,6 +61,12 @@ def _default_seating_patterns():
     return ["checkerboard", "diagonal", "sequential"]
 
 
+SEAT_PATTERN_CHOICES = (
+    ("checkerboard", "Checkerboard (strict spacing, ~50% capacity)"),
+    ("sequential", "Sequential (full capacity, adjacency-only spacing)"),
+)
+
+
 class GenerationConstraints(models.Model):
     """Singleton row holding admin-tunable generation knobs."""
 
@@ -74,6 +80,13 @@ class GenerationConstraints(models.Model):
     cbe_faculty_groups = models.JSONField(default=_default_cbe_faculty_groups)
     pbe_hall_utilization = models.DecimalField(
         max_digits=3, decimal_places=2, default=0.90
+    )
+    # Seat pattern drives effective hall capacity at every stage (timetable
+    # seat-budgeting, distribution packing, allocation placement).
+    #   * checkerboard → ~50% of grid, students never within 1 cell of each other
+    #   * sequential   → full grid, only direct adjacency is blocked
+    seat_pattern = models.CharField(
+        max_length=20, choices=SEAT_PATTERN_CHOICES, default="checkerboard"
     )
     excluded_weekdays = models.JSONField(default=_default_excluded_weekdays)
 

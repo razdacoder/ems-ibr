@@ -38,6 +38,35 @@ export function useTimetableDates() {
   });
 }
 
+export interface TimetableEstimate {
+  min_exam_days: number;
+  recommended_exam_days: number;
+  min_calendar_days: number;
+  min_calendar_weeks: number;
+  excluded_weekdays: number[];
+  valid_exam_days_per_week: number;
+  class_count: number;
+  worst_class_am: number;
+  worst_class_pm: number;
+  per_class_min_days: number;
+  throughput_min_days: number;
+  am_seat_demand: number;
+  pm_seat_demand: number;
+  seats_per_period: number;
+  bottleneck: "per_class" | "seat_throughput";
+}
+
+export function useTimetableEstimate(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["timetable", "estimate"],
+    queryFn: async () => {
+      const res = await api.get<TimetableEstimate>("/timetable/estimate/");
+      return res.data;
+    },
+    enabled,
+  });
+}
+
 export interface DistributionRow {
   id: number;
   date: string | null;

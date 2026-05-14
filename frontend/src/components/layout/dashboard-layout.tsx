@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
+  Armchair,
+  Boxes,
   Building2,
   CalendarDays,
   ChevronsLeft,
@@ -86,13 +88,13 @@ const NAV_SECTIONS: NavSection[] = [
       {
         to: "/distribution",
         label: "Distribution",
-        icon: ListChecks,
+        icon: Boxes,
         adminOnly: true,
       },
       {
         to: "/allocation",
         label: "Allocation",
-        icon: ListChecks,
+        icon: Armchair,
         adminOnly: true,
       },
       { to: "/exports", label: "Exports", icon: Download },

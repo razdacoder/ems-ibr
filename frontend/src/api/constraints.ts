@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 
 export type ClassPeriodOverrides = Record<string, "AM" | "PM">;
 export type FacultyGroupMap = Record<string, number>;
+export type SeatPattern = "checkerboard" | "sequential";
 
 export interface GenerationConstraints {
   id: number;
@@ -12,6 +13,7 @@ export interface GenerationConstraints {
   cbe_group_count: number;
   cbe_faculty_groups: FacultyGroupMap;
   pbe_hall_utilization: string; // DRF DecimalField serializes as string
+  seat_pattern: SeatPattern;
   excluded_weekdays: number[];
   class_period_overrides: ClassPeriodOverrides;
   remainder_merge_threshold: number;

@@ -5,7 +5,7 @@ import {
   useDistributionStatistics,
 } from "@/api/scheduling";
 import { useTimetableDates } from "@/api/scheduling";
-import { useGenerateDistribution } from "@/api/jobs";
+import { useGenerateDistributionAll } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,17 +50,16 @@ export default function DistributionPage() {
 
   const list = useDistribution({ date, period });
   const stats = useDistributionStatistics(date, period);
-  const generate = useGenerateDistribution();
+  const generate = useGenerateDistributionAll();
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
 
   const onGenerate = async () => {
-    if (!date || !period) return;
     try {
-      const out = await generate.mutateAsync({ date, period });
+      const out = await generate.mutateAsync();
       setJobId(out.job_id);
       setProgressOpen(true);
-      toast({ title: "Distribution generation started" });
+      toast({ title: "Distribution generation started for all slots" });
     } catch (err) {
       toast({
         title: "Could not start",
@@ -75,17 +74,17 @@ export default function DistributionPage() {
       <PageHeader
         section="Operations · Distribution"
         title="Distribution."
-        description="Capacity-aware hall-to-class assignments for each exam slot. Large classes split across halls; small ones share."
+        description="Capacity-aware hall-to-class assignments. Generate once for every exam slot in the timetable; filter below to view a specific slot."
         actions={
           isAdmin && (
             <Button
               onClick={onGenerate}
-              disabled={!date || generate.isPending}
+              disabled={generate.isPending}
               size="lg"
               className="h-10"
             >
               <Layers className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
-              Generate distribution
+              {generate.isPending ? "Starting…" : "Generate for all slots"}
             </Button>
           )
         }

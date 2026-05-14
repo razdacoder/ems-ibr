@@ -9,12 +9,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.db.models import Sum
+
 from ems.models import (
+    Class,
+    Course,
     Distribution,
+    GenerationConstraints,
     Hall,
     SeatArrangement,
     TimeTable,
 )
+from ems.utils import hall_effective_capacity
 
 
 class TimetableListView(APIView):
@@ -59,6 +65,135 @@ class TimetableDatesView(APIView):
             TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
         )
         return Response({"dates": [str(d) for d in dates]})
+
+
+class TimetableEstimateView(APIView):
+    """Estimate the minimum exam-window span needed to schedule every class
+    without conflicts, given the current course catalog and constraints.
+
+    Two binding constraints:
+
+    1. Per-class load — a class can sit at most one exam per period (AM/PM).
+       Given X AM courses + Y PM courses on the busiest class, you need at
+       least max(X, Y) valid exam days.
+
+    2. Hall seat throughput — total seat demand across all PBE courses must
+       fit into (days × seats-per-period × utilization). Independent for AM
+       and PM. When seat demand dominates, this is what causes most skips.
+
+    The recommended day count is the max of both, plus a small buffer for
+    conflict resolution.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        constraints = GenerationConstraints.objects.first()
+        excluded_weekdays = set(
+            (constraints.excluded_weekdays if constraints else None) or [6]
+        )
+        overrides_raw = (
+            constraints.class_period_overrides if constraints else None
+        ) or {}
+        overrides = {
+            (k or "").strip().lower(): (v or "").upper()
+            for k, v in overrides_raw.items()
+        }
+        utilization = (
+            float(constraints.pbe_hall_utilization) if constraints else 0.9
+        )
+        pattern = (
+            constraints.seat_pattern if constraints else "checkerboard"
+        )
+
+        # ─── Per-class load (1 exam per class per period) ───────────────
+        worst_am = worst_pm = worst_total = 0
+        class_count = 0
+        for cls in Class.objects.all().prefetch_related("courses").only("id", "name"):
+            class_count += 1
+            am = pm = 0
+            key = (cls.name or "").strip().lower()
+            default_period = overrides.get(key, "AM")
+            for course in cls.courses.all():
+                if course.exam_type == "CBE":
+                    am += 1
+                elif default_period == "PM":
+                    pm += 1
+                else:
+                    am += 1
+            worst_am = max(worst_am, am)
+            worst_pm = max(worst_pm, pm)
+            worst_total = max(worst_total, max(am, pm))
+
+        # ─── Seat-throughput (PBE only; CBE is computer-based) ──────────
+        # Use allocation-reachable seats for the active pattern so the
+        # estimate matches what timetable and distribution will budget.
+        total_effective_seats = sum(
+            hall_effective_capacity(h.rows, h.columns, pattern)
+            for h in Hall.objects.all().only("rows", "columns")
+        )
+        seats_per_period = int(total_effective_seats * utilization)
+
+        am_seat_demand = pm_seat_demand = 0
+        for course in (
+            Course.objects.filter(exam_type="PBE")
+            .prefetch_related("courses")
+        ):
+            seats = sum(cls.size for cls in course.courses.all())
+            # split_course's logic: PM only if any class is mapped to PM;
+            # else AM (default).
+            period = "AM"
+            for cls in course.courses.all():
+                if overrides.get((cls.name or "").strip().lower()) == "PM":
+                    period = "PM"
+                    break
+            if period == "PM":
+                pm_seat_demand += seats
+            else:
+                am_seat_demand += seats
+
+        def _ceil_div(a: int, b: int) -> int:
+            return -(-a // b) if b else 0
+
+        am_days_for_seats = _ceil_div(am_seat_demand, seats_per_period)
+        pm_days_for_seats = _ceil_div(pm_seat_demand, seats_per_period)
+        throughput_days = max(am_days_for_seats, pm_days_for_seats)
+
+        min_exam_days = max(worst_total, throughput_days)
+        recommended_exam_days = max(
+            min_exam_days, int(round(min_exam_days * 1.2))
+        )
+
+        valid_per_week = max(1, 7 - len(excluded_weekdays))
+        full_weeks = recommended_exam_days // valid_per_week
+        remainder = recommended_exam_days % valid_per_week
+        min_calendar_days = full_weeks * 7 + remainder
+
+        # Surface which constraint dominates so the UI can explain the number.
+        bottleneck = "per_class" if worst_total >= throughput_days else "seat_throughput"
+
+        return Response(
+            {
+                "min_exam_days": min_exam_days,
+                "recommended_exam_days": recommended_exam_days,
+                "min_calendar_days": min_calendar_days,
+                "min_calendar_weeks": (
+                    round(min_calendar_days / 7, 1) if min_calendar_days else 0
+                ),
+                "excluded_weekdays": sorted(excluded_weekdays),
+                "valid_exam_days_per_week": valid_per_week,
+                "class_count": class_count,
+                "worst_class_am": worst_am,
+                "worst_class_pm": worst_pm,
+                "per_class_min_days": worst_total,
+                "throughput_min_days": throughput_days,
+                "am_seat_demand": am_seat_demand,
+                "pm_seat_demand": pm_seat_demand,
+                "seats_per_period": seats_per_period,
+                "bottleneck": bottleneck,
+                "seat_pattern": pattern,
+            }
+        )
 
 
 class DistributionListView(APIView):

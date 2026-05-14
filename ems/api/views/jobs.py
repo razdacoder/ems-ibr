@@ -184,6 +184,8 @@ def _task_args(job_type, job_id, user_id, params):
             params.get("start_date"),
             params.get("end_date"),
         ]
+    if job_type in ("distribution_all", "allocation_all"):
+        return [job_id, user_id]
     return [
         job_id,
         user_id,
@@ -213,6 +215,8 @@ def _populate_task_map():
     _TASK_MAP["timetable"] = _import_task("generate_timetable_task")
     _TASK_MAP["distribution"] = _import_task("generate_distribution_task")
     _TASK_MAP["allocation"] = _import_task("generate_allocation_task")
+    _TASK_MAP["distribution_all"] = _import_task("generate_distribution_all_task")
+    _TASK_MAP["allocation_all"] = _import_task("generate_allocation_all_task")
 
 
 # Generate endpoints --------------------------------------------------------
@@ -359,6 +363,40 @@ class GenerateAllocationView(_BaseGenerateView):
                 f"Seat allocation for {date} ({period}) already exists."
             )
         job_id = self._create_job(request.user, {"date": date, "period": period})
+        return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class GenerateDistributionAllView(_BaseGenerateView):
+    """Distribute every (date, period) slot in the timetable in one go.
+    Slots that already have a Distribution row are skipped."""
+
+    job_type = "distribution_all"
+
+    def post(self, request):
+        _assert_generation_allowed()
+        # Lightweight gate: timetable must exist somewhere.
+        from ems.models import TimeTable
+        if not TimeTable.objects.exists():
+            raise ValidationError(
+                {"detail": "No timetable found. Generate the timetable first."}
+            )
+        job_id = self._create_job(request.user, {})
+        return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class GenerateAllocationAllView(_BaseGenerateView):
+    """Allocate every (date, period) slot that has a Distribution but no
+    SeatArrangement yet."""
+
+    job_type = "allocation_all"
+
+    def post(self, request):
+        _assert_generation_allowed()
+        if not Distribution.objects.exists():
+            raise ValidationError(
+                {"detail": "No distributions found. Generate distribution first."}
+            )
+        job_id = self._create_job(request.user, {})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
 
 
