@@ -7,13 +7,7 @@ import {
 import { useTimetableDates } from "@/api/scheduling";
 import { useGenerateDistributionAll } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,

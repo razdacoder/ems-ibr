@@ -28,11 +28,13 @@ function collectSelectItems(
   })
 }
 
-function Select({
+// Keep Base UI's generics so call sites still infer `value`/`onValueChange`
+// from the bound value type instead of collapsing to `{}`.
+function Select<Value, Multiple extends boolean | undefined = false>({
   children,
   items,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Root>) {
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
   const derivedItems = React.useMemo(() => {
     if (items) return items
     const acc: Record<string, React.ReactNode> = {}
@@ -40,7 +42,7 @@ function Select({
     return acc
   }, [children, items])
   return (
-    <SelectPrimitive.Root items={derivedItems} {...props}>
+    <SelectPrimitive.Root<Value, Multiple> items={derivedItems} {...props}>
       {children}
     </SelectPrimitive.Root>
   )

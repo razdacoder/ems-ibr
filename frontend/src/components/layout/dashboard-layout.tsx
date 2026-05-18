@@ -14,6 +14,7 @@ import {
   Landmark,
   LayoutDashboard,
   ListChecks,
+  type LucideIcon,
   LogOut,
   Menu,
   Moon,
@@ -49,7 +50,7 @@ interface NavSection {
 interface NavItem {
   to: string;
   label: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: LucideIcon;
   adminOnly?: boolean;
 }
 
