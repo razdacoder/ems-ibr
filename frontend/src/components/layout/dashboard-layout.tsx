@@ -79,12 +79,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Operations",
     tone: "coral",
     items: [
-      {
-        to: "/timetable",
-        label: "Timetable",
-        icon: CalendarDays,
-        adminOnly: true,
-      },
+      { to: "/timetable", label: "Timetable", icon: CalendarDays },
       {
         to: "/distribution",
         label: "Distribution",

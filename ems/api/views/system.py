@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -131,24 +132,77 @@ class DashboardStatsView(APIView):
         )
 
 
+def _reset_allocation() -> None:
+    """Clear seat allocations only."""
+    SeatArrangement.objects.all().delete()
+
+
+def _reset_distribution() -> None:
+    """Clear distribution. Allocation depends on it, so clear that too."""
+    _reset_allocation()
+    Distribution.objects.all().delete()
+    DistributionItem.objects.all().delete()
+
+
+def _reset_timetable() -> None:
+    """Clear the timetable. Distribution (and allocation) depend on it."""
+    _reset_distribution()
+    TimeTable.objects.all().delete()
+
+
+def _reset_all() -> None:
+    """Wipe everything, including departments, halls, courses and students."""
+    _reset_timetable()
+    Hall.objects.all().delete()
+    Course.objects.all().delete()
+    Class.objects.all().delete()
+    Student.objects.all().delete()
+    Department.objects.all().delete()
+
+
+# scope -> (handler, whether it should unlock uploads, message)
+_RESET_SCOPES = {
+    "allocation": (_reset_allocation, False, "Seat allocations cleared."),
+    "distribution": (
+        _reset_distribution,
+        False,
+        "Distribution and seat allocations cleared.",
+    ),
+    "timetable": (
+        _reset_timetable,
+        True,
+        "Timetable, distribution and seat allocations cleared.",
+    ),
+    "all": (_reset_all, True, "System reset complete."),
+}
+
+
 class ResetSystemView(APIView):
     permission_classes = [IsAdminStaff]
 
     def post(self, request):
-        SeatArrangement.objects.all().delete()
-        Distribution.objects.all().delete()
-        DistributionItem.objects.all().delete()
-        TimeTable.objects.all().delete()
-        Hall.objects.all().delete()
-        Course.objects.all().delete()
-        Class.objects.all().delete()
-        Student.objects.all().delete()
-        Department.objects.all().delete()
+        scope = request.data.get("scope", "all")
+        entry = _RESET_SCOPES.get(scope)
+        if entry is None:
+            return Response(
+                {
+                    "detail": (
+                        f"Unknown reset scope '{scope}'. Expected one of: "
+                        f"{', '.join(_RESET_SCOPES)}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        settings = _get_or_create_settings()
-        settings.has_timetable = False
-        settings.save(update_fields=["has_timetable"])
-        return Response({"detail": "System reset complete."})
+        handler, unlock_uploads, message = entry
+        with transaction.atomic():
+            handler()
+            if unlock_uploads:
+                settings = _get_or_create_settings()
+                settings.has_timetable = False
+                settings.save(update_fields=["has_timetable"])
+
+        return Response({"detail": message})
 
 
 class EnableBulkUploadView(APIView):

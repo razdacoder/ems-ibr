@@ -15,13 +15,28 @@ A comprehensive Django-based web application designed to automate and streamline
 
 ## Technology Stack
 
-- **Backend**: Django 5.0.3 (Python)
-- **Frontend**: HTML5, CSS3, JavaScript, HTMX
+- **Backend**: Django 5.0.3 + Django REST Framework, served over ASGI by Daphne
+- **Realtime**: Django Channels + Redis (WebSocket job progress)
+- **Frontend**: React 18 + TypeScript + Vite, Tailwind CSS, TanStack Query.
+  Built to a static bundle and served same-origin by Django/WhiteNoise — there
+  is no separate frontend host.
 - **Database**: SQLite (development) / PostgreSQL (production)
 - **Task Queue**: Celery + Redis
 - **Document Generation**: python-docx, openpyxl, pandas
 
+### How the frontend is served
+
+The SPA lives in `frontend/` and builds with `npm run build` to
+`frontend/dist/` (Vite `base: "/static/"`). `collectstatic` picks `dist/` up
+and WhiteNoise serves the hashed assets under `/static/`. Every non-`/api/`,
+non-`/admin/` URL falls through to a catch-all in `core/urls.py` that returns
+`frontend/dist/index.html`, and React Router takes over client-side. The API
+client uses a relative `/api` base URL, so the same build works in local dev
+(via the Vite proxy) and in production (same origin) with no env vars.
+
 ## Quick Start (Development)
+
+**Prerequisites:** Python 3.11+, Node 20+ / npm, and (for Celery) Redis.
 
 ### 1. Clone and Setup
 
@@ -34,8 +49,11 @@ python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # venv\Scripts\activate   # Windows
 
-# Install dependencies
+# Install backend dependencies
 pip install -r requirements.txt
+
+# Install frontend dependencies
+npm --prefix frontend ci
 ```
 
 ### 2. Environment Configuration
@@ -61,13 +79,34 @@ python manage.py migrate
 python manage.py create_superuser  # Creates default admin users
 ```
 
-### 4. Run Development Server
+### 4. Run the App
+
+You have two options.
+
+**A. Frontend dev server (recommended while building UI)** — hot reload, and
+the Vite dev server proxies `/api` and `/ws` to Django:
 
 ```bash
-python manage.py runserver
+# Terminal 1 — Django (API + WebSockets)
+python manage.py runserver        # http://localhost:8000
+
+# Terminal 2 — Vite dev server
+npm --prefix frontend run dev     # http://localhost:5173
 ```
 
-Access the application at `http://localhost:8000`
+Open **http://localhost:5173**. CORS for `localhost:5173` is allowed by default.
+
+**B. Single-origin (prod-like)** — build the SPA, then let Django serve it:
+
+```bash
+npm --prefix frontend run build   # emits frontend/dist/
+python manage.py collectstatic --no-input
+python manage.py runserver        # http://localhost:8000  (UI + API)
+```
+
+> Note: option B serves `frontend/dist/index.html` via Django's catch-all. If
+> you hit a `TemplateDoesNotExist` for `index.html`, the SPA simply hasn't been
+> built yet — run the build step.
 
 ## Background Jobs Setup
 
@@ -96,6 +135,38 @@ celery -A core flower
 ```
 
 ## Docker Deployment
+
+The `Dockerfile` is a two-stage build: stage 1 (`node:20`) runs
+`npm ci && npm run build` for the SPA, stage 2 (Python) copies `frontend/dist/`
+in and runs `collectstatic` at image-build time. The resulting single image
+serves the API, WebSockets (Daphne/ASGI), and the React UI together — there is
+**no separate frontend deployment**. `docker-entrypoint.sh` switches roles via
+`SERVICE_TYPE` (`web` | `worker` | `beat`).
+
+### How the frontend is served at runtime (web service)
+
+When `SERVICE_TYPE=web`, `docker-entrypoint.sh`:
+
+1. Verifies the SPA build exists (`frontend/dist/index.html`) and warns
+   loudly if it doesn't — a missing build means the API still works but
+   every UI route would 500.
+2. Runs `collectstatic`, which materializes the SPA's hashed JS/CSS (and
+   admin/DRF static) into `STATIC_ROOT` for WhiteNoise.
+3. Runs `migrate` and `create_superuser`, then starts **Daphne (ASGI)** on
+   `0.0.0.0:$PORT`.
+
+Per request, the running container resolves URLs in this order:
+
+| Path | Handled by |
+| --- | --- |
+| `/static/...` | WhiteNoise middleware → hashed SPA assets + admin/DRF static |
+| `/api/...` | Django REST Framework |
+| `/admin/...` | Django admin |
+| anything else | catch-all in `core/urls.py` → `frontend/dist/index.html` (the SPA shell); React Router handles routing client-side |
+
+Because the SPA calls the API at the relative path `/api`, the UI and API
+are always same-origin in the container — no CORS and no frontend env vars.
+WebSocket job-progress connects to `/ws` on the same Daphne process.
 
 ### Build and Run
 
@@ -138,6 +209,7 @@ docker push ghcr.io/yourusername/examnova:latest
 ### Environment Variables
 
 **Web Service:**
+
 ```env
 SERVICE_TYPE=web
 SECRET_KEY=<your-secret-key>
@@ -148,12 +220,29 @@ REDIS_URL=${{Redis.REDIS_URL}}
 ```
 
 **Worker Service:**
+
 ```env
 SERVICE_TYPE=worker
 SECRET_KEY=<same-as-web>
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
 ```
+
+See `.env.railway` for the full annotated variable template (web + worker +
+optional beat). On Railway, point all services at this same repo/Dockerfile
+and only vary `SERVICE_TYPE`.
+
+## Render / Non-Docker Deployment
+
+For platforms that run a build script instead of the Dockerfile (e.g. Render),
+use `build.sh` as the build command and
+`daphne -b 0.0.0.0 -p $PORT core.asgi:application` as the start command.
+
+`build.sh` installs backend deps, **builds the React SPA** (`npm ci &&
+npm run build`), then runs `collectstatic` and migrations — so the build
+environment must have **Node 20+/npm available** in addition to Python. The
+SPA build must happen before `collectstatic`, which `build.sh` already
+guarantees; do not reorder those steps.
 
 ## Project Structure
 
@@ -237,16 +326,19 @@ python manage.py collectstatic --noinput   # Collect static files
 ## Troubleshooting
 
 ### Celery Not Working?
+
 1. Check Redis: `redis-cli ping` (should return PONG)
 2. Check worker logs: `celery -A core worker -l debug`
 3. Restart worker and try again
 
 ### Tasks Stuck?
+
 ```bash
 celery -A core purge  # Clear all pending tasks
 ```
 
 ### Generate SECRET_KEY
+
 ```bash
 python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
 ```

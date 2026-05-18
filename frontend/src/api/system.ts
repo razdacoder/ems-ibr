@@ -61,11 +61,13 @@ export function useDashboardStats() {
   });
 }
 
+export type ResetScope = "all" | "timetable" | "distribution" | "allocation";
+
 export function useResetSystem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      await api.post("/system/reset/");
+    mutationFn: async (scope: ResetScope = "all") => {
+      await api.post("/system/reset/", { scope });
     },
     onSuccess: () => qc.invalidateQueries(),
   });

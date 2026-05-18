@@ -61,8 +61,11 @@ class TimetableDatesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        qs = TimeTable.objects.all()
+        if not request.user.is_staff and request.user.department_id:
+            qs = qs.filter(class_obj__department_id=request.user.department_id)
         dates = list(
-            TimeTable.objects.values_list("date", flat=True).distinct().order_by("date")
+            qs.values_list("date", flat=True).distinct().order_by("date")
         )
         return Response({"dates": [str(d) for d in dates]})
 

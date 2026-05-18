@@ -15,7 +15,10 @@ export interface TimetableEntry {
   };
 }
 
-export function useTimetable(params: { date?: string; period?: Period }) {
+export function useTimetable(
+  params: { date?: string; period?: Period },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["timetable", params],
     queryFn: async () => {
@@ -25,6 +28,7 @@ export function useTimetable(params: { date?: string; period?: Period }) {
       }>("/timetable/", { params });
       return res.data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 

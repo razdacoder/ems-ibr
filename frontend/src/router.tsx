@@ -89,14 +89,7 @@ export const router = createBrowserRouter([
           </RequireAdmin>
         ),
       },
-      {
-        path: "/timetable",
-        element: (
-          <RequireAdmin>
-            <TimetablePage />
-          </RequireAdmin>
-        ),
-      },
+      { path: "/timetable", element: <TimetablePage /> },
       {
         path: "/distribution",
         element: (

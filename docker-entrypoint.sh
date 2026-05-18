@@ -111,9 +111,26 @@ else
 
     wait_for_postgres
 
-    # collectstatic already ran at image-build time; re-running is a no-op
-    # in the typical case but keeps a volume-mounted dev copy correct.
-    echo "Collecting static files..."
+    # Frontend: the image bundles the built React SPA at frontend/dist
+    # (Dockerfile stage 1). Django serves frontend/dist/index.html for every
+    # non-/api, non-/admin route and WhiteNoise serves its hashed assets from
+    # /static/. Fail loudly if the build is absent so it isn't a mystery 500
+    # on every page (a missing build still leaves the API usable).
+    if [ -f frontend/dist/index.html ]; then
+        echo "Frontend SPA build found (frontend/dist/index.html)."
+    else
+        echo "WARNING: frontend/dist/index.html is missing."
+        echo "         The API will run, but every non-/api route will 500"
+        echo "         because there is no SPA shell to serve. Rebuild the"
+        echo "         image so the Dockerfile frontend stage runs, or run"
+        echo "         'npm --prefix frontend run build' before starting."
+    fi
+
+    # collectstatic materializes the SPA's hashed assets (and admin/DRF
+    # static) into STATIC_ROOT for WhiteNoise. It already ran at image-build
+    # time; re-running is a no-op in the typical case but keeps a
+    # volume-mounted copy correct.
+    echo "Collecting static files (incl. the React SPA bundle)..."
     python manage.py collectstatic --no-input
 
     echo "Running database migrations..."

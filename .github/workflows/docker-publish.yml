@@ -7,10 +7,20 @@ on:
       - "v*"
   pull_request:
     branches: [main]
+  # Lets you trigger a build+push by hand from the Actions tab — no local
+  # docker build/push needed.
+  workflow_dispatch:
+
+# A newer push to the same ref supersedes an in-flight build.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/exam-nova
+  # Image name suffix under the registry owner. Final image is
+  # ghcr.io/<owner>/<IMAGE_BASENAME>, lowercased in the step below.
+  IMAGE_BASENAME: exam-nova
 
 jobs:
   build-and-push:
@@ -22,6 +32,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # GHCR requires the whole image path to be lowercase. The org/user
+      # login can contain uppercase, so normalize it here.
+      - name: Compute lowercase image name
+        run: |
+          echo "IMAGE_NAME=$(echo '${{ github.repository_owner }}/${{ env.IMAGE_BASENAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -45,11 +61,14 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Builds the whole app (Dockerfile stage 1 compiles the React SPA,
+      # stage 2 is the Python/Daphne runtime). Pushes on every event except
+      # pull_request, which only validates that the image builds.
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
@@ -57,6 +76,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Single, clean manifest — avoids the "unknown/unknown" attestation
+          # entry that trips up some registries / deploy platforms.
+          provenance: false
 
-      - name: Image digest
-        run: echo "${{ steps.meta.outputs.tags }}"
+      - name: Summary
+        if: github.event_name != 'pull_request'
+        run: |
+          {
+            echo "### Image pushed :rocket:"
+            echo ""
+            echo "Pull with:"
+            echo '```'
+            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            echo '```'
+            echo ""
+            echo "Tags built:"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

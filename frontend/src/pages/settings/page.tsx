@@ -7,6 +7,7 @@ import {
   useResetSystem,
   useSystemSettings,
   useUpdateSystemSettings,
+  type ResetScope,
 } from "@/api/system";
 import {
   Card,
@@ -72,18 +73,20 @@ export default function SettingsPage() {
     }
   };
 
-  const onReset = async () => {
+  const runReset = async (
+    scope: ResetScope,
+    opts: { title: string; description: string; success: string },
+  ) => {
     const ok = await confirm({
-      title: "Reset the system?",
-      description:
-        "Every department, class, course, hall, student, timetable and seat allocation will be deleted. This cannot be undone.",
+      title: opts.title,
+      description: opts.description,
       confirmLabel: "Reset",
       destructive: true,
     });
     if (!ok) return;
     try {
-      await reset.mutateAsync();
-      toast({ title: "System reset complete" });
+      await reset.mutateAsync(scope);
+      toast({ title: opts.success });
     } catch (err) {
       toast({
         title: "Reset failed",
@@ -92,6 +95,38 @@ export default function SettingsPage() {
       });
     }
   };
+
+  const onReset = () =>
+    runReset("all", {
+      title: "Reset the system?",
+      description:
+        "Every department, class, course, hall, student, timetable and seat allocation will be deleted. This cannot be undone.",
+      success: "System reset complete",
+    });
+
+  const onResetTimetable = () =>
+    runReset("timetable", {
+      title: "Reset the timetable?",
+      description:
+        "The timetable, distribution and seat allocations will all be deleted because they depend on the timetable. Departments, classes, courses, halls and students are kept, and uploads are unlocked. This cannot be undone.",
+      success: "Timetable, distribution and allocation cleared",
+    });
+
+  const onResetDistribution = () =>
+    runReset("distribution", {
+      title: "Reset the distribution?",
+      description:
+        "The distribution and seat allocations will be deleted because the allocation depends on the distribution. The timetable is kept. This cannot be undone.",
+      success: "Distribution and allocation cleared",
+    });
+
+  const onResetAllocation = () =>
+    runReset("allocation", {
+      title: "Reset the allocation?",
+      description:
+        "All seat allocations will be deleted. The timetable and distribution are kept. This cannot be undone.",
+      success: "Seat allocations cleared",
+    });
 
   const onEnableBulk = async () => {
     try {
@@ -204,6 +239,66 @@ export default function SettingsPage() {
             Re-enable uploads
           </Button>
         </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reset schedule data</CardTitle>
+          <CardDescription>
+            Clear generated scheduling data without touching departments,
+            classes, courses, halls or students. Each level also clears the
+            levels that depend on it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium">Allocation only</p>
+              <p className="text-muted-foreground">
+                Removes seat allocations. Timetable and distribution are kept.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={onResetAllocation}
+              disabled={reset.isPending}
+            >
+              Reset allocation
+            </Button>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium">Distribution</p>
+              <p className="text-muted-foreground">
+                Removes the distribution and seat allocations. Timetable is
+                kept.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={onResetDistribution}
+              disabled={reset.isPending}
+            >
+              Reset distribution
+            </Button>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium">Timetable</p>
+              <p className="text-muted-foreground">
+                Removes the timetable, distribution and seat allocations, and
+                unlocks uploads.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={onResetTimetable}
+              disabled={reset.isPending}
+            >
+              Reset timetable
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
       <Card className="border-[color:var(--accent-red-fg)]/30 bg-[color:var(--accent-red)]/30">
