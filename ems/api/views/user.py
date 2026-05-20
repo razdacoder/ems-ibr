@@ -76,10 +76,12 @@ class UserViewSet(viewsets.ModelViewSet):
             for dept in departments:
                 email = f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower()
                 existing = User.objects.filter(email=email).first()
+                first_name = (dept.name or dept.slug)[:30]
+                last_name = "Staff"
                 if existing:
                     if overwrite:
-                        existing.first_name = dept.name
-                        existing.last_name = "Staff"
+                        existing.first_name = first_name
+                        existing.last_name = last_name
                         existing.department = dept
                         existing.is_staff = False
                         existing.is_active = True
@@ -93,8 +95,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
                 user = User(
                     email=email,
-                    first_name=dept.name,
-                    last_name="Staff",
+                    first_name=first_name,
+                    last_name=last_name,
                     department=dept,
                     is_staff=False,
                     is_active=True,
