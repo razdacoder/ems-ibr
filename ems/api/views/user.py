@@ -1,4 +1,8 @@
+import csv
+from datetime import datetime
+
 from django.db import transaction
+from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
@@ -50,6 +54,47 @@ class UserViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["get"], url_path="export")
+    def export(self, request):
+        """Stream departmental (non-admin) staff as CSV.
+
+        Honours the same ``query`` filter as the list endpoint; admin
+        accounts are excluded.
+        """
+        users = self.get_queryset().filter(is_staff=False)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"departmental-staff-{timestamp}.csv"
+        response = HttpResponse(
+            content_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Email",
+                "First name",
+                "Last name",
+                "Department",
+                "Department slug",
+                "Is active",
+                "Created at",
+            ]
+        )
+        for u in users:
+            dept = u.department
+            writer.writerow(
+                [
+                    u.email,
+                    u.first_name,
+                    u.last_name,
+                    dept.name if dept else "",
+                    dept.slug if dept else "",
+                    "yes" if u.is_active else "no",
+                    u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
+                ]
+            )
+        return response
 
     @action(detail=False, methods=["post"], url_path="seed-departments")
     def seed_departments(self, request):

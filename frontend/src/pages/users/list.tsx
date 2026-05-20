@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Sparkles } from "lucide-react";
+import { Download, Plus, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,6 +53,7 @@ import { PaginationFooter } from "@/components/data-table/pagination";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
+import { downloadAuthenticatedFile } from "@/lib/download";
 import { toast } from "@/lib/use-toast";
 
 export default function UsersListPage() {
@@ -68,6 +69,26 @@ export default function UsersListPage() {
   const list = useUsers({ page, query: query || undefined });
   const remove = useDeleteUser();
   const confirm = useConfirm();
+  const [exporting, setExporting] = useState(false);
+
+  const onExport = async () => {
+    setExporting(true);
+    try {
+      await downloadAuthenticatedFile(
+        "/users/export/",
+        "departmental-staff.csv",
+        query ? { query } : undefined,
+      );
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onDelete = async (u: UserRow) => {
     const ok = await confirm({
@@ -96,6 +117,14 @@ export default function UsersListPage() {
         description="Application users — admins and department staff."
         toolbar={
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={onExport}
+              disabled={exporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </Button>
             <Button variant="outline" onClick={() => setSeedOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" /> Seed dept users
             </Button>
