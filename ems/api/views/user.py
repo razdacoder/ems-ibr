@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
@@ -10,7 +11,10 @@ from ems.api.serializers.user import (
     ChangePasswordSerializer,
     UserSerializer,
 )
-from ems.models import User
+from ems.models import Department, User
+
+DEFAULT_SEED_PASSWORD = "Ems@2025"
+SEED_EMAIL_DOMAIN = "ems.com"
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -46,6 +50,72 @@ class UserViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["post"], url_path="seed-departments")
+    def seed_departments(self, request):
+        """Create one staff user per department.
+
+        Email is ``{department.slug}@ems.com``; password defaults to a
+        shared seed value but can be overridden in the request body.
+        Existing emails are skipped unless ``overwrite=true`` is sent,
+        in which case the password is reset.
+        """
+        password = (request.data.get("password") or DEFAULT_SEED_PASSWORD).strip()
+        if len(password) < 8:
+            raise ValidationError(
+                {"password": ["Password must be at least 8 characters."]}
+            )
+        overwrite = bool(request.data.get("overwrite", False))
+
+        departments = Department.objects.all().order_by("name")
+        created: list[str] = []
+        updated: list[str] = []
+        skipped: list[str] = []
+
+        with transaction.atomic():
+            for dept in departments:
+                email = f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower()
+                existing = User.objects.filter(email=email).first()
+                if existing:
+                    if overwrite:
+                        existing.first_name = dept.name
+                        existing.last_name = "Staff"
+                        existing.department = dept
+                        existing.is_staff = False
+                        existing.is_active = True
+                        existing.set_password(password)
+                        existing.save()
+                        Token.objects.filter(user=existing).delete()
+                        updated.append(email)
+                    else:
+                        skipped.append(email)
+                    continue
+
+                user = User(
+                    email=email,
+                    first_name=dept.name,
+                    last_name="Staff",
+                    department=dept,
+                    is_staff=False,
+                    is_active=True,
+                )
+                user.set_password(password)
+                user.save()
+                created.append(email)
+
+        return Response(
+            {
+                "detail": (
+                    f"Seeded {len(created)} new user(s), "
+                    f"updated {len(updated)}, skipped {len(skipped)}."
+                ),
+                "created": created,
+                "updated": updated,
+                "skipped": skipped,
+                "departments_total": departments.count(),
+                "password": password,
+            }
+        )
 
     @action(detail=True, methods=["post"], url_path="change-password")
     def change_password(self, request, pk=None):

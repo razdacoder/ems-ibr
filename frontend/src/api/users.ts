@@ -66,6 +66,34 @@ export function useDeleteUser() {
   });
 }
 
+export interface SeedDepartmentsInput {
+  password?: string;
+  overwrite?: boolean;
+}
+
+export interface SeedDepartmentsResult {
+  detail: string;
+  created: string[];
+  updated: string[];
+  skipped: string[];
+  departments_total: number;
+  password: string;
+}
+
+export function useSeedDepartmentUsers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: SeedDepartmentsInput) => {
+      const res = await api.post<SeedDepartmentsResult>(
+        "/users/seed-departments/",
+        data,
+      );
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 export function useChangeUserPassword(id: number) {
   return useMutation({
     mutationFn: async (password: string) => {

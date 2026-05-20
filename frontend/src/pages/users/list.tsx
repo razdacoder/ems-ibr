@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import {
   useChangeUserPassword,
   useCreateUser,
   useDeleteUser,
+  useSeedDepartmentUsers,
   useUpdateUser,
   useUsers,
 } from "@/api/users";
@@ -62,6 +63,7 @@ export default function UsersListPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [pwUser, setPwUser] = useState<UserRow | null>(null);
   const [pwOpen, setPwOpen] = useState(false);
+  const [seedOpen, setSeedOpen] = useState(false);
 
   const list = useUsers({ page, query: query || undefined });
   const remove = useDeleteUser();
@@ -93,9 +95,14 @@ export default function UsersListPage() {
         title="Users"
         description="Application users — admins and department staff."
         toolbar={
-          <Button onClick={() => { setEditing(null); setEditOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" /> New user
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setSeedOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" /> Seed dept users
+            </Button>
+            <Button onClick={() => { setEditing(null); setEditOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" /> New user
+            </Button>
+          </div>
         }
         query={query}
         onQueryChange={(q) => { setQuery(q); setPage(1); }}
@@ -168,6 +175,7 @@ export default function UsersListPage() {
       </ListShell>
       <UserFormDialog open={editOpen} onOpenChange={setEditOpen} initial={editing} />
       <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} user={pwUser} />
+      <SeedDepartmentUsersDialog open={seedOpen} onOpenChange={setSeedOpen} />
     </>
   );
 }
@@ -409,6 +417,123 @@ function UserFormDialog({
                   : isEdit
                     ? "Save changes"
                     : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const seedSchema = z.object({
+  password: z.string().min(8, "At least 8 characters"),
+  overwrite: z.boolean(),
+});
+
+type SeedValues = z.infer<typeof seedSchema>;
+
+function SeedDepartmentUsersDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const [topError, setTopError] = useState<string | null>(null);
+  const form = useForm<SeedValues>({
+    resolver: zodResolver(seedSchema),
+    defaultValues: { password: "Ems@2025", overwrite: false },
+  });
+  const seed = useSeedDepartmentUsers();
+
+  useEffect(() => {
+    if (open) {
+      form.reset({ password: "Ems@2025", overwrite: false });
+      setTopError(null);
+    }
+  }, [open, form]);
+
+  const onSubmit = async (v: SeedValues) => {
+    setTopError(null);
+    try {
+      const res = await seed.mutateAsync(v);
+      toast({
+        title: "Department users seeded",
+        description: res.detail,
+      });
+      onOpenChange(false);
+    } catch (err) {
+      setTopError(extractErrorEnvelope(err).detail);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Seed department users</DialogTitle>
+          <DialogDescription>
+            Creates one staff account per department using
+            <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">
+              {"{slug}@ems.com"}
+            </code>
+            with the password below. Use this once to bootstrap login access
+            for every department.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+            {topError && (
+              <Alert variant="destructive">
+                <AlertDescription>{topError}</AlertDescription>
+              </Alert>
+            )}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Shared password</FormLabel>
+                  <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="overwrite"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>If a seeded email already exists</FormLabel>
+                  <Select
+                    value={field.value ? "overwrite" : "skip"}
+                    onValueChange={(v) => field.onChange(v === "overwrite")}
+                  >
+                    <FormControl>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="skip">Skip (keep existing)</SelectItem>
+                      <SelectItem value="overwrite">
+                        Overwrite (reset password + role)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Seeding…" : "Seed users"}
               </Button>
             </DialogFooter>
           </form>
