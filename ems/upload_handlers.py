@@ -198,7 +198,14 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
         df,
         ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"],
     )
+    # Drop rows with no matric number (blank trailing rows would otherwise
+    # become the literal string "nan" after astype(str) and trigger the
+    # duplicate-matric-number check).
+    df = df.dropna(subset=["MATRIC NUMBER"])
     df = df.astype(str).apply(lambda c: c.str.strip())
+    df = df[~df["MATRIC NUMBER"].str.lower().isin(("", "nan"))]
+    if df.empty:
+        raise UploadError("No student rows with a matric number were found in the file.")
     _check_no_duplicates(df, "MATRIC NUMBER", "matric numbers")
 
     matric_numbers = df["MATRIC NUMBER"].tolist()
