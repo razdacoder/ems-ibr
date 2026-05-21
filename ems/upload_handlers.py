@@ -166,7 +166,13 @@ def upload_class_courses(file, cls: Class) -> dict[str, int]:
     df = _read_csv(file)
     _check_columns(df, ["COURSE CODE"])
 
-    codes_in_file = [str(c).strip() for c in df["COURSE CODE"].tolist()]
+    codes_in_file = [
+        str(c).strip()
+        for c in df["COURSE CODE"].tolist()
+        if pd.notna(c) and str(c).strip() and str(c).strip().lower() != "nan"
+    ]
+    if not codes_in_file:
+        raise UploadError("No course codes found in the uploaded file.")
     existing = set(Course.objects.values_list("code", flat=True))
     invalid = [c for c in codes_in_file if c not in existing]
     if invalid:
