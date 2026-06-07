@@ -348,6 +348,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "Class name is required"),
   size: z.coerce.number().int().min(0),
   department_id: z.coerce.number().int().min(1, "Pick a department"),
+  visa_code: z.string().trim().max(50).default(""),
 });
 
 type Values = z.infer<typeof schema>;
@@ -368,7 +369,7 @@ function ClassFormDialog({
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", size: 0, department_id: 0 },
+    defaultValues: { name: "", size: 0, department_id: 0, visa_code: "" },
   });
   const create = useCreateClass();
   const update = useUpdateClass(initial?.id ?? 0);
@@ -388,8 +389,9 @@ function ClassFormDialog({
             name: initial.name ?? "",
             size: initial.size,
             department_id: initial.department.id,
+            visa_code: initial.visa_code ?? "",
           }
-        : { name: "", size: 0, department_id: fallbackDeptId },
+        : { name: "", size: 0, department_id: fallbackDeptId, visa_code: "" },
     );
     setTopError(null);
   }, [open, initial, form, userDept?.id]);
@@ -398,7 +400,11 @@ function ClassFormDialog({
     setTopError(null);
     try {
       if (isEdit) {
-        await update.mutateAsync({ name: v.name, size: v.size });
+        await update.mutateAsync({
+          name: v.name,
+          size: v.size,
+          visa_code: v.visa_code,
+        });
         toast({ title: "Class updated" });
       } else {
         await create.mutateAsync(v);
@@ -490,6 +496,30 @@ function ClassFormDialog({
                   <FormControl>
                     <Input type="number" min={0} {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="visa_code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>VISA code (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={
+                        initial?.visa_label
+                          ? `Auto: ${initial.visa_label}`
+                          : "Auto-derived from name"
+                      }
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Override the short code used on the VISA document. Leave
+                    blank to auto-derive from the class name.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

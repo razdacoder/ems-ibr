@@ -17,6 +17,10 @@ export interface Class {
   department: DepartmentRef;
   courses: Course[];
   student_count: number;
+  /** Override for the VISA short code; blank => auto-derived. */
+  visa_code: string;
+  /** Resolved VISA code (override if set, else auto-derived). Read-only. */
+  visa_label: string;
 }
 
 export interface ClassListParams {
@@ -29,6 +33,7 @@ export interface ClassInput {
   name: string;
   size: number;
   department_id: number;
+  visa_code?: string;
 }
 
 const KEY = ["classes"] as const;

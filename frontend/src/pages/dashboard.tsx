@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useDashboardStats } from "@/api/system";
+import { InstitutionName } from "@/components/institution-logo";
 import { useAuth } from "@/lib/auth";
 import { useReveal } from "@/lib/use-reveal";
 import {
@@ -120,6 +121,7 @@ export default function DashboardPage() {
       >
         <div className="relative flex flex-col gap-8 px-8 py-10 sm:flex-row sm:items-end sm:justify-between sm:px-12 sm:py-14">
           <div>
+            <InstitutionName className="mb-4 block font-serif text-[1.5rem] leading-tight tracking-tight text-[color:var(--brand-strong)]" />
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em]"

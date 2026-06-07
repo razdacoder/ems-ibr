@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
+import { InstitutionLogo } from "@/components/institution-logo";
 import { useReveal } from "@/lib/use-reveal";
 
 function PublicHeader() {
@@ -17,6 +18,7 @@ function PublicHeader() {
         >
           <Logo size={20} />
           AuraSchedule
+          <InstitutionLogo size={28} className="ml-1.5" />
         </Link>
         <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
           <Link

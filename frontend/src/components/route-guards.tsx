@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
+import {
+  canManageData,
+  canManageFaculties,
+  isCommittee,
+  isSuperAdmin,
+  useAuth,
+  type AuthUser,
+} from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -13,18 +20,41 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function RequireAdmin({ children }: { children: ReactNode }) {
+/** Gate children behind a capability predicate; redirect elsewhere to /dashboard. */
+function RequireCapability({
+  allow,
+  children,
+}: {
+  allow: (u: AuthUser | null) => boolean;
+  children: ReactNode;
+}) {
   const { status, user } = useAuth();
   const location = useLocation();
   if (status === "loading") return <FullPageSkeleton />;
   if (status === "unauthenticated") {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  if (!user?.is_staff) {
+  if (!allow(user)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
 }
+
+export const RequireSuperAdmin = ({ children }: { children: ReactNode }) => (
+  <RequireCapability allow={isSuperAdmin}>{children}</RequireCapability>
+);
+
+export const RequireDataOfficer = ({ children }: { children: ReactNode }) => (
+  <RequireCapability allow={canManageData}>{children}</RequireCapability>
+);
+
+export const RequireFacultyOfficer = ({ children }: { children: ReactNode }) => (
+  <RequireCapability allow={canManageFaculties}>{children}</RequireCapability>
+);
+
+export const RequireCommittee = ({ children }: { children: ReactNode }) => (
+  <RequireCapability allow={isCommittee}>{children}</RequireCapability>
+);
 
 function FullPageSkeleton() {
   return (

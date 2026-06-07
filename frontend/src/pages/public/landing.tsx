@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
+import { InstitutionLogo } from "@/components/institution-logo";
 import { useReveal as useSharedReveal } from "@/lib/use-reveal";
 
 /* -----------------------------------------------------------
@@ -412,6 +413,7 @@ export default function LandingPage() {
           >
             <Logo size={20} />
             AuraSchedule
+            <InstitutionLogo size={28} className="ml-1.5" />
           </Link>
 
           <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">

@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { AuthUser } from "@/lib/auth";
+import type { AuthUser, UserRole } from "@/lib/auth";
 import type { PaginatedResponse } from "./types";
 
 export type UserRow = AuthUser & { created_at: string };
@@ -15,7 +15,8 @@ export interface UserInput {
   first_name: string;
   last_name: string;
   department_id: number | null;
-  is_staff: boolean;
+  // null = department officer (scoped to `department_id`); a role = admin-side user.
+  role: UserRole | null;
   password?: string;
 }
 

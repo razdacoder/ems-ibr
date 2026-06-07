@@ -30,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "full_name",
+            "role",
             "is_staff",
             "is_active",
             "department",
@@ -37,7 +38,8 @@ class UserSerializer(serializers.ModelSerializer):
             "password",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
+        # ``is_staff`` is derived from ``role`` on save, so it is read-only here.
+        read_only_fields = ["id", "created_at", "is_staff"]
 
     def get_full_name(self, obj):
         first = (obj.first_name or "").strip()
@@ -47,6 +49,8 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop("password", None)
         user = User(**validated_data)
+        # Any admin-side role is staff; a roleless user is a department officer.
+        user.is_staff = bool(user.role)
         if password:
             user.set_password(password)
         else:
@@ -58,6 +62,8 @@ class UserSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        if "role" in validated_data:
+            instance.is_staff = bool(instance.role)
         if password:
             instance.set_password(password)
         instance.save()

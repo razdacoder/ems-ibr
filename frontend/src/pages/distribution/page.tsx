@@ -27,13 +27,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
 import { PageHeader } from "@/components/layout/page-header";
-import { useAuth } from "@/lib/auth";
+import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 
 export default function DistributionPage() {
   const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
+  // Only super admins may trigger generation; committee members view/export only.
+  const isAdmin = isSuperAdmin(user);
 
   const dates = useTimetableDates();
   const [date, setDate] = useState<string | undefined>();

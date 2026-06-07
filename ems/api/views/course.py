@@ -1,7 +1,7 @@
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsDataOfficer
 from ems.api.serializers.course import (
     CourseSerializer,
     assert_course_deletable,
@@ -29,7 +29,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [permissions.IsAuthenticated()]
-        return [IsAdminStaff()]
+        return [IsDataOfficer()]
 
     def perform_destroy(self, instance):
         assert_course_deletable(instance)

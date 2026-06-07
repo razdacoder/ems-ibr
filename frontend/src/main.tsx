@@ -7,6 +7,7 @@ import { queryClient } from "./lib/query";
 import { AuthProvider } from "./lib/auth";
 import { ConfirmProvider } from "./lib/confirm";
 import { ThemeProvider } from "./lib/theme";
+import { BrandApplier } from "./lib/brand";
 import { Toaster } from "./components/toaster";
 import "./index.css";
 
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
+        <BrandApplier />
         <AuthProvider>
           <ConfirmProvider>
             <RouterProvider router={router} />

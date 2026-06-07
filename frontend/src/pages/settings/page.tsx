@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -27,6 +27,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -35,6 +42,23 @@ import { useConfirm } from "@/lib/confirm";
 import { PageHeader } from "@/components/layout/page-header";
 
 const schema = z.object({
+  institution_name: z.string().trim().max(255).default(""),
+  institution_short_name: z.string().trim().max(50).default(""),
+  exam_heading: z.string().trim().max(255).default(""),
+  institution_address: z.string().trim().default(""),
+  contact_email: z
+    .string()
+    .trim()
+    .email("Enter a valid email")
+    .or(z.literal(""))
+    .default(""),
+  contact_phone: z.string().trim().max(50).default(""),
+  brand_color: z
+    .string()
+    .trim()
+    .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Use a hex like #7C3AED")
+    .or(z.literal(""))
+    .default(""),
   session: z.string().trim().min(1, "Session is required"),
   semester: z.string().trim().min(1, "Semester is required"),
 });
@@ -49,24 +73,54 @@ export default function SettingsPage() {
   const confirm = useConfirm();
 
   const [topError, setTopError] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { session: "", semester: "" },
+    defaultValues: {
+      institution_name: "",
+      institution_short_name: "",
+      exam_heading: "",
+      institution_address: "",
+      contact_email: "",
+      contact_phone: "",
+      brand_color: "",
+      session: "",
+      semester: "",
+    },
   });
 
   useEffect(() => {
     if (settings.data) {
       form.reset({
+        institution_name: settings.data.institution_name ?? "",
+        institution_short_name: settings.data.institution_short_name ?? "",
+        exam_heading: settings.data.exam_heading ?? "",
+        institution_address: settings.data.institution_address ?? "",
+        contact_email: settings.data.contact_email ?? "",
+        contact_phone: settings.data.contact_phone ?? "",
+        brand_color: settings.data.brand_color ?? "",
         session: settings.data.session,
         semester: settings.data.semester,
       });
     }
   }, [settings.data, form]);
 
+  // Prefer a freshly-picked file's preview, else the saved logo.
+  const logoPreview = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : settings.data?.logo_url ?? null),
+    [logoFile, settings.data?.logo_url],
+  );
+  useEffect(() => {
+    return () => {
+      if (logoFile && logoPreview) URL.revokeObjectURL(logoPreview);
+    };
+  }, [logoFile, logoPreview]);
+
   const onSubmit = async (v: Values) => {
     setTopError(null);
     try {
-      await update.mutateAsync(v);
+      await update.mutateAsync({ ...v, logo: logoFile ?? undefined });
+      setLogoFile(null);
       toast({ title: "Settings updated" });
     } catch (err) {
       setTopError(extractErrorEnvelope(err).detail);
@@ -146,14 +200,16 @@ export default function SettingsPage() {
       <PageHeader
         section="Admin · Settings"
         title="System settings."
-        description="Configure the active session and semester, and manage destructive admin actions."
+        description="Configure institution branding, the active session and semester, and manage destructive admin actions."
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>Session and semester</CardTitle>
+          <CardTitle>System configuration</CardTitle>
           <CardDescription>
-            These labels appear on every export and report.
+            Institution branding and the active session/semester. The logo and
+            these labels appear in the app beside the AuraSchedule mark and on
+            every exported document.
           </CardDescription>
         </CardHeader>
         {settings.isLoading ? (
@@ -169,32 +225,222 @@ export default function SettingsPage() {
                     <AlertDescription>{topError}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* Logo upload + live preview */}
+                <div className="flex items-center gap-4">
+                  <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-input bg-muted/30">
+                    {logoPreview ? (
+                      <img
+                        src={logoPreview}
+                        alt="Institution logo"
+                        className="size-full object-contain"
+                      />
+                    ) : (
+                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        No logo
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <FormLabel>Institution logo</FormLabel>
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      onChange={(e) =>
+                        setLogoFile(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      PNG or JPG. Used on documents and beside the app logo.
+                    </p>
+                  </div>
+                </div>
+
                 <FormField
                   control={form.control}
-                  name="session"
+                  name="institution_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Academic session</FormLabel>
+                      <FormLabel>Institution name</FormLabel>
                       <FormControl>
-                        <Input placeholder="2024/2025" {...field} />
+                        <Input
+                          placeholder="Institute of Business and Research"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="institution_short_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Short name / acronym</FormLabel>
+                        <FormControl>
+                          <Input placeholder="IBR" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="exam_heading"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Exam heading line</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Office of the Examinations Committee"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
-                  name="semester"
+                  name="institution_address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Semester</FormLabel>
+                      <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Input placeholder="1st Semester" {...field} />
+                        <textarea
+                          rows={2}
+                          placeholder="123 Campus Road, City"
+                          className="flex min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="contact_email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="exams@ibr.edu"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="contact_phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact phone</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+234 ..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="brand_color"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Brand color</FormLabel>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          aria-label="Brand color"
+                          value={field.value || "#7C3AED"}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
+                        />
+                        <FormControl>
+                          <Input
+                            placeholder="#7C3AED"
+                            className="max-w-[160px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        {field.value && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => field.onChange("")}
+                          >
+                            Reset to default
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Drives the app's primary accent across light and dark
+                        mode. Leave blank for the default purple.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="session"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Academic session</FormLabel>
+                        <FormControl>
+                          <Input placeholder="2024/2025" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="semester"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Semester</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select semester" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="First Semester">
+                              First Semester
+                            </SelectItem>
+                            <SelectItem value="Second Semester">
+                              Second Semester
+                            </SelectItem>
+                            <SelectItem value="Third Semester">
+                              Third Semester
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </CardContent>
               <CardFooter className="justify-end">
                 <Button type="submit" disabled={form.formState.isSubmitting}>

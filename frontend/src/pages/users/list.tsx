@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
-import { useAuth } from "@/lib/auth";
+import { ROLE_LABELS, useAuth, type UserRole } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { downloadAuthenticatedFile } from "@/lib/download";
@@ -167,8 +167,8 @@ export default function UsersListPage() {
                 <TableCell>{u.full_name}</TableCell>
                 <TableCell>{u.department?.slug ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={u.is_staff ? "default" : "secondary"}>
-                    {u.is_staff ? "Admin" : "Staff"}
+                  <Badge variant={u.role ? "default" : "secondary"}>
+                    {u.role ? ROLE_LABELS[u.role] : "Department Officer"}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -209,11 +209,22 @@ export default function UsersListPage() {
   );
 }
 
+// "DEPT" is the form sentinel for a department officer (role = null on the API).
+const DEPT_OFFICER = "DEPT";
+
+const ROLE_OPTIONS: { value: UserRole | typeof DEPT_OFFICER; label: string }[] = [
+  { value: "SA", label: ROLE_LABELS.SA },
+  { value: "DO", label: ROLE_LABELS.DO },
+  { value: "FO", label: ROLE_LABELS.FO },
+  { value: "ECM", label: ROLE_LABELS.ECM },
+  { value: DEPT_OFFICER, label: "Department Officer (department-scoped)" },
+];
+
 const userSchema = z.object({
   email: z.string().email("Valid email required"),
   first_name: z.string().trim().min(1),
   last_name: z.string().trim().min(1),
-  is_staff: z.boolean(),
+  role: z.enum(["SA", "DO", "FO", "ECM", DEPT_OFFICER]),
   department_id: z.coerce.number().int().nullable(),
   password: z.string().min(8, "At least 8 characters").or(z.literal("")),
 });
@@ -237,7 +248,7 @@ function UserFormDialog({
       email: "",
       first_name: "",
       last_name: "",
-      is_staff: false,
+      role: DEPT_OFFICER,
       department_id: null,
       password: "",
     },
@@ -258,7 +269,7 @@ function UserFormDialog({
             email: initial.email,
             first_name: initial.first_name,
             last_name: initial.last_name,
-            is_staff: initial.is_staff,
+            role: initial.role ?? DEPT_OFFICER,
             department_id: initial.department?.id ?? null,
             password: "",
           }
@@ -266,7 +277,7 @@ function UserFormDialog({
             email: "",
             first_name: "",
             last_name: "",
-            is_staff: false,
+            role: DEPT_OFFICER,
             department_id: null,
             password: "",
           },
@@ -276,12 +287,14 @@ function UserFormDialog({
 
   const onSubmit = async (v: UserValues) => {
     setTopError(null);
+    const role = v.role === DEPT_OFFICER ? null : v.role;
     const payload: Record<string, unknown> = {
       email: v.email.trim(),
       first_name: v.first_name.trim(),
       last_name: v.last_name.trim(),
-      is_staff: v.is_staff,
-      department_id: v.is_staff ? null : v.department_id,
+      role,
+      // Admin-side roles aren't department-scoped; only officers carry a department.
+      department_id: role ? null : v.department_id,
     };
     if (v.password) payload.password = v.password;
     try {
@@ -303,7 +316,7 @@ function UserFormDialog({
       if (env.errors) {
         for (const [k, msgs] of Object.entries(env.errors)) {
           if (
-            ["email", "first_name", "last_name", "password", "department_id", "is_staff"].includes(k)
+            ["email", "first_name", "last_name", "password", "department_id", "role"].includes(k)
           ) {
             form.setError(k as keyof UserValues, { message: msgs.join(", ") });
           }
@@ -312,7 +325,7 @@ function UserFormDialog({
     }
   };
 
-  const isStaff = form.watch("is_staff");
+  const isDeptOfficer = form.watch("role") === DEPT_OFFICER;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -320,8 +333,9 @@ function UserFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit user" : "New user"}</DialogTitle>
           <DialogDescription>
-            Admin users can manage every department; non-admin users are scoped
-            to one department.
+            Assign an admin-side role (Super Admin, Data Officer, Faculty
+            Officer, or Exam Committee Member), or make a department officer
+            scoped to a single department.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -368,27 +382,30 @@ function UserFormDialog({
             </div>
             <FormField
               control={form.control}
-              name="is_staff"
+              name="role"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Role</FormLabel>
                   <Select
-                    value={field.value ? "admin" : "staff"}
-                    onValueChange={(v) => field.onChange(v === "admin")}
+                    value={field.value}
+                    onValueChange={(v) => field.onChange(v)}
                   >
                     <FormControl>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="staff">Staff (department-scoped)</SelectItem>
-                      <SelectItem value="admin">Admin (full access)</SelectItem>
+                      {ROLE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {!isStaff && (
+            {isDeptOfficer && (
               <FormField
                 control={form.control}
                 name="department_id"

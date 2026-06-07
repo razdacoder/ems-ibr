@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems.api.exceptions import Conflict
-from ems.api.permissions import IsAdminStaff, IsJobOwnerOrAdmin
+from ems.api.permissions import IsJobOwnerOrAdmin, IsSuperAdmin
 from ems.api.serializers.job import BackgroundJobSerializer
 from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
@@ -128,7 +128,7 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_permissions(self):
         if self.action in ("destroy", "retry"):
-            return [IsAdminStaff()]
+            return [IsSuperAdmin()]
         return [IsAuthenticated()]
 
     def check_object_permissions(self, request, obj):
@@ -223,7 +223,7 @@ def _populate_task_map():
 
 
 class _BaseGenerateView(APIView):
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsSuperAdmin]
     job_type: str = ""
 
     def _create_job(self, user, params):
@@ -403,7 +403,7 @@ class GenerateAllocationAllView(_BaseGenerateView):
 class ManualSeatAssignmentView(APIView):
     """POST /api/allocation/manual-assign/ — body: {seat_arrangement_id, seat_number}."""
 
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         sa_id = request.data.get("seat_arrangement_id")

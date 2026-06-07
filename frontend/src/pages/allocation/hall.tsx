@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, LayoutGrid, List } from "lucide-react";
 import { useHallAllocation } from "@/api/scheduling";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,7 +36,8 @@ export default function HallAllocationPage() {
   const period = (cleanParam(params.get("period")) ?? "AM") as "AM" | "PM";
   const hallId = cleanParam(params.get("hall_id"));
   const { user } = useAuth();
-  const isAdmin = !!user?.is_staff;
+  // Only super admins may manually assign seats; committee members view/export only.
+  const isAdmin = isSuperAdmin(user);
   const qc = useQueryClient();
 
   const data = useHallAllocation({

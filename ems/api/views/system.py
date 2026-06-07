@@ -1,11 +1,12 @@
 from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsSuperAdmin
 from ems.api.serializers.system import SystemSettingsSerializer
 from ems.models import (
     Class,
@@ -31,24 +32,62 @@ def _get_or_create_settings() -> SystemSettings:
 
 
 class SystemSettingsView(APIView):
-    """Singleton resource: GET returns the row, PATCH updates it."""
+    """Singleton resource: GET returns the row, PATCH updates it.
+
+    Accepts multipart/form-data so the institution logo can be uploaded
+    alongside the other configuration fields.
+    """
+
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
         if self.request.method.upper() == "PATCH":
-            return [IsAdminStaff()]
+            return [IsSuperAdmin()]
         return [IsAuthenticated()]
 
     def get(self, request):
-        return Response(SystemSettingsSerializer(_get_or_create_settings()).data)
+        return Response(
+            SystemSettingsSerializer(
+                _get_or_create_settings(), context={"request": request}
+            ).data
+        )
 
     def patch(self, request):
         instance = _get_or_create_settings()
         serializer = SystemSettingsSerializer(
-            instance, data=request.data, partial=True
+            instance,
+            data=request.data,
+            partial=True,
+            context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class BrandingView(APIView):
+    """Public institution branding for the UI (logo + names).
+
+    Unauthenticated so the login screen can display the institution mark
+    before a token exists. Exposes only non-sensitive branding fields.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        settings_obj = _get_or_create_settings()
+        logo = settings_obj.logo
+        logo_url = None
+        if logo:
+            logo_url = request.build_absolute_uri(logo.url)
+        return Response(
+            {
+                "institution_name": settings_obj.institution_name,
+                "institution_short_name": settings_obj.institution_short_name,
+                "logo_url": logo_url,
+                "brand_color": settings_obj.brand_color,
+            }
+        )
 
 
 class DashboardStatsView(APIView):
@@ -178,7 +217,7 @@ _RESET_SCOPES = {
 
 
 class ResetSystemView(APIView):
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         scope = request.data.get("scope", "all")
@@ -206,7 +245,7 @@ class ResetSystemView(APIView):
 
 
 class EnableBulkUploadView(APIView):
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         settings = _get_or_create_settings()

@@ -20,6 +20,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 
+from .branding import add_document_branding
 from .broadsheet import TimetableBroadSheet
 from .models import (
     BackgroundJob,
@@ -919,46 +920,8 @@ def generate_attendance_sheets(request):
             # Create Word document for each course
             doc = Document()
 
-            # Add school logo
-            logo_paragraph = doc.add_paragraph()
-            logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
-            # Try to add the actual logo image
-            logo_path = os.path.join(
-                settings.BASE_DIR, "static", "assets", "images", "logo.png"
-            )
-            if os.path.exists(logo_path):
-                try:
-                    # Add the logo image to the document
-                    logo_run = (
-                        logo_paragraph.runs[0]
-                        if logo_paragraph.runs
-                        else logo_paragraph.add_run()
-                    )
-                    logo_run.add_picture(logo_path, width=Inches(1.0))
-
-                except Exception:
-                    # Fallback to text if image insertion fails
-                    logo_run = logo_paragraph.add_run("[SCHOOL LOGO]")
-                    logo_run.bold = True
-            else:
-                # Fallback if logo file doesn't exist
-                logo_run = logo_paragraph.add_run("[SCHOOL LOGO]")
-                logo_run.bold = True
-
-            # Add session and semester information
-            session_paragraph = doc.add_paragraph()
-            session_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            session_run = session_paragraph.add_run(f"SESSION: {settings_obj.session}")
-            session_run.bold = True
-            session_run.add_break()
-            semester_run = session_paragraph.add_run(
-                f"SEMESTER: {settings_obj.semester}"
-            )
-            semester_run.bold = True
-
-            # Add spacing
-            doc.add_paragraph()
+            # Institution branding header (logo + metadata + session).
+            add_document_branding(doc, settings_obj)
 
             # Add course information header
             course_header = doc.add_paragraph()
@@ -988,7 +951,9 @@ def generate_attendance_sheets(request):
             # Add level and period
             level_period = doc.add_paragraph()
             level_period.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            level_run = level_period.add_run(f"LEVEL/CLASS: {course_data['cls'].name}")
+            level_run = level_period.add_run(
+                f"LEVEL/CLASS: {course_data['cls'].full_label}"
+            )
             level_run.bold = True
             level_run.add_break()
             period_run = level_period.add_run(f"PERIOD OF EXAM: {period}")

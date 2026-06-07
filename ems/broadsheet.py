@@ -35,6 +35,21 @@ class TimetableBroadSheet:
 
     def create_header_section(self, semester, academic_year, start_row=1):
         """Create the header section with title and semester info"""
+        # Institution name (branding) — printed above the title when configured.
+        from .models import SystemSettings
+
+        settings_obj = SystemSettings.objects.first()
+        institution = (
+            getattr(settings_obj, "institution_name", "") or ""
+        ).strip() if settings_obj else ""
+        if institution:
+            self.ws.merge_cells(f'A{start_row}:H{start_row}')
+            inst_cell = self.ws[f'A{start_row}']
+            inst_cell.value = institution.upper()
+            inst_cell.font = self.title_font
+            inst_cell.alignment = self.center_alignment
+            start_row += 1
+
         # Main title
         self.ws.merge_cells(f'A{start_row}:H{start_row}')
         title_cell = self.ws[f'A{start_row}']
@@ -121,7 +136,7 @@ class TimetableBroadSheet:
                     timetable.period,  # Period
                     timetable.course.code,  # Course Code
                     timetable.course.name,  # Course Name
-                    timetable.class_obj.name,  # Class
+                    timetable.class_obj.full_label,  # Class (with dept code)
                     timetable.class_obj.department.name  # Department
                 ]
 
@@ -300,7 +315,7 @@ class TimetableBroadSheet:
                         row_data = [
                             timetable.course.code,
                             timetable.course.name,
-                            timetable.class_obj.name,
+                            timetable.class_obj.full_label,
                             timetable.class_obj.department.name,
                             timetable.course.exam_type,
                             "2 Hours",  # Default duration

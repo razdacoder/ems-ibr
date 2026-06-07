@@ -15,6 +15,10 @@ class ClassSerializer(serializers.ModelSerializer):
     )
     courses = CourseSerializer(many=True, read_only=True)
     student_count = serializers.SerializerMethodField()
+    # Read-only resolved VISA code (the override if set, else auto-derived).
+    visa_label = serializers.CharField(read_only=True)
+    # Read-only "DEPT name" label (e.g. "AC ND II").
+    full_label = serializers.CharField(read_only=True)
 
     class Meta:
         model = Class
@@ -26,8 +30,12 @@ class ClassSerializer(serializers.ModelSerializer):
             "department_id",
             "courses",
             "student_count",
+            "visa_code",
+            "visa_label",
+            "full_label",
         ]
         read_only_fields = ["id"]
+        extra_kwargs = {"visa_code": {"required": False, "allow_blank": True}}
 
     def get_student_count(self, obj):
         return getattr(obj, "_student_count", obj.student_set.count())

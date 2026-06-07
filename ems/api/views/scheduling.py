@@ -345,7 +345,7 @@ class HallAllocationView(APIView):
                 "id": sa.id,
                 "seat_number": sa.seat_number,
                 "course": {"id": sa.course_id, "code": sa.course.code},
-                "class": {"id": sa.cls_id, "name": sa.cls.name},
+                "class": {"id": sa.cls_id, "name": sa.cls.full_label},
                 "student": (
                     {
                         "id": sa.student_id,

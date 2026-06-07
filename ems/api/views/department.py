@@ -2,7 +2,7 @@ from django.db.models import Count
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsDataOfficer
 from ems.api.serializers.department import (
     DepartmentSerializer,
     assert_department_deletable,
@@ -29,7 +29,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        return [IsAdminStaff()]
+        return [IsDataOfficer()]
 
     def perform_destroy(self, instance):
         assert_department_deletable(instance)

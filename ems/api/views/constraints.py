@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsSuperAdmin
 from ems.api.serializers.constraints import GenerationConstraintsSerializer
 from ems.models import GenerationConstraints
 
@@ -24,7 +24,7 @@ class GenerationConstraintsView(APIView):
 
     def get_permissions(self):
         if self.request.method.upper() == "PATCH":
-            return [IsAdminStaff()]
+            return [IsSuperAdmin()]
         return [IsAuthenticated()]
 
     def get(self, request):

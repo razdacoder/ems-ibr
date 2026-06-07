@@ -14,12 +14,16 @@ import {
 import { toast } from "@/lib/use-toast";
 import { extractErrorEnvelope } from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
+import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { Lock } from "lucide-react";
 
 export default function UploadsPage() {
+  const { user } = useAuth();
   const settings = useSystemSettings();
   const enable = useEnableBulkUpload();
   const locked = !!settings.data?.has_timetable;
+  // Re-enabling invalidates the timetable, so it is restricted to super admins.
+  const canUnlock = isSuperAdmin(user);
 
   const departments = useUploadDepartments();
   const halls = useUploadHalls();
@@ -75,15 +79,19 @@ export default function UploadsPage() {
             <span>
               A timetable already exists for this session. Re-enable uploads to
               ingest new data — the existing timetable will be invalidated.
+              {!canUnlock &&
+                " A super admin must re-enable uploads before you can continue."}
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onEnable}
-              disabled={enable.isPending}
-            >
-              Re-enable
-            </Button>
+            {canUnlock && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onEnable}
+                disabled={enable.isPending}
+              >
+                Re-enable
+              </Button>
+            )}
           </AlertDescription>
         </Alert>
       )}

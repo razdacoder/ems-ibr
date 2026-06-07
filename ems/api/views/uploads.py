@@ -6,15 +6,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems import upload_handlers
-from ems.api.permissions import IsAdminStaff, UploadsUnlocked
+from ems.api.permissions import IsDataOfficer, UploadsUnlocked
 from ems.models import Class, Department
 
 
 def _require_dept_access(request, department: Department) -> None:
-    """Allow admins, or non-staff who belong to the target department.
-    Anyone else is denied."""
+    """Allow data managers, or department officers who belong to the target
+    department. Anyone else is denied."""
     user = request.user
-    if user.is_staff:
+    if user.can_manage_data:
         return
     if user.department_id and user.department_id == department.id:
         return
@@ -24,7 +24,7 @@ def _require_dept_access(request, department: Department) -> None:
 
 
 class _BaseUploadView(APIView):
-    permission_classes = [IsAdminStaff, UploadsUnlocked]
+    permission_classes = [IsDataOfficer, UploadsUnlocked]
     parser_classes = [MultiPartParser, FormParser]
 
     handler_attr: str = ""

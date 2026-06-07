@@ -6,6 +6,36 @@ export interface SystemSettings {
   session: string;
   semester: string;
   has_timetable: boolean;
+  institution_name: string;
+  institution_short_name: string;
+  institution_address: string;
+  exam_heading: string;
+  contact_email: string;
+  contact_phone: string;
+  logo_url: string | null;
+  brand_color: string;
+}
+
+/** Writable system-configuration fields. `logo` is a file picked in the form. */
+export interface SystemSettingsUpdate {
+  session?: string;
+  semester?: string;
+  institution_name?: string;
+  institution_short_name?: string;
+  institution_address?: string;
+  exam_heading?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  brand_color?: string;
+  logo?: File | null;
+}
+
+/** Public institution branding (no auth) — drives logos + theme beside the app mark. */
+export interface Branding {
+  institution_name: string;
+  institution_short_name: string;
+  logo_url: string | null;
+  brand_color: string;
 }
 
 export interface DashboardStats {
@@ -26,6 +56,7 @@ export interface DashboardStats {
 
 const SETTINGS_KEY = ["system", "settings"] as const;
 const DASHBOARD_KEY = ["system", "dashboard"] as const;
+const BRANDING_KEY = ["system", "branding"] as const;
 
 export function useSystemSettings() {
   return useQuery({
@@ -40,14 +71,38 @@ export function useSystemSettings() {
 export function useUpdateSystemSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: Partial<SystemSettings>) => {
-      const res = await api.patch<SystemSettings>("/system/settings/", data);
+    mutationFn: async (data: SystemSettingsUpdate) => {
+      // Send multipart so the logo file rides along with the text fields.
+      const form = new FormData();
+      for (const [key, value] of Object.entries(data)) {
+        if (value === undefined) continue;
+        if (key === "logo") {
+          if (value instanceof File) form.append("logo", value);
+        } else {
+          form.append(key, value as string);
+        }
+      }
+      const res = await api.patch<SystemSettings>("/system/settings/", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return res.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       qc.invalidateQueries({ queryKey: DASHBOARD_KEY });
+      qc.invalidateQueries({ queryKey: BRANDING_KEY });
     },
+  });
+}
+
+export function useBranding() {
+  return useQuery({
+    queryKey: BRANDING_KEY,
+    queryFn: async () => {
+      const res = await api.get<Branding>("/system/branding/");
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   ClipboardList,
   Download,
+  FileText,
   GraduationCap,
   Grid3x3,
   Landmark,
@@ -26,7 +27,15 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import {
+  canManageData,
+  canManageFaculties,
+  isCommittee,
+  isSuperAdmin,
+  ROLE_LABELS,
+  useAuth,
+  type AuthUser,
+} from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/logo";
+import { InstitutionLogo } from "@/components/institution-logo";
 
 interface NavSection {
   label: string;
@@ -51,7 +61,8 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  adminOnly?: boolean;
+  /** When set, the item is shown only if the predicate passes for the user. */
+  requires?: (u: AuthUser | null) => boolean;
 }
 
 const NAV_SECTIONS: NavSection[] = [
@@ -68,12 +79,12 @@ const NAV_SECTIONS: NavSection[] = [
         to: "/departments",
         label: "Departments",
         icon: Building2,
-        adminOnly: true,
+        requires: canManageData,
       },
       { to: "/classes", label: "Classes", icon: School },
       { to: "/courses", label: "Courses", icon: ClipboardList },
       { to: "/students", label: "Students", icon: GraduationCap },
-      { to: "/halls", label: "Halls", icon: Grid3x3, adminOnly: true },
+      { to: "/halls", label: "Halls", icon: Grid3x3, requires: canManageData },
     ],
   },
   {
@@ -85,13 +96,19 @@ const NAV_SECTIONS: NavSection[] = [
         to: "/distribution",
         label: "Distribution",
         icon: Boxes,
-        adminOnly: true,
+        requires: isCommittee,
       },
       {
         to: "/allocation",
         label: "Allocation",
         icon: Armchair,
-        adminOnly: true,
+        requires: isCommittee,
+      },
+      {
+        to: "/directory",
+        label: "Directory & VISA",
+        icon: FileText,
+        requires: isCommittee,
       },
       { to: "/exports", label: "Exports", icon: Download },
     ],
@@ -100,17 +117,22 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Admin",
     tone: "teal",
     items: [
-      { to: "/faculties", label: "Faculties", icon: Landmark, adminOnly: true },
-      { to: "/uploads", label: "Uploads", icon: Upload, adminOnly: true },
-      { to: "/users", label: "Users", icon: Users, adminOnly: true },
-      { to: "/jobs", label: "Jobs", icon: ListChecks, adminOnly: true },
+      {
+        to: "/faculties",
+        label: "Faculties",
+        icon: Landmark,
+        requires: canManageFaculties,
+      },
+      { to: "/uploads", label: "Uploads", icon: Upload, requires: canManageData },
+      { to: "/users", label: "Users", icon: Users, requires: isSuperAdmin },
+      { to: "/jobs", label: "Jobs", icon: ListChecks, requires: isSuperAdmin },
       {
         to: "/constraints",
         label: "Constraints",
         icon: SlidersHorizontal,
-        adminOnly: true,
+        requires: isSuperAdmin,
       },
-      { to: "/settings", label: "Settings", icon: Settings, adminOnly: true },
+      { to: "/settings", label: "Settings", icon: Settings, requires: isSuperAdmin },
     ],
   },
 ];
@@ -152,6 +174,7 @@ function SidebarContent({
             <span className="font-serif text-[1.25rem] tracking-tight">
               AuraSchedule
             </span>
+            <InstitutionLogo size={40} className="ml-auto" />
           </>
         )}
       </div>
@@ -311,9 +334,9 @@ function SidebarContent({
                   {user?.full_name ?? user?.email}
                 </span>
                 <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {user?.is_staff
-                    ? "Administrator"
-                    : user?.department?.slug ?? "Staff"}
+                  {user?.role
+                    ? ROLE_LABELS[user.role]
+                    : user?.department?.slug ?? "Department Officer"}
                 </span>
               </span>
             )}
@@ -367,7 +390,7 @@ export function DashboardLayout() {
 
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((i) => !i.adminOnly || user?.is_staff),
+    items: s.items.filter((i) => !i.requires || i.requires(user)),
   })).filter((s) => s.items.length > 0);
 
   return (

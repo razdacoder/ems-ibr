@@ -2,16 +2,36 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { api, clearToken, getToken, setToken } from "./api";
 
+/** Admin-side role codes. `null` means a department officer (dept-scoped). */
+export type UserRole = "SA" | "DO" | "FO" | "ECM";
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  SA: "Super Admin",
+  DO: "Data Officer",
+  FO: "Faculty Officer",
+  ECM: "Exam Committee Member",
+};
+
 export interface AuthUser {
   id: number;
   email: string;
   first_name: string;
   last_name: string;
   full_name: string;
+  role: UserRole | null;
   is_staff: boolean;
   is_active: boolean;
   department: { id: number; name: string; slug: string } | null;
 }
+
+/** Capability helpers — mirror the backend permission classes. */
+export const isSuperAdmin = (u: AuthUser | null) => u?.role === "SA";
+export const canManageData = (u: AuthUser | null) =>
+  u?.role === "SA" || u?.role === "DO";
+export const canManageFaculties = (u: AuthUser | null) =>
+  u?.role === "SA" || u?.role === "FO";
+export const isCommittee = (u: AuthUser | null) =>
+  u?.role === "SA" || u?.role === "DO" || u?.role === "FO" || u?.role === "ECM";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 

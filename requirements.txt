@@ -31,3 +31,6 @@ django-cors-headers==4.4.0
 channels==4.1.0
 channels-redis==4.2.0
 daphne==4.1.2
+
+Pillow==12.2.0
+reportlab==4.5.1

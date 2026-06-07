@@ -11,11 +11,35 @@ class IsAdminStaff(permissions.BasePermission):
         return bool(user and user.is_authenticated and user.is_staff)
 
 
+class IsSuperAdmin(permissions.BasePermission):
+    """Super-admin-only: users/roles, generation, settings, constraints, reset."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and user.is_super_admin)
+
+
+class IsDataOfficer(permissions.BasePermission):
+    """Super admins and data officers: validate/upload and manage data entities."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and user.can_manage_data)
+
+
+class IsFacultyOfficer(permissions.BasePermission):
+    """Super admins and faculty officers: manage faculties."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and user.can_manage_faculties)
+
+
 class CanManageDepartmentScoped(permissions.BasePermission):
-    """Admins always pass. Non-staff users with a department may write only
-    to objects whose ``department_id`` matches their own. Read-only methods
-    are open to any authenticated user (queryset filtering happens in the
-    viewset)."""
+    """Data managers (super admin / data officer) always pass. Department
+    officers with a department may write only to objects whose
+    ``department_id`` matches their own. Read-only methods are open to any
+    authenticated user (queryset filtering happens in the viewset)."""
 
     def has_permission(self, request, view):
         user = request.user
@@ -23,7 +47,7 @@ class CanManageDepartmentScoped(permissions.BasePermission):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
-        if user.is_staff:
+        if user.can_manage_data:
             return True
         return bool(user.department_id)
 
@@ -33,7 +57,7 @@ class CanManageDepartmentScoped(permissions.BasePermission):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
-        if user.is_staff:
+        if user.can_manage_data:
             return True
         return getattr(obj, "department_id", None) == user.department_id
 

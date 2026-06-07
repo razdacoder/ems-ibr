@@ -1,13 +1,13 @@
 from rest_framework import viewsets
 
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsDataOfficer
 from ems.api.serializers.hall import HallSerializer
 from ems.models import Hall
 
 
 class HallViewSet(viewsets.ModelViewSet):
     serializer_class = HallSerializer
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsDataOfficer]
 
     def get_queryset(self):
         qs = Hall.objects.all().order_by("name")

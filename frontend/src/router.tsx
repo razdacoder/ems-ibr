@@ -16,13 +16,20 @@ import TimetablePage from "@/pages/timetable/page";
 import DistributionPage from "@/pages/distribution/page";
 import AllocationPage from "@/pages/allocation/page";
 import HallAllocationPage from "@/pages/allocation/hall";
+import DirectoryPage from "@/pages/directory/page";
 import JobsListPage from "@/pages/jobs/list";
 import ExportsPage from "@/pages/exports/page";
 import LandingPage from "@/pages/public/landing";
 import FeaturesPage from "@/pages/public/features";
 import FeatureDetailPage from "@/pages/public/feature-detail";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { RequireAdmin, RequireAuth } from "@/components/route-guards";
+import {
+  RequireAuth,
+  RequireCommittee,
+  RequireDataOfficer,
+  RequireFacultyOfficer,
+  RequireSuperAdmin,
+} from "@/components/route-guards";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LandingPage /> },
@@ -40,25 +47,25 @@ export const router = createBrowserRouter([
       {
         path: "/departments",
         element: (
-          <RequireAdmin>
+          <RequireDataOfficer>
             <DepartmentsListPage />
-          </RequireAdmin>
+          </RequireDataOfficer>
         ),
       },
       {
         path: "/faculties",
         element: (
-          <RequireAdmin>
+          <RequireFacultyOfficer>
             <FacultiesListPage />
-          </RequireAdmin>
+          </RequireFacultyOfficer>
         ),
       },
       {
         path: "/constraints",
         element: (
-          <RequireAdmin>
+          <RequireSuperAdmin>
             <ConstraintsPage />
-          </RequireAdmin>
+          </RequireSuperAdmin>
         ),
       },
       { path: "/courses", element: <CoursesListPage /> },
@@ -67,68 +74,76 @@ export const router = createBrowserRouter([
       {
         path: "/halls",
         element: (
-          <RequireAdmin>
+          <RequireDataOfficer>
             <HallsListPage />
-          </RequireAdmin>
+          </RequireDataOfficer>
         ),
       },
       { path: "/students", element: <StudentsListPage /> },
       {
         path: "/users",
         element: (
-          <RequireAdmin>
+          <RequireSuperAdmin>
             <UsersListPage />
-          </RequireAdmin>
+          </RequireSuperAdmin>
         ),
       },
       {
         path: "/uploads",
         element: (
-          <RequireAdmin>
+          <RequireDataOfficer>
             <UploadsPage />
-          </RequireAdmin>
+          </RequireDataOfficer>
         ),
       },
       { path: "/timetable", element: <TimetablePage /> },
       {
         path: "/distribution",
         element: (
-          <RequireAdmin>
+          <RequireCommittee>
             <DistributionPage />
-          </RequireAdmin>
+          </RequireCommittee>
         ),
       },
       {
         path: "/allocation",
         element: (
-          <RequireAdmin>
+          <RequireCommittee>
             <AllocationPage />
-          </RequireAdmin>
+          </RequireCommittee>
         ),
       },
       {
         path: "/allocation/hall",
         element: (
-          <RequireAdmin>
+          <RequireCommittee>
             <HallAllocationPage />
-          </RequireAdmin>
+          </RequireCommittee>
         ),
       },
       {
         path: "/jobs",
         element: (
-          <RequireAdmin>
+          <RequireSuperAdmin>
             <JobsListPage />
-          </RequireAdmin>
+          </RequireSuperAdmin>
         ),
       },
       { path: "/exports", element: <ExportsPage /> },
       {
+        path: "/directory",
+        element: (
+          <RequireCommittee>
+            <DirectoryPage />
+          </RequireCommittee>
+        ),
+      },
+      {
         path: "/settings",
         element: (
-          <RequireAdmin>
+          <RequireSuperAdmin>
             <SettingsPage />
-          </RequireAdmin>
+          </RequireSuperAdmin>
         ),
       },
     ],

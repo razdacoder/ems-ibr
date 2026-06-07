@@ -40,6 +40,19 @@ class SystemSettings(models.Model):
     semester = models.CharField(max_length=100, default="1st Semester")
     has_timetable = models.BooleanField(default=False)
 
+    # Institution branding — shown in the UI beside the app logo and printed
+    # on exported documents.
+    institution_name = models.CharField(max_length=255, blank=True, default="")
+    institution_short_name = models.CharField(
+        max_length=50, blank=True, default="")
+    institution_address = models.TextField(blank=True, default="")
+    exam_heading = models.CharField(max_length=255, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
+    contact_phone = models.CharField(max_length=50, blank=True, default="")
+    logo = models.ImageField(upload_to="branding/", null=True, blank=True)
+    # Primary brand colour as a hex string (e.g. "#7C3AED"); blank = default theme.
+    brand_color = models.CharField(max_length=9, blank=True, default="")
+
     def __str__(self):
         return str(f"{self.session} ' - ' {self.semester}")
 
@@ -129,16 +142,27 @@ class UserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("role", User.Role.SUPER_ADMIN)
 
         return self.create_user(email, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    class Role(models.TextChoices):
+        SUPER_ADMIN = "SA", "Super Admin"
+        DATA_OFFICER = "DO", "Data Officer"
+        FACULTY_OFFICER = "FO", "Faculty Officer"
+        EXAM_COMMITTEE = "ECM", "Exam Committee Member"
+
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     department = models.ForeignKey(
         Department, on_delete=models.CASCADE, null=True, blank=True
+    )
+    # Admin-side role. Null means a department officer (scoped to ``department``).
+    role = models.CharField(
+        max_length=4, choices=Role.choices, null=True, blank=True
     )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -151,6 +175,29 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    @property
+    def is_super_admin(self) -> bool:
+        return bool(self.is_superuser or self.role == self.Role.SUPER_ADMIN)
+
+    @property
+    def can_manage_data(self) -> bool:
+        """Super admins and data officers manage uploaded data entities."""
+        return bool(self.is_super_admin or self.role == self.Role.DATA_OFFICER)
+
+    @property
+    def can_manage_faculties(self) -> bool:
+        return bool(self.is_super_admin or self.role == self.Role.FACULTY_OFFICER)
+
+    @property
+    def is_committee(self) -> bool:
+        """Any admin-side role — the exam-committee baseline (dashboard + export)."""
+        return self.role in {
+            self.Role.SUPER_ADMIN,
+            self.Role.DATA_OFFICER,
+            self.Role.FACULTY_OFFICER,
+            self.Role.EXAM_COMMITTEE,
+        }
 
 
 class Course(models.Model):
@@ -171,6 +218,40 @@ class Class(models.Model):
         Department, related_name="class_dep", on_delete=models.CASCADE
     )
     size = models.IntegerField()
+    # Optional override for the VISA short code. Blank => auto-derived from
+    # ``name`` (see ems.directory.derive_visa_code).
+    visa_code = models.CharField(max_length=50, blank=True, default="")
+
+    @property
+    def full_label(self) -> str:
+        """Class name prefixed with its department code, e.g. ``"AC ND II"``.
+
+        Bare class names like ``"ND II"`` are identical across departments, so
+        every display/export of a class should carry the department code.
+        Skips the prefix when the name already starts with the code.
+        """
+        dept = getattr(self, "department", None)
+        code = (dept.slug.upper() if dept and dept.slug else "").strip()
+        name = (self.name or "").strip()
+        if code and not name.upper().startswith(code):
+            return f"{code} {name}".strip()
+        return name
+
+    @property
+    def visa_label(self) -> str:
+        from ems.directory import derive_visa_code
+
+        if self.visa_code.strip():
+            return self.visa_code.strip()
+        # The program is usually the department code, so fold it into the name
+        # before deriving (e.g. dept "AC" + "ND II" -> "AC ND II" -> "AC II").
+        # Skip if the name already starts with the code to avoid doubling.
+        dept = getattr(self, "department", None)
+        code = (dept.slug.upper() if dept and dept.slug else "").strip()
+        name = self.name or ""
+        if code and not name.upper().startswith(code):
+            name = f"{code} {name}".strip()
+        return derive_visa_code(name)
 
     def __str__(self) -> str:
         return f"{self.name} - {self.department.name}"

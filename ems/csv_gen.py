@@ -11,6 +11,7 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
+from .branding import add_document_branding
 from .models import Distribution, TimeTable, SeatArrangement, SystemSettings
 
 
@@ -28,7 +29,9 @@ def export_department_timetable(request: HttpRequest) -> HttpResponse:
             status=400,
             content_type="text/plain",
         )
-    timetables = timetables.select_related("class_obj", "course")
+    timetables = timetables.select_related(
+        "class_obj", "class_obj__department", "course"
+    )
     response = HttpResponse(
         content_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
@@ -41,7 +44,7 @@ def export_department_timetable(request: HttpRequest) -> HttpResponse:
         writer.writerow(
             [
                 timetable.date.strftime("%A %d, %B %Y"),
-                timetable.class_obj.name,
+                timetable.class_obj.full_label,
                 timetable.course.exam_type,
                 timetable.course.code,
                 timetable.course.name,
@@ -99,7 +102,7 @@ def export_distribution(request: HttpRequest) -> HttpResponse:
         for item in distribution.items.all():
             cls = item.schedule.class_obj
             writer.writerow(
-                [distribution.hall.name, f"{cls.department.slug} {cls.name}", item.no_of_students])
+                [distribution.hall.name, cls.full_label, item.no_of_students])
     return response
 
 
@@ -197,31 +200,8 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
                 # Build DOCX
                 doc = Document()
 
-                # Logo
-                logo_paragraph = doc.add_paragraph()
-                logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                logo_path = os.path.join(settings.BASE_DIR, 'static', 'assets', 'images', 'logo.png')
-                if os.path.exists(logo_path):
-                    try:
-                        logo_run = logo_paragraph.runs[0] if logo_paragraph.runs else logo_paragraph.add_run()
-                        logo_run.add_picture(logo_path, width=Inches(1.0))
-                    except Exception:
-                        logo_run = logo_paragraph.add_run("[SCHOOL LOGO]")
-                        logo_run.bold = True
-                else:
-                    logo_run = logo_paragraph.add_run("[SCHOOL LOGO]")
-                    logo_run.bold = True
-
-                # Session/Semester
-                session_paragraph = doc.add_paragraph()
-                session_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                session_run = session_paragraph.add_run(f"SESSION: {settings_obj.session}")
-                session_run.bold = True
-                session_run.add_break()
-                semester_run = session_paragraph.add_run(f"SEMESTER: {settings_obj.semester}")
-                semester_run.bold = True
-
-                doc.add_paragraph()
+                # Institution branding header (logo + metadata + session).
+                add_document_branding(doc, settings_obj)
 
                 # Course info
                 course_header = doc.add_paragraph()
@@ -244,7 +224,7 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
                 # Level and period
                 level_period = doc.add_paragraph()
                 level_period.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                level_run = level_period.add_run(f"LEVEL/CLASS: {cls.name}")
+                level_run = level_period.add_run(f"LEVEL/CLASS: {cls.full_label}")
                 level_run.bold = True
                 level_run.add_break()
                 period_run = level_period.add_run(f"PERIOD OF EXAM: {period}")

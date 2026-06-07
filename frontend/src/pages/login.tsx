@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
+import { InstitutionLogo } from "@/components/institution-logo";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -169,6 +170,10 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center px-6 py-16 lg:px-12">
           <div className="w-full max-w-[380px]">
+            <InstitutionLogo
+              size={88}
+              className="animate-fade-up mb-8 block"
+            />
             <span
               className="animate-fade-up inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
               style={{

@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
-from ems.api.permissions import IsAdminStaff
+from ems.api.permissions import IsSuperAdmin
 from ems.api.serializers.user import (
     ChangePasswordSerializer,
     UserSerializer,
@@ -25,7 +25,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """User CRUD — admin only."""
 
     serializer_class = UserSerializer
-    permission_classes = [IsAdminStaff]
+    permission_classes = [IsSuperAdmin]
 
     def get_queryset(self):
         qs = User.objects.all().select_related("department").order_by("email")
