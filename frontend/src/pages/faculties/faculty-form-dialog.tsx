@@ -62,7 +62,7 @@ export function FacultyFormDialog({ open, onOpenChange, initial }: Props) {
   const create = useCreateFaculty();
   const update = useUpdateFaculty(initial?.slug ?? "");
   const departmentsQ = useDepartments({
-    page: 1,
+    all: true,
     enabled: open,
   });
   const allDepartments = useMemo(

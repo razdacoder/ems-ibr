@@ -20,7 +20,7 @@ env:
   REGISTRY: ghcr.io
   # Image name suffix under the registry owner. Final image is
   # ghcr.io/<owner>/<IMAGE_BASENAME>, lowercased in the step below.
-  IMAGE_BASENAME: aura-schedule
+  IMAGE_BASENAME: ems-aura-schedule
 
 jobs:
   build-and-push:

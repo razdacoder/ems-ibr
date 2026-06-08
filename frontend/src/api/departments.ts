@@ -26,7 +26,9 @@ export interface PaginatedResponse<T> {
 
 export interface DepartmentListParams {
   page?: number;
+  page_size?: number;
   query?: string;
+  all?: boolean;
   enabled?: boolean;
 }
 
@@ -37,11 +39,22 @@ export function useDepartments(params: DepartmentListParams = {}) {
   return useQuery({
     queryKey: [...KEY, query],
     queryFn: async () => {
-      const res = await api.get<PaginatedResponse<Department>>(
+      const res = await api.get<PaginatedResponse<Department> | Department[]>(
         "/departments/",
         { params: query },
       );
-      return res.data;
+      // When ?all=true is used the backend returns a plain array instead of
+      // the paginated envelope; normalize so callers can always read .results.
+      const data = res.data;
+      if (Array.isArray(data)) {
+        return {
+          count: data.length,
+          next: null,
+          previous: null,
+          results: data,
+        } satisfies PaginatedResponse<Department>;
+      }
+      return data;
     },
     placeholderData: keepPreviousData,
     enabled,

@@ -28,6 +28,14 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             qs = qs.filter(name__icontains=query) | qs.filter(slug__icontains=query)
         return qs
 
+    def paginate_queryset(self, queryset):
+        # Allow consumers (e.g. the faculty form picker) to fetch every
+        # department in one request by passing ?all=true.
+        all_param = self.request.query_params.get("all")
+        if all_param and all_param.lower() in ("1", "true", "yes"):
+            return None
+        return super().paginate_queryset(queryset)
+
     def get_permissions(self):
         return [IsDataOfficer()]
 
