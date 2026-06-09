@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Department, Course, Class, TimeTable, Hall, Distribution, DistributionItem, SeatArrangement, Student, SystemSettings, BackgroundJob, Faculty, GenerationConstraints
+from .models import User, Department, Course, Class, TimeTable, Hall, Distribution, DistributionItem, SeatArrangement, Student, SystemSettings, BackgroundJob, Faculty, GenerationConstraints, AuditLog
 
 
 # Register your models here.
@@ -31,3 +31,18 @@ admin.site.register(SeatArrangement)
 admin.site.register(Student)
 admin.site.register(SystemSettings)
 admin.site.register(GenerationConstraints)
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'user_email', 'action', 'method', 'status_code', 'ip_address']
+    list_filter = ['method', 'object_type', 'created_at']
+    search_fields = ['user_email', 'action', 'path', 'ip_address']
+    readonly_fields = [f.name for f in AuditLog._meta.fields]
+    ordering = ['-created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

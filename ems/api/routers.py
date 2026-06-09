@@ -1,5 +1,6 @@
 from rest_framework.routers import DefaultRouter
 
+from ems.api.views.audit import AuditLogViewSet
 from ems.api.views.cls import ClassViewSet
 from ems.api.views.course import CourseViewSet
 from ems.api.views.department import DepartmentViewSet
@@ -18,3 +19,4 @@ router.register(r"halls", HallViewSet, basename="hall")
 router.register(r"students", StudentViewSet, basename="student")
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"jobs", JobViewSet, basename="job")
+router.register(r"audit-logs", AuditLogViewSet, basename="audit-log")

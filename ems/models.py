@@ -330,6 +330,54 @@ class SeatArrangement(models.Model):
         return f"{self.student.matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"
 
 
+class AuditLog(models.Model):
+    """Append-only system activity trail.
+
+    One row per authenticated mutating request (and per auth event). Written
+    by ``ems.middleware.AuditLogMiddleware`` after the response is produced, so
+    the recorded ``status_code`` reflects whether the action actually
+    succeeded. Read-only at the API; never edited or deleted by app code.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+    )
+    # Email snapshotted at write time so the trail survives user deletion and
+    # captures failed-login attempts (where no user is attached).
+    user_email = models.CharField(max_length=254, blank=True, default="")
+    action = models.CharField(max_length=255)
+    method = models.CharField(max_length=10, blank=True, default="")
+    path = models.CharField(max_length=512, blank=True, default="")
+    # Resource the action targeted, e.g. "user" / "department", plus its id.
+    object_type = models.CharField(max_length=100, blank=True, default="")
+    object_id = models.CharField(max_length=64, blank=True, default="")
+    status_code = models.PositiveIntegerField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["object_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        who = self.user_email or "anonymous"
+        return f"{who} — {self.action} ({self.created_at:%Y-%m-%d %H:%M})"
+
+    @property
+    def succeeded(self) -> bool:
+        return self.status_code is not None and 200 <= self.status_code < 400
+
+
 class BackgroundJob(models.Model):
     """Track status of long-running background tasks"""
     JOB_TYPES = (

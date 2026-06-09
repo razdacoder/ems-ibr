@@ -18,6 +18,7 @@ import AllocationPage from "@/pages/allocation/page";
 import HallAllocationPage from "@/pages/allocation/hall";
 import DirectoryPage from "@/pages/directory/page";
 import JobsListPage from "@/pages/jobs/list";
+import AuditLogListPage from "@/pages/audit/list";
 import ExportsPage from "@/pages/exports/page";
 import LandingPage from "@/pages/public/landing";
 import FeaturesPage from "@/pages/public/features";
@@ -126,6 +127,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireSuperAdmin>
             <JobsListPage />
+          </RequireSuperAdmin>
+        ),
+      },
+      {
+        path: "/audit",
+        element: (
+          <RequireSuperAdmin>
+            <AuditLogListPage />
           </RequireSuperAdmin>
         ),
       },

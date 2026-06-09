@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -245,8 +246,7 @@ export default function LoginPage() {
                         Password
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
+                        <PasswordInput
                           autoComplete="current-password"
                           className="h-11 rounded-md border-[color:var(--border)] bg-background"
                           {...field}

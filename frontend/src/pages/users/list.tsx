@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Form,
   FormControl,
@@ -444,7 +445,7 @@ function UserFormDialog({
                   <FormLabel>
                     {isEdit ? "Password (leave blank to keep current)" : "Password"}
                   </FormLabel>
-                  <FormControl><Input type="password" {...field} /></FormControl>
+                  <FormControl><PasswordInput {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -658,7 +659,7 @@ function ChangePasswordDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>New password</FormLabel>
-                  <FormControl><Input type="password" {...field} /></FormControl>
+                  <FormControl><PasswordInput {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -669,7 +670,7 @@ function ChangePasswordDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Confirm</FormLabel>
-                  <FormControl><Input type="password" {...field} /></FormControl>
+                  <FormControl><PasswordInput {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}

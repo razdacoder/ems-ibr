@@ -20,6 +20,7 @@ import {
   Menu,
   Moon,
   School,
+  ScrollText,
   Settings,
   SlidersHorizontal,
   Sun,
@@ -126,6 +127,12 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/uploads", label: "Uploads", icon: Upload, requires: canManageData },
       { to: "/users", label: "Users", icon: Users, requires: isSuperAdmin },
       { to: "/jobs", label: "Jobs", icon: ListChecks, requires: isSuperAdmin },
+      {
+        to: "/audit",
+        label: "Audit log",
+        icon: ScrollText,
+        requires: isSuperAdmin,
+      },
       {
         to: "/constraints",
         label: "Constraints",

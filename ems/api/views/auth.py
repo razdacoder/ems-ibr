@@ -18,7 +18,11 @@ class LoginView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
-        token, _ = Token.objects.get_or_create(user=user)
+        # Single session per account: rotate the token on every login so any
+        # previously signed-in device is invalidated (its next request 401s and
+        # the SPA bounces it to /login). New login always wins.
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
         return Response(
             {"token": token.key, "user": UserSerializer(user).data},
             status=status.HTTP_200_OK,
