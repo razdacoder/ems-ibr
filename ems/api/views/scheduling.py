@@ -4,7 +4,7 @@ and distribution statistics. The generate/manual-assign endpoints live in
 
 from datetime import datetime
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -140,9 +140,12 @@ class TimetableEstimateView(APIView):
         am_seat_demand = pm_seat_demand = 0
         for course in (
             Course.objects.filter(exam_type="PBE")
-            .prefetch_related("courses")
+            .prefetch_related(
+                Prefetch("courses", queryset=Class.objects.with_student_count())
+            )
         ):
-            seats = sum(cls.size for cls in course.courses.all())
+            # Effective size = live uploaded count, falling back to declared size.
+            seats = sum(cls.effective_size for cls in course.courses.all())
             # split_course's logic: PM only if any class is mapped to PM;
             # else AM (default).
             period = "AM"

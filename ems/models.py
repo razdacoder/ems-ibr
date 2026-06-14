@@ -5,6 +5,7 @@ from django.contrib.auth.models import (
     PermissionsMixin,
 )
 from django.db import models
+from django.db.models import Count
 
 
 class Faculty(models.Model):
@@ -211,16 +212,66 @@ class Course(models.Model):
         return f"{self.name} - {self.code}"
 
 
+class ClassQuerySet(models.QuerySet):
+    """Adds student-count helpers so callers read the live uploaded count
+    rather than the denormalized ``size`` field."""
+
+    def with_student_count(self):
+        """Annotate ``_student_count`` = live number of enrolled students.
+
+        Classes loaded through this carry the count, so the ``student_count``
+        / ``effective_size`` properties resolve without an extra query.
+        """
+        return self.annotate(_student_count=Count("student"))
+
+    def effective_size_map(self) -> dict:
+        """Map of ``class id -> effective size`` (live student count, or the
+        declared ``size`` when no students are uploaded for that class)."""
+        return {
+            cid: (sc if sc else size)
+            for cid, sc, size in self.with_student_count().values_list(
+                "id", "_student_count", "size"
+            )
+        }
+
+    def total_effective_size(self) -> int:
+        """Sum of effective sizes across the queryset."""
+        return sum(self.effective_size_map().values())
+
+
 class Class(models.Model):
     name = models.CharField(max_length=25, null=True, blank=True)
     courses = models.ManyToManyField(Course, related_name="courses")
     department = models.ForeignKey(
         Department, related_name="class_dep", on_delete=models.CASCADE
     )
+    # Declared size from class-data upload. Kept as a fallback for classes
+    # with no uploaded students yet; ``effective_size`` is the number to use.
     size = models.IntegerField()
     # Optional override for the VISA short code. Blank => auto-derived from
     # ``name`` (see ems.directory.derive_visa_code).
     visa_code = models.CharField(max_length=50, blank=True, default="")
+
+    objects = ClassQuerySet.as_manager()
+
+    @property
+    def student_count(self) -> int:
+        """Live number of students enrolled in this class (from uploaded data).
+
+        Uses the ``_student_count`` annotation when present (see
+        ``ClassQuerySet.with_student_count``); otherwise counts on demand.
+        """
+        annotated = getattr(self, "_student_count", None)
+        if annotated is not None:
+            return annotated
+        return self.student_set.count()
+
+    @property
+    def effective_size(self) -> int:
+        """Students to plan for: the live uploaded count, falling back to the
+        declared ``size`` when no students have been uploaded yet."""
+        count = self.student_count
+        return count if count else self.size
 
     @property
     def full_label(self) -> str:

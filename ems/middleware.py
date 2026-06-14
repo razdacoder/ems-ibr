@@ -1,16 +1,18 @@
 """System-wide audit trail.
 
 ``AuditLogMiddleware`` records one ``AuditLog`` row for every authenticated,
-state-changing API request (POST/PUT/PATCH/DELETE under ``/api/``) plus a few
-explicit auth events (login success/failure, logout). Read requests are never
-logged. The row is written *after* the view runs so the captured status code
-reflects the real outcome.
+state-changing API request (POST/PUT/PATCH/DELETE under ``/api/``), every
+authenticated file export (any GET that streams a download), plus a few
+explicit auth events (login success/failure, logout). Plain read requests are
+never logged. The row is written *after* the view runs so the captured status
+code reflects the real outcome.
 
 DRF's authentication runs inside the view and writes the resolved user back
 onto the underlying Django request, so ``request.user`` is reliable here even
 though token auth has no session middleware behind it.
 """
 import json
+import re
 
 from ems.models import AuditLog, User
 
@@ -54,6 +56,22 @@ _METHOD_VERBS = {
 
 _AUDITED_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
+# Friendly labels for the known file-download routes (matched on the first two
+# path segments below ``/api/``). Any other attachment download falls back to a
+# path-derived label, so export endpoints added later are audited automatically.
+_EXPORT_LABELS = {
+    ("exports", "timetable"): "Exported timetable",
+    ("exports", "distribution"): "Exported distribution",
+    ("exports", "arrangement"): "Exported seat arrangements",
+    ("exports", "attendance-sheets"): "Exported attendance sheets",
+    ("exports", "broadsheet"): "Exported broadsheet",
+    ("directory", "export"): "Exported directory",
+    ("users", "export"): "Exported departmental staff",
+    ("audit-logs", "export"): "Exported audit log",
+}
+
+_FILENAME_RE = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", re.IGNORECASE)
+
 
 def _client_ip(request):
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
@@ -68,6 +86,39 @@ def _segments(path):
     if parts and parts[0] == "api":
         parts = parts[1:]
     return parts
+
+
+def _content_disposition(response):
+    try:
+        return response.get("Content-Disposition", "") or ""
+    except Exception:
+        return ""
+
+
+def _is_download(response):
+    """True when the response streams a file attachment (i.e. an export)."""
+    return "attachment" in _content_disposition(response).lower()
+
+
+def _export_action(segments):
+    """Human label for an export GET, by path; falls back for unknown routes."""
+    label = _EXPORT_LABELS.get(tuple(segments[:2]))
+    if label:
+        return label
+    resource = _RESOURCE_LABELS.get(segments[0], segments[0]) if segments else "data"
+    return f"Exported {resource}"
+
+
+def _export_metadata(request, response):
+    """Capture the export's filters (query params) and downloaded filename."""
+    meta = {}
+    params = {k: v[:200] for k, v in request.GET.items()}
+    if params:
+        meta["params"] = params
+    match = _FILENAME_RE.search(_content_disposition(response))
+    if match:
+        meta["filename"] = match.group(1).strip().strip('"')
+    return meta
 
 
 def _describe(request, segments):
@@ -183,6 +234,23 @@ class AuditLogMiddleware:
                 )
             return
 
+        # --- Exports: any authenticated GET that streams a file download ---
+        # Detected by the attachment header so every export route (current and
+        # future) is captured without enumerating them. Error responses (e.g.
+        # a 400 with no attachment) carry no disposition and are skipped.
+        if method == "GET" and authed and _is_download(response):
+            self._write(
+                user=user,
+                email=user.email,
+                action=_export_action(segments),
+                request=request,
+                response=response,
+                object_type="export",
+                object_id="",
+                metadata=_export_metadata(request, response),
+            )
+            return
+
         # --- Generic mutations: only for authenticated, state-changing calls ---
         if method not in _AUDITED_METHODS or not authed:
             return
@@ -199,7 +267,16 @@ class AuditLogMiddleware:
         )
 
     def _write(
-        self, *, user, email, action, request, response, object_type, object_id
+        self,
+        *,
+        user,
+        email,
+        action,
+        request,
+        response,
+        object_type,
+        object_id,
+        metadata=None,
     ):
         status_code = getattr(response, "status_code", None)
         AuditLog.objects.create(
@@ -213,5 +290,5 @@ class AuditLogMiddleware:
             status_code=status_code,
             ip_address=_client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
-            metadata={},
+            metadata=metadata or {},
         )

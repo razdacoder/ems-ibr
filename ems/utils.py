@@ -52,7 +52,9 @@ def get_courses():
     courses = Course.objects.prefetch_related(
         Prefetch(
             "courses",
-            queryset=Class.objects.select_related("department__faculty"),
+            queryset=Class.objects.select_related(
+                "department__faculty"
+            ).with_student_count(),
         )
     ).all()
 
@@ -65,7 +67,8 @@ def get_courses():
                 {
                     "id": cls.id,
                     "name": cls.name,
-                    "size": cls.size,
+                    # Live uploaded count, falling back to declared size.
+                    "size": cls.effective_size,
                     "department_slug": cls.department.slug if cls.department else None,
                     "faculty_slug": (
                         cls.department.faculty.slug
@@ -731,9 +734,12 @@ def get_total_no_seats(halls):
 
 
 def get_total_no_seats_needed(timetables):
+    # Effective size = live uploaded student count, falling back to the
+    # declared class size. Built once to avoid a per-row query.
+    size_map = Class.objects.effective_size_map()
     sum = 0
     for timetable in timetables:
-        sum += timetable.class_obj.size
+        sum += size_map.get(timetable.class_obj_id, timetable.class_obj.size)
     return sum
 
 
@@ -813,6 +819,9 @@ def convert_hall_to_dict(
 
 
 def make_schedules(timetables):
+    # Effective size = live uploaded student count, falling back to the
+    # declared class size. Built once to avoid a per-row query.
+    size_map = Class.objects.effective_size_map()
     tt = []
     for timetable in timetables:
         if timetable.course.exam_type == "CBE":
@@ -822,7 +831,9 @@ def make_schedules(timetables):
                 "id": timetable.id,
                 "class": timetable.class_obj.name,
                 "course": timetable.course.code,
-                "size": timetable.class_obj.size,
+                "size": size_map.get(
+                    timetable.class_obj_id, timetable.class_obj.size
+                ),
             }
         )
     random.shuffle(tt)
