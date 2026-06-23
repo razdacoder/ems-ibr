@@ -2,11 +2,20 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import {
   type Course,
+  type ExamType,
   useCourses,
   useDeleteCourse,
 } from "@/api/courses";
+import { useDepartments } from "@/api/departments";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,10 +37,19 @@ export default function CoursesListPage() {
   const isAdmin = !!user?.is_staff;
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [examType, setExamType] = useState<string>("__all__");
+  const [department, setDepartment] = useState<string>("__all__");
   const [editing, setEditing] = useState<Course | null>(null);
   const [open, setOpen] = useState(false);
 
-  const list = useCourses({ page, query: query || undefined });
+  const list = useCourses({
+    page,
+    query: query || undefined,
+    exam_type: examType === "__all__" ? undefined : (examType as ExamType),
+    department:
+      isAdmin && department !== "__all__" ? department : undefined,
+  });
+  const departments = useDepartments({ all: true, enabled: isAdmin });
   const remove = useDeleteCourse();
   const confirm = useConfirm();
 
@@ -79,6 +97,47 @@ export default function CoursesListPage() {
           setPage(1);
         }}
         searchPlaceholder="Search by code or title"
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <Select
+                value={department}
+                onValueChange={(v) => {
+                  setDepartment(v ?? "__all__");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All departments</SelectItem>
+                  {departments.data?.results.map((d) => (
+                    <SelectItem key={d.id} value={d.slug}>
+                      {d.slug}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select
+              value={examType}
+              onValueChange={(v) => {
+                setExamType(v ?? "__all__");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All types</SelectItem>
+                <SelectItem value="PBE">PBE</SelectItem>
+                <SelectItem value="CBE">CBE</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        }
         isLoading={list.isLoading}
         error={list.error}
         isEmpty={!list.data?.results.length}

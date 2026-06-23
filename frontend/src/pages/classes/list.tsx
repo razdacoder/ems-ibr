@@ -70,7 +70,7 @@ export default function ClassesListPage() {
     department: department === "__all__" ? undefined : department,
   });
   const remove = useDeleteClass();
-  const departments = useDepartments({ page: 1, enabled: !!user?.is_staff });
+  const departments = useDepartments({ all: true, enabled: !!user?.is_staff });
   const settings = useSystemSettings();
   const uploadClasses = useUploadClassesForDepartment(user?.department?.slug ?? "");
   const canUploadClasses = !user?.is_staff && !!user?.department;
@@ -147,7 +147,7 @@ export default function ClassesListPage() {
         }
         query={query}
         onQueryChange={(q) => { setQuery(q); setPage(1); }}
-        searchPlaceholder="Search by class name"
+        searchPlaceholder="Search by class, department, or course code"
         filters={
           user?.is_staff ? (
             <Select
@@ -373,7 +373,7 @@ function ClassFormDialog({
   });
   const create = useCreateClass();
   const update = useUpdateClass(initial?.id ?? 0);
-  const departments = useDepartments({ page: 1, enabled: isStaffAdmin });
+  const departments = useDepartments({ all: true, enabled: isStaffAdmin });
 
   const departmentOptions = useMemo(
     () => departments.data?.results ?? [],

@@ -20,6 +20,7 @@ export interface CourseListParams {
   page?: number;
   query?: string;
   exam_type?: ExamType;
+  department?: string;
 }
 
 export interface CourseInput {

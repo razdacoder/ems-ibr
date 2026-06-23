@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
@@ -17,14 +18,18 @@ class CourseViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
         query = params.get("query")
         if query:
-            qs = qs.filter(name__icontains=query) | qs.filter(code__icontains=query)
+            qs = qs.filter(Q(name__icontains=query) | Q(code__icontains=query))
         exam_type = params.get("exam_type")
         if exam_type:
             qs = qs.filter(exam_type=exam_type)
+        # Courses link to departments only through their classes, so filter on
+        # the reverse M2M (Course.courses -> Class.department).
+        if department := params.get("department"):
+            qs = qs.filter(courses__department__slug=department.upper())
         user = self.request.user
         if user.is_authenticated and not user.is_staff and user.department_id:
-            qs = qs.filter(courses__department_id=user.department_id).distinct()
-        return qs
+            qs = qs.filter(courses__department_id=user.department_id)
+        return qs.distinct()
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):

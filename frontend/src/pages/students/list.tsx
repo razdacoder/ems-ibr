@@ -70,7 +70,7 @@ export default function StudentsListPage() {
     class: classFilter === "__all__" ? undefined : Number(classFilter),
   });
   const remove = useDeleteStudent();
-  const departments = useDepartments({ page: 1, enabled: !!user?.is_staff });
+  const departments = useDepartments({ all: true, enabled: !!user?.is_staff });
   const classes = useClasses({ page: 1 });
   const confirm = useConfirm();
 

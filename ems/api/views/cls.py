@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -30,7 +30,14 @@ class ClassViewSet(viewsets.ModelViewSet):
         if dept := params.get("department"):
             qs = qs.filter(department__slug=dept.upper())
         if query := params.get("query"):
-            qs = qs.filter(name__icontains=query)
+            # Search across the class name, its department, and any course code
+            # assigned to it so one box finds classes by any visible field.
+            qs = qs.filter(
+                Q(name__icontains=query)
+                | Q(department__name__icontains=query)
+                | Q(department__slug__icontains=query)
+                | Q(courses__code__icontains=query)
+            ).distinct()
         # Non-admins only see their own department
         user = self.request.user
         if user.is_authenticated and not user.is_staff and user.department_id:

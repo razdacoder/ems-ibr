@@ -256,7 +256,7 @@ function UserFormDialog({
   });
   const create = useCreateUser();
   const update = useUpdateUser(initial?.id ?? 0);
-  const departments = useDepartments({ page: 1 });
+  const departments = useDepartments({ all: true });
   const departmentOptions = useMemo(
     () => departments.data?.results ?? [],
     [departments.data],
