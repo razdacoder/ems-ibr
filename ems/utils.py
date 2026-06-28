@@ -905,18 +905,29 @@ def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
 
 
 def save_to_db(res, date, period):
+    # One transaction (single commit) instead of a commit per statement, and
+    # no per-row SELECTs: use *_id FKs and bulk_create the items. On a remote
+    # Postgres this collapses thousands of serialized round-trips down to a
+    # handful per hall — the previous N+1 was what blew past Celery's hard
+    # time limit on the bulk task.
+    from django.db import transaction
 
-    for item in res:
-        hall = Hall.objects.get(id=item["id"])
-        distribution = Distribution.objects.create(hall=hall, date=date, period=period)
-        for cls in item["classes"]:
-            schedule = TimeTable.objects.get(id=cls["id"])
-            dist_item = DistributionItem.objects.create(
-                schedule=schedule, no_of_students=cls["student_range"]
+    with transaction.atomic():
+        for item in res:
+            distribution = Distribution.objects.create(
+                hall_id=item["id"], date=date, period=period
             )
-            distribution.items.add(dist_item)
-            distribution.save()
-        distribution.save()
+            dist_items = DistributionItem.objects.bulk_create(
+                [
+                    DistributionItem(
+                        schedule_id=cls["id"],
+                        no_of_students=cls["student_range"],
+                    )
+                    for cls in item["classes"]
+                ]
+            )
+            if dist_items:
+                distribution.items.add(*dist_items)
 
 
 ###################################
@@ -1503,6 +1514,23 @@ def print_seating_arrangement(
 
     print(f"Percentage of students placed: {percentage_placed:.2f}%")
 
+    # Prefetch every FK target once instead of per-student SELECTs. hall_id is
+    # constant for this whole call, and course/cls/student are resolved from
+    # in-memory maps each built with a single query. This was a per-row N+1
+    # (~4 SELECTs/student) — the allocation analogue of the distribution bug.
+    from django.db import transaction
+
+    hall_obj = Hall.objects.get(id=hall_id)
+    course_map = {
+        c.code: c
+        for c in Course.objects.filter(code__in={s["course"] for s in students})
+    }
+    valid_student_ids = set(
+        Student.objects.filter(
+            id__in={s["student_id"] for s in students if s.get("student_id")}
+        ).values_list("id", flat=True)
+    )
+
     if seat_positions:
         # Group students by course
         courses = sorted(set(student["course"] for student in students))
@@ -1516,33 +1544,28 @@ def print_seating_arrangement(
 
         # Print sorted by course and create SeatArrangement objects
         print("\nSeating Arrangement:")
-        for course in courses:
-            print(f"\n{course}:")
-            arrangements = []
-            for student_name, seat, cls_id, student_id in sorted(
-                course_groups[course], key=lambda x: x[0]
-            ):
-                # Get the actual Student instance if student_id exists
-                student_instance = None
-                if student_id:
-                    try:
-                        student_instance = Student.objects.get(id=student_id)
-                    except Student.DoesNotExist:
-                        student_instance = None
-
-                arrangements.append(
-                    SeatArrangement(
-                        date=date,
-                        period=period,
-                        student=student_instance,  # Use actual Student instance
-                        seat_number=seat,
-                        hall=Hall.objects.get(id=hall_id),
-                        course=Course.objects.filter(code=course).first(),
-                        cls=Class.objects.get(id=cls_id),
+        with transaction.atomic():
+            for course in courses:
+                print(f"\n{course}:")
+                arrangements = []
+                for student_name, seat, cls_id, student_id in sorted(
+                    course_groups[course], key=lambda x: x[0]
+                ):
+                    arrangements.append(
+                        SeatArrangement(
+                            date=date,
+                            period=period,
+                            # NULL the student FK if the id is unknown, matching
+                            # the old try/except DoesNotExist fallback.
+                            student_id=student_id if student_id in valid_student_ids else None,
+                            seat_number=seat,
+                            hall=hall_obj,
+                            course=course_map.get(course),
+                            cls_id=cls_id,
+                        )
                     )
-                )
-                print(f"{student_name}: {seat}")
-            SeatArrangement.objects.bulk_create(arrangements)
+                    print(f"{student_name}: {seat}")
+                SeatArrangement.objects.bulk_create(arrangements)
 
     # Group and sort unplaced students by course
     unplaced_by_course = {}
@@ -1558,30 +1581,23 @@ def print_seating_arrangement(
     # Print unplaced students sorted by course and create SeatArrangement objects
     if unplaced_students:
         print("\nUnplaced Students:")
-        for course in sorted(unplaced_by_course.keys()):
-            print(f"\n{course}:")
-            arrangements = []
-            for student_name, cls_id, student_id in sorted(unplaced_by_course[course]):
-                # Get the actual Student instance if student_id exists
-                student_instance = None
-                if student_id:
-                    try:
-                        student_instance = Student.objects.get(id=student_id)
-                    except Student.DoesNotExist:
-                        student_instance = None
-
-                arrangements.append(
-                    SeatArrangement(
-                        date=date,
-                        period=period,
-                        student=student_instance,  # Use actual Student instance
-                        hall=Hall.objects.get(id=hall_id),
-                        course=Course.objects.filter(code=course).first(),
-                        cls=Class.objects.get(id=cls_id),
+        with transaction.atomic():
+            for course in sorted(unplaced_by_course.keys()):
+                print(f"\n{course}:")
+                arrangements = []
+                for student_name, cls_id, student_id in sorted(unplaced_by_course[course]):
+                    arrangements.append(
+                        SeatArrangement(
+                            date=date,
+                            period=period,
+                            student_id=student_id if student_id in valid_student_ids else None,
+                            hall=hall_obj,
+                            course=course_map.get(course),
+                            cls_id=cls_id,
+                        )
                     )
-                )
-                print(student_name)
-            SeatArrangement.objects.bulk_create(arrangements)
+                    print(student_name)
+                SeatArrangement.objects.bulk_create(arrangements)
 
 
 def generate_seat_allocation(rows: int, cols: int, students):
@@ -2303,6 +2319,7 @@ def reconcile_unplaced(date, period):
         }
 
     reseated = 0
+    reseat_writes = []
     for sa in unplaced_qs:
         target_id = None
         target_pos = None
@@ -2345,7 +2362,13 @@ def reconcile_unplaced(date, period):
         cols = hall_state[target_id]["cols"]
         sa.hall_id = target_id
         sa.seat_number = row * cols + col + 1
-        sa.save(update_fields=["hall_id", "seat_number"])
+        reseat_writes.append(sa)
         reseated += 1
+
+    # One bulk UPDATE instead of a commit per reseated student.
+    if reseat_writes:
+        SeatArrangement.objects.bulk_update(
+            reseat_writes, ["hall_id", "seat_number"]
+        )
 
     return reseated

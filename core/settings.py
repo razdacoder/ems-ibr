@@ -207,7 +207,11 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes (hard: worker SIGKILL, uncatchable)
+# Soft limit fires ~5 min earlier as a catchable SoftTimeLimitExceeded so a
+# task can mark its BackgroundJob 'failed' with a useful message instead of
+# being SIGKILL'd mid-run and leaving the job stuck in 'running' forever.
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
 CELERY_RESULT_EXTENDED = True
 
 # Django REST Framework

@@ -1,4 +1,5 @@
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timedelta
 from django.utils import timezone
 import random
@@ -556,6 +557,10 @@ def generate_distribution_all_task(self, job_id, user_id):
             raise ValueError('No timetable rows found — generate the timetable first.')
         total = len(slots)
         results = []
+        # Halls don't change between slots — read + convert them once instead
+        # of re-querying every iteration. distribute_classes_to_halls mutates
+        # its hall dicts in place, so rebuild a fresh copy per slot below.
+        halls_qs = list(Hall.objects.all())
         for i, (date, period) in enumerate(slots):
             progress = int((i / total) * 95)
             self.update_state(state='PROGRESS', meta={
@@ -563,7 +568,7 @@ def generate_distribution_all_task(self, job_id, user_id):
                 'status': f'Distributing {date} {period} ({i+1}/{total})',
             })
             job.progress = progress
-            job.save()
+            job.save(update_fields=['progress'])
             if Distribution.objects.filter(date=str(date), period=period).exists():
                 results.append({'date': str(date), 'period': period, 'skipped': True})
                 continue
@@ -571,7 +576,7 @@ def generate_distribution_all_task(self, job_id, user_id):
                 date=date, period=period
             ).select_related('course', 'class_obj', 'class_obj__department')
             halls_list = convert_hall_to_dict(
-                Hall.objects.all(),
+                halls_qs,
                 safety_factor=float(constraints.pbe_hall_utilization),
                 pattern=constraints.seat_pattern,
             )
@@ -595,6 +600,28 @@ def generate_distribution_all_task(self, job_id, user_id):
         }
         job.save()
         return {'status': 'success', 'message': job.result_data['message']}
+    except SoftTimeLimitExceeded:
+        # Soft limit hit — fail gracefully before the hard SIGKILL so the job
+        # isn't left stuck in 'running'. This task is resumable: it skips slots
+        # that already have a Distribution, so a re-run continues where it
+        # stopped.
+        done = len(results) if 'results' in locals() else 0
+        total_slots = total if 'total' in locals() else 0
+        msg = (
+            f'Timed out after distributing {done}/{total_slots} slot(s). '
+            'Re-run to finish the rest — already-distributed slots are skipped.'
+        )
+        job.status = 'failed'
+        job.error_message = msg
+        job.result_data = {
+            'error': msg,
+            'error_type': 'SoftTimeLimitExceeded',
+            'slots_processed': done,
+            'slots_total': total_slots,
+        }
+        job.completed_at = timezone.now()
+        job.save()
+        raise
     except Exception as e:
         import traceback
         job.status = 'failed'
@@ -670,6 +697,26 @@ def generate_allocation_all_task(self, job_id, user_id):
         }
         job.save()
         return {'status': 'success', 'message': job.result_data['message']}
+    except SoftTimeLimitExceeded:
+        # Soft limit hit — fail gracefully before the hard SIGKILL. Resumable:
+        # slots that already have a SeatArrangement are skipped on re-run.
+        done = len(results) if 'results' in locals() else 0
+        total_slots = total if 'total' in locals() else 0
+        msg = (
+            f'Timed out after allocating {done}/{total_slots} slot(s). '
+            'Re-run to finish the rest — already-allocated slots are skipped.'
+        )
+        job.status = 'failed'
+        job.error_message = msg
+        job.result_data = {
+            'error': msg,
+            'error_type': 'SoftTimeLimitExceeded',
+            'slots_processed': done,
+            'slots_total': total_slots,
+        }
+        job.completed_at = timezone.now()
+        job.save()
+        raise
     except Exception as e:
         import traceback
         job.status = 'failed'
