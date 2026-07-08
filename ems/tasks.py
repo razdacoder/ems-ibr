@@ -673,8 +673,17 @@ def generate_allocation_all_task(self, job_id, user_id):
                 params={'date': str(date), 'period': period},
             )
             # Inline call — bypasses the broker, runs in this worker.
-            generate_allocation_task.apply(args=[sub_id, user_id, str(date), period])
+            sub_result = generate_allocation_task.apply(args=[sub_id, user_id, str(date), period])
             sub_job.refresh_from_db()
+            if sub_result.failed() and isinstance(sub_result.result, SoftTimeLimitExceeded):
+                # .apply() runs eagerly and swallows exceptions raised inside
+                # the sub-task into a FAILURE result instead of propagating
+                # them — so a soft-timeout hit while allocating this slot
+                # would otherwise go unnoticed and the outer loop would keep
+                # burning the remaining budget until the uncatchable hard
+                # SIGKILL. Re-raise so the except SoftTimeLimitExceeded
+                # handler below can save a graceful, resumable state.
+                raise sub_result.result
             rd = sub_job.result_data or {}
             results.append({
                 'date': str(date),

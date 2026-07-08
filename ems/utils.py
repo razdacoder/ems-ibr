@@ -1269,19 +1269,23 @@ def allocate_students_to_seats(
             course_groups[course] = []
         course_groups[course].append(student)
 
+    # O(1) name -> student lookup. is_valid_position is called up to
+    # attempts_per_student times per unplaced student (see
+    # try_random_placement), so a linear `next(... for s in students ...)`
+    # scan here turns placement into O(n^2)-per-attempt and is the reason
+    # large halls could take many minutes (previously a full task timeout)
+    # instead of seconds.
+    student_by_name = {student["name"]: student for student in students}
+
     def is_valid_position(student_name, row, col):
         """Adjacency check honoring the configured mode."""
         if not directions:  # adjacency_mode == "off"
             return True
-        course = next(
-            student["course"] for student in students if student["name"] == student_name
-        )
+        course = student_by_name[student_name]["course"]
         for dr, dc in directions:
             r, c = row + dr, col + dc
             if 0 <= r < rows and 0 <= c < cols and seats[r][c]:
-                adjacent_student = next(
-                    student for student in students if student["name"] == seats[r][c]
-                )
+                adjacent_student = student_by_name[seats[r][c]]
                 if adjacent_student["course"] == course:
                     return False
         return True
