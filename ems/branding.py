@@ -48,10 +48,10 @@ def add_document_branding(doc, settings_obj) -> None:
             run = logo_paragraph.add_run()
             run.add_picture(logo_path, width=Inches(1.0))
         except Exception:
-            placeholder = logo_paragraph.add_run("[SCHOOL LOGO]")
+            placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
             placeholder.bold = True
     else:
-        placeholder = logo_paragraph.add_run("[SCHOOL LOGO]")
+        placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
         placeholder.bold = True
 
     # Institution block — only render the lines that are configured.
