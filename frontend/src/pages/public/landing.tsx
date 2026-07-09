@@ -15,10 +15,10 @@ import { InstitutionLogo } from "@/components/institution-logo";
 import { useReveal as useSharedReveal } from "@/lib/use-reveal";
 
 /* -----------------------------------------------------------
- * AuraSchedule — Editorial Landing
+ * Ordo — Editorial Landing
  * Premium utilitarian minimalism. Warm bone canvas, editorial
  * serif headlines, monospace meta-data, asymmetric bento.
- * Single accent: purple (var(--brand)).
+ * Single accent: Signal green (var(--brand)).
  * --------------------------------------------------------- */
 
 const STATS = [
@@ -84,7 +84,7 @@ const FAQS = [
   },
 ];
 
-/* --- Inline editorial illustration: continuous-line plus solid purple shape --- */
+/* --- Inline editorial illustration: continuous-line plus solid brand shape --- */
 function GridSketch() {
   return (
     <svg
@@ -142,7 +142,7 @@ function SeatGridSketch() {
       <text
         x={pad}
         y={14}
-        fontFamily="JetBrains Mono, monospace"
+        fontFamily="IBM Plex Mono, monospace"
         fontSize="7"
         letterSpacing="0.06em"
         fill="var(--muted-foreground)"
@@ -181,7 +181,7 @@ function SeatGridSketch() {
 function CalendarSketch() {
   const days = ["M", "T", "W", "T", "F", "S"];
   const cells = Array.from({ length: 30 }, (_, i) => i + 1);
-  // AM = lighter purple, PM = deeper purple. Same hue, different intensity.
+  // AM = lighter brand tone, PM = deeper brand tone. Same hue, different intensity.
   const slots: Record<number, "am" | "pm" | "both"> = {
     3: "am",
     5: "pm",
@@ -412,7 +412,7 @@ export default function LandingPage() {
             className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
           >
             <Logo size={20} />
-            AuraSchedule
+            Ordo
             <InstitutionLogo size={28} className="ml-1.5" />
           </Link>
 
@@ -506,7 +506,7 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="mt-8 max-w-2xl text-[1.0625rem] leading-[1.7] text-foreground/85">
-                  AuraSchedule schedules, distributes, seats, and documents every
+                  Ordo schedules, distributes, seats, and documents every
                   exam — without spreadsheets and without weekend war rooms. Job
                   progress streams over WebSockets. Ingestion locks after the
                   first generation, so reports stay reproducible months later.
@@ -561,7 +561,7 @@ export default function LandingPage() {
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
                 <WindowChrome
-                  title="auraschedule/jobs"
+                  title="ordo/jobs"
                   meta="run #20260316-AM"
                 >
                   <div className="space-y-5 px-6 py-6">
@@ -727,14 +727,14 @@ export default function LandingPage() {
                     which hall, with which student in which seat — compound
                     into the difference between a quiet week and a war room.
                   </span>{" "}
-                  AuraSchedule exists so the quiet week is the default.
+                  Ordo exists so the quiet week is the default.
                 </p>
                 <footer className="mt-10 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                   <span
                     className="h-px w-10"
                     style={{ backgroundColor: "var(--brand)" }}
                   />
-                  Engineering note · AuraSchedule team
+                  Engineering note · Ordo team
                 </footer>
               </blockquote>
             </div>
@@ -921,7 +921,7 @@ export default function LandingPage() {
                   stays clean.
                 </p>
                 <div className="mt-3 rounded-[6px] border border-background/10 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-background/80">
-                  <span style={{ color: "var(--brand)" }}>$</span> auraschedule ingest
+                  <span style={{ color: "var(--brand)" }}>$</span> ordo ingest
                   ./roster.csv
                   <br />
                   <span className="text-background/50">→</span> 27,020 rows · 0
@@ -1078,7 +1078,7 @@ export default function LandingPage() {
                 style={{ ["--reveal-delay" as string]: "120ms" }}
               >
                 <WindowChrome
-                  title="auraschedule/broadsheet"
+                  title="ordo/broadsheet"
                   meta="20260316_AM.xlsx"
                 >
                   <div className="overflow-hidden">
@@ -1201,7 +1201,7 @@ export default function LandingPage() {
                 <p className="mt-5 text-[14px] leading-[1.65] text-muted-foreground">
                   Anything missing?{" "}
                   <a
-                    href="mailto:hello@auraschedule.app"
+                    href="mailto:hello@ordo.app"
                     className="text-foreground underline underline-offset-4 decoration-border hover:decoration-[color:var(--brand)]"
                   >
                     Write to us
@@ -1224,7 +1224,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ============================ CTA — solid purple ============================ */}
+        {/* ============================ CTA — solid brand ============================ */}
         <section
           className="relative overflow-hidden border-t border-border"
           style={{
@@ -1308,7 +1308,7 @@ export default function LandingPage() {
                   className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight text-foreground"
                 >
                   <Logo size={22} />
-                  AuraSchedule
+                  Ordo
                 </Link>
                 <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-muted-foreground">
                   Operations OS for examinations. Schedule, distribute, seat,
@@ -1385,10 +1385,10 @@ export default function LandingPage() {
                 <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
                     <a
-                      href="mailto:hello@auraschedule.app"
+                      href="mailto:hello@ordo.app"
                       className="hover:text-[color:var(--brand-strong)]"
                     >
-                      hello@auraschedule.app
+                      hello@ordo.app
                     </a>
                   </li>
                   <li className="text-muted-foreground">
@@ -1402,7 +1402,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col items-start justify-between gap-3 border-t border-border py-6 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center">
               <span>
-                &copy; {new Date().getFullYear()} AuraSchedule · All rights
+                &copy; {new Date().getFullYear()} Ordo · All rights
                 reserved.
               </span>
               <span className="flex flex-wrap items-center gap-x-6 gap-y-1">

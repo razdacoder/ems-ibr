@@ -1,20 +1,23 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/figtree";
-@import "@fontsource-variable/manrope";
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "@fontsource-variable/bodoni-moda";
+@import "@fontsource-variable/bodoni-moda/wght-italic.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/400-italic.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, sans-serif;
-  --font-heading: "Manrope Variable", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Instrument Serif", "Lyon Text", "Newsreader",
-    "Playfair Display", serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+  --font-sans: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+  --font-heading: "Bodoni Moda Variable", "Bodoni Moda", "Playfair Display",
+    serif;
+  --font-serif: "Bodoni Moda Variable", "Bodoni Moda", "Playfair Display",
+    serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas,
     monospace;
 
   --color-background: var(--background);
@@ -63,36 +66,36 @@
 }
 
 :root {
-  /* Warm bone canvas, off-black ink, ultra-light borders */
-  --background: oklch(0.985 0.004 90);
-  --foreground: oklch(0.18 0.008 285);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.008 285);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.008 285);
+  /* Ordo — Bone canvas, Ink text, Signal green accent. */
+  --background: #eceae3; /* Bone */
+  --foreground: #0a0b0a; /* Ink */
+  --card: #f5f3ed;
+  --card-foreground: #0a0b0a;
+  --popover: #f5f3ed;
+  --popover-foreground: #0a0b0a;
 
-  /* Brand: single purple — every accent in the system resolves to this. */
-  --brand: oklch(0.55 0.22 285);
-  --brand-foreground: oklch(0.99 0.005 285);
-  --brand-soft: oklch(0.95 0.045 285);
-  --brand-strong: oklch(0.42 0.21 285);
+  /* Brand: Signal green — every accent in the system resolves to this. */
+  --brand: #3fe06b; /* Signal */
+  --brand-foreground: #0a0b0a; /* Ink text on Signal fills */
+  --brand-soft: color-mix(in oklch, var(--brand) 14%, var(--background));
+  --brand-strong: #0e4d20; /* Forest */
 
-  --primary: oklch(0.18 0.008 285);
-  --primary-foreground: oklch(0.99 0.003 90);
-  --secondary: oklch(0.97 0.005 285);
-  --secondary-foreground: oklch(0.18 0.008 285);
-  --muted: oklch(0.97 0.005 90);
-  --muted-foreground: oklch(0.5 0.012 285);
+  --primary: #0a0b0a; /* Ink */
+  --primary-foreground: #eceae3; /* Bone */
+  --secondary: color-mix(in oklch, var(--foreground) 6%, var(--background));
+  --secondary-foreground: #0a0b0a;
+  --muted: color-mix(in oklch, var(--foreground) 4%, var(--background));
+  --muted-foreground: #8b908a; /* Mute */
   --accent: var(--brand-soft);
   --accent-foreground: var(--brand-strong);
   --destructive: oklch(0.6 0.21 25);
   --destructive-foreground: oklch(0.99 0.005 90);
-  --border: oklch(0.92 0.006 285);
-  --input: oklch(0.92 0.006 285);
+  --border: color-mix(in oklch, var(--foreground) 12%, var(--background));
+  --input: color-mix(in oklch, var(--foreground) 12%, var(--background));
   --ring: var(--brand);
   --radius: 0.625rem;
 
-  /* All semantic accent slots resolve to the same purple pair. Status
+  /* All semantic accent slots resolve to the same Signal-green pair. Status
      differentiation is carried by labels and icons, not hue. */
   --accent-iris: var(--brand-soft);
   --accent-iris-fg: var(--brand-strong);
@@ -117,48 +120,48 @@
   --accent-red: var(--brand-soft);
   --accent-red-fg: var(--brand-strong);
 
-  /* Chart series — purple shades from light to deep, no hue rotation. */
-  --chart-1: oklch(0.78 0.12 285);
-  --chart-2: oklch(0.66 0.18 285);
-  --chart-3: oklch(0.55 0.22 285);
-  --chart-4: oklch(0.42 0.21 285);
-  --chart-5: oklch(0.3 0.16 285);
+  /* Chart series — Signal green shades from light to deep, no hue rotation. */
+  --chart-1: color-mix(in oklch, var(--brand) 45%, white);
+  --chart-2: color-mix(in oklch, var(--brand) 75%, white);
+  --chart-3: var(--brand);
+  --chart-4: color-mix(in oklch, var(--brand) 75%, black);
+  --chart-5: color-mix(in oklch, var(--brand) 50%, black);
 
-  --sidebar: oklch(0.985 0.004 90);
-  --sidebar-foreground: oklch(0.18 0.008 285);
+  --sidebar: #eceae3;
+  --sidebar-foreground: #0a0b0a;
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-accent: var(--brand-soft);
   --sidebar-accent-foreground: var(--brand-strong);
-  --sidebar-border: oklch(0.92 0.006 285);
+  --sidebar-border: color-mix(in oklch, var(--foreground) 12%, var(--background));
   --sidebar-ring: var(--brand);
 }
 
 .dark {
-  --background: oklch(0.155 0.012 285);
-  --foreground: oklch(0.94 0.005 90);
-  --card: oklch(0.2 0.014 285);
-  --card-foreground: oklch(0.94 0.005 90);
-  --popover: oklch(0.2 0.014 285);
-  --popover-foreground: oklch(0.94 0.005 90);
+  --background: #0a0b0a; /* Ink */
+  --foreground: #eceae3; /* Bone */
+  --card: #14171a; /* Panel */
+  --card-foreground: #eceae3;
+  --popover: #14171a;
+  --popover-foreground: #eceae3;
 
-  --brand: oklch(0.7 0.2 285);
-  --brand-foreground: oklch(0.155 0.012 285);
-  --brand-soft: oklch(0.32 0.1 285);
-  --brand-strong: oklch(0.84 0.15 285);
+  --brand: #3fe06b; /* Signal */
+  --brand-foreground: #0a0b0a;
+  --brand-soft: #0e4d20; /* Forest */
+  --brand-strong: color-mix(in oklch, var(--brand) 75%, white);
 
-  --primary: oklch(0.94 0.005 90);
-  --primary-foreground: oklch(0.155 0.012 285);
-  --secondary: oklch(0.23 0.014 285);
-  --secondary-foreground: oklch(0.94 0.005 90);
-  --muted: oklch(0.23 0.014 285);
-  --muted-foreground: oklch(0.7 0.012 285);
+  --primary: #eceae3; /* Bone */
+  --primary-foreground: #0a0b0a; /* Ink */
+  --secondary: #14171a; /* Panel */
+  --secondary-foreground: #eceae3;
+  --muted: #14171a; /* Panel */
+  --muted-foreground: #8b908a; /* Mute */
   --accent: var(--brand-soft);
   --accent-foreground: var(--brand-strong);
   --destructive: oklch(0.66 0.22 25);
   --destructive-foreground: oklch(0.99 0.005 90);
-  --border: oklch(0.3 0.014 285);
-  --input: oklch(0.3 0.014 285);
+  --border: color-mix(in oklch, var(--foreground) 14%, var(--background));
+  --input: color-mix(in oklch, var(--foreground) 14%, var(--background));
   --ring: var(--brand);
 
   --accent-iris: var(--brand-soft);
@@ -183,19 +186,19 @@
   --accent-red: var(--brand-soft);
   --accent-red-fg: var(--brand-strong);
 
-  --chart-1: oklch(0.86 0.13 285);
-  --chart-2: oklch(0.78 0.18 285);
-  --chart-3: oklch(0.7 0.2 285);
-  --chart-4: oklch(0.55 0.18 285);
-  --chart-5: oklch(0.42 0.13 285);
+  --chart-1: color-mix(in oklch, var(--brand) 55%, white);
+  --chart-2: color-mix(in oklch, var(--brand) 80%, white);
+  --chart-3: var(--brand);
+  --chart-4: color-mix(in oklch, var(--brand) 70%, black);
+  --chart-5: color-mix(in oklch, var(--brand) 45%, black);
 
-  --sidebar: oklch(0.165 0.012 285);
-  --sidebar-foreground: oklch(0.94 0.005 90);
+  --sidebar: #0e0f0e;
+  --sidebar-foreground: #eceae3;
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-accent: var(--brand-soft);
   --sidebar-accent-foreground: var(--brand-strong);
-  --sidebar-border: oklch(0.3 0.014 285);
+  --sidebar-border: color-mix(in oklch, var(--foreground) 14%, var(--background));
   --sidebar-ring: var(--brand);
 }
 
@@ -390,7 +393,7 @@
     }
   }
 
-  /* Solid purple shadow — replaces tinted/gradient shadow recipes. */
+  /* Solid Signal-green shadow — replaces tinted/gradient shadow recipes. */
   .shadow-brand {
     box-shadow: 0 12px 28px -16px color-mix(in oklch, var(--brand) 55%, transparent);
   }

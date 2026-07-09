@@ -56,7 +56,7 @@ const schema = z.object({
   brand_color: z
     .string()
     .trim()
-    .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Use a hex like #7C3AED")
+    .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Use a hex like #3FE06B")
     .or(z.literal(""))
     .default(""),
   session: z.string().trim().min(1, "Session is required"),
@@ -208,7 +208,7 @@ export default function SettingsPage() {
           <CardTitle>System configuration</CardTitle>
           <CardDescription>
             Institution branding and the active session/semester. The logo and
-            these labels appear in the app beside the AuraSchedule mark and on
+            these labels appear in the app beside the Ordo mark and on
             every exported document.
           </CardDescription>
         </CardHeader>
@@ -364,13 +364,13 @@ export default function SettingsPage() {
                         <input
                           type="color"
                           aria-label="Brand color"
-                          value={field.value || "#7C3AED"}
+                          value={field.value || "#3FE06B"}
                           onChange={(e) => field.onChange(e.target.value)}
                           className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
                         />
                         <FormControl>
                           <Input
-                            placeholder="#7C3AED"
+                            placeholder="#3FE06B"
                             className="max-w-[160px]"
                             {...field}
                           />
@@ -388,7 +388,7 @@ export default function SettingsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Drives the app's primary accent across light and dark
-                        mode. Leave blank for the default purple.
+                        mode. Leave blank for the default Signal green.
                       </p>
                       <FormMessage />
                     </FormItem>

@@ -144,7 +144,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-const COLLAPSED_KEY = "auraschedule:sidebar-collapsed";
+const COLLAPSED_KEY = "ordo:sidebar-collapsed";
 
 function SidebarContent({
   sections,
@@ -179,7 +179,7 @@ function SidebarContent({
         {!collapsed && (
           <>
             <span className="font-serif text-[1.25rem] tracking-tight">
-              AuraSchedule
+              Ordo
             </span>
             <InstitutionLogo size={40} className="ml-auto" />
           </>
@@ -460,7 +460,7 @@ export function DashboardLayout() {
           </button>
           <span className="flex items-center gap-2 font-serif text-[1.125rem] tracking-tight">
             <Logo size={18} />
-            AuraSchedule
+            Ordo
           </span>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />

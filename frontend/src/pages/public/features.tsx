@@ -17,7 +17,7 @@ function PublicHeader() {
           className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
         >
           <Logo size={20} />
-          AuraSchedule
+          Ordo
           <InstitutionLogo size={28} className="ml-1.5" />
         </Link>
         <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
@@ -51,7 +51,7 @@ function PublicFooter() {
   return (
     <footer className="border-t border-[color:var(--border)] bg-background">
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 py-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center sm:px-8">
-        <span>&copy; {new Date().getFullYear()} AuraSchedule · All rights reserved.</span>
+        <span>&copy; {new Date().getFullYear()} Ordo · All rights reserved.</span>
         <span className="flex items-center gap-6">
           <Link
             to="/"
@@ -128,7 +128,7 @@ export default function FeaturesPage() {
                   style={{ ["--reveal-delay" as string]: "240ms" }}
                   className="text-[15px] leading-[1.7] text-muted-foreground"
                 >
-                  AuraSchedule is a deliberately small surface — five modules, one
+                  Ordo is a deliberately small surface — five modules, one
                   pipeline, one source of truth. Each module owns one job and
                   emits its progress over a typed event stream so the rest of
                   the system never has to guess.
@@ -226,7 +226,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* CTA — solid purple slab */}
+        {/* CTA — solid brand slab */}
         <section
           className="border-t border-[color:var(--border)]"
           style={{

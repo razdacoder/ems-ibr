@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-14">
-      {/* HEADER — solid purple-soft pane */}
+      {/* HEADER — solid brand-soft pane */}
       <header
         data-reveal
         className="relative overflow-hidden rounded-[20px] border border-[color:var(--border)]"
@@ -172,7 +172,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* STATS — purple-coded tiles */}
+      {/* STATS — brand-coded tiles */}
       <section>
         <div data-reveal className="mb-6 flex items-end justify-between">
           <div className="flex items-center gap-2">
@@ -209,7 +209,7 @@ export default function DashboardPage() {
               }
               className="group relative flex flex-col justify-between gap-6 overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)]/40 hover:shadow-[0_18px_40px_-22px_color-mix(in_oklch,var(--brand)_55%,transparent)]"
             >
-              {/* Solid purple rail at top, scales in on hover */}
+              {/* Solid brand rail at top, scales in on hover */}
               <span
                 aria-hidden
                 className="absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100"
@@ -241,7 +241,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* OPERATIONS — purple chips, hint as the lead */}
+      {/* OPERATIONS — brand chips, hint as the lead */}
       <section>
         <div data-reveal className="mb-6 flex items-end justify-between">
           <div className="flex items-center gap-2">

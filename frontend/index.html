@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>AuraSchedule — Exam scheduling, hall distribution & seat allocation</title>
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>Ordo — Exam scheduling, hall distribution & seat allocation</title>
     <meta
       name="description"
-      content="AuraSchedule schedules, distributes, seats, and documents every exam. Automated timetable generation, hall distribution, seat allocation, and broadsheet exports."
+      content="Ordo schedules, distributes, seats, and documents every exam. Automated timetable generation, hall distribution, seat allocation, and broadsheet exports."
     />
     <script>
       // Apply theme before paint to avoid a flash of the wrong palette.
       // Mirrors lib/theme.tsx — keep keys/values in sync.
       (function () {
         try {
-          var stored = localStorage.getItem("auraschedule:theme");
+          var stored = localStorage.getItem("ordo:theme");
           var theme =
             stored === "light" || stored === "dark"
               ? stored

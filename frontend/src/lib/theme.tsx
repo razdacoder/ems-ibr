@@ -15,7 +15,7 @@ interface ThemeContext {
   toggle: () => void;
 }
 
-const STORAGE_KEY = "auraschedule:theme";
+const STORAGE_KEY = "ordo:theme";
 
 const Ctx = createContext<ThemeContext | null>(null);
 

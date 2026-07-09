@@ -66,7 +66,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative grid min-h-screen bg-background lg:grid-cols-[1.05fr_1fr]">
-      {/* Editorial pane — solid purple-soft */}
+      {/* Editorial pane — solid brand-soft */}
       <div
         className="relative hidden overflow-hidden border-r border-[color:var(--border)] lg:block"
         style={{ backgroundColor: "var(--brand-soft)" }}
@@ -78,7 +78,7 @@ export default function LoginPage() {
               className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight"
             >
               <Logo size={22} />
-              AuraSchedule
+              Ordo
             </Link>
           </div>
 
@@ -145,7 +145,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            <span>&copy; {new Date().getFullYear()} AuraSchedule</span>
+            <span>&copy; {new Date().getFullYear()} Ordo</span>
           </div>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function LoginPage() {
             className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
           >
             <Logo size={18} />
-            AuraSchedule
+            Ordo
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />

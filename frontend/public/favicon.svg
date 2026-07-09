@@ -1,11 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
   <style>
-    :root { --c: oklch(0.55 0.22 285); }
+    :root { --lit: #0a0b0a; --dim: #0a0b0a; }
     @media (prefers-color-scheme: dark) {
-      :root { --c: oklch(0.7 0.2 285); }
+      :root { --lit: #eceae3; --dim: #eceae3; }
     }
   </style>
-  <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--c)" stroke-width="1.5" opacity="0.35" />
-  <circle cx="12" cy="12" r="6.75" fill="none" stroke="var(--c)" stroke-width="1.75" />
-  <circle cx="12" cy="12" r="2.75" fill="var(--c)" />
+  <rect x="9" y="1" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
+  <rect x="25" y="9" width="6" height="6" rx="1.6" fill="#3fe06b" />
+  <rect x="1" y="17" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
+  <rect x="33" y="25" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
+  <rect x="17" y="33" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
 </svg>

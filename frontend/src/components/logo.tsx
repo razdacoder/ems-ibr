@@ -1,64 +1,94 @@
 import { cn } from "@/lib/utils";
 
 /**
- * AuraSchedule mark — concentric rings around a focal centre.
- *
- * Reads as a target / moment-with-awareness: the inner solid disc is "the
- * scheduled moment", the surrounding rings are its "aura". Pure geometric SVG
- * scaled to the host font-size by default so it sits cleanly next to a serif
- * wordmark.
+ * Ordo mark — a 5x5 grid with five cells lit: four in the neutral
+ * foreground tone, one in Signal green. Reads as "order found inside
+ * scattered data" — the brand's whole thesis in one glyph.
  */
+const GRID_SIZE = 5;
+const CELL = 6;
+const GAP = 2;
+const STEP = CELL + GAP;
+const ORIGIN = 1;
+const VIEWBOX = ORIGIN * 2 + GRID_SIZE * CELL + (GRID_SIZE - 1) * GAP;
+
+/** (row, col) cells lit in the neutral tone. */
+const LIT_CELLS: Array<[number, number]> = [
+  [0, 1],
+  [2, 0],
+  [3, 4],
+  [4, 2],
+];
+/** (row, col) cell lit in Signal green — the mark's focal point. */
+const SIGNAL_CELL: [number, number] = [1, 3];
+
+function cellRect(row: number, col: number) {
+  return {
+    x: ORIGIN + col * STEP,
+    y: ORIGIN + row * STEP,
+    width: CELL,
+    height: CELL,
+    rx: 1.6,
+  };
+}
+
 export function Logo({
   className,
   size = 16,
-  /** When true, render only the central disc (favicon-style condensed mark). */
-  condensed = false,
 }: {
   className?: string;
   size?: number;
-  condensed?: boolean;
 }) {
+  const cells = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => [
+    Math.floor(i / GRID_SIZE),
+    i % GRID_SIZE,
+  ]) as Array<[number, number]>;
+
   return (
     <svg
       aria-hidden
-      viewBox="0 0 24 24"
+      viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
       width={size}
       height={size}
       className={cn("shrink-0", className)}
-      style={{ color: "var(--brand)" }}
     >
-      {!condensed && (
-        <>
-          {/* Outer ring — the aura */}
-          <circle
-            cx="12"
-            cy="12"
-            r="10.5"
+      {cells.map(([row, col]) => {
+        const isSignal = row === SIGNAL_CELL[0] && col === SIGNAL_CELL[1];
+        const isLit = LIT_CELLS.some(([r, c]) => r === row && c === col);
+        const rect = cellRect(row, col);
+        if (isSignal) {
+          return (
+            <rect key={`${row}-${col}`} {...rect} fill="var(--brand)" />
+          );
+        }
+        if (isLit) {
+          return (
+            <rect
+              key={`${row}-${col}`}
+              {...rect}
+              fill="currentColor"
+              opacity="0.55"
+            />
+          );
+        }
+        return (
+          <rect
+            key={`${row}-${col}`}
+            {...rect}
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
-            opacity="0.35"
+            strokeWidth="1"
+            opacity="0.18"
           />
-          {/* Mid ring — heavier weight, anchors the mark */}
-          <circle
-            cx="12"
-            cy="12"
-            r="6.75"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-          />
-        </>
-      )}
-      {/* Centre disc — the moment */}
-      <circle cx="12" cy="12" r="2.75" fill="currentColor" />
+        );
+      })}
     </svg>
   );
 }
 
 /**
  * Wordmark + mark, the standard header brand-line. Use this anywhere the
- * literal "AuraSchedule" string appears next to the logo.
+ * literal "Ordo" string appears next to the logo.
  */
 export function Wordmark({
   className,
@@ -83,7 +113,7 @@ export function Wordmark({
       )}
     >
       <Logo size={px} />
-      AuraSchedule
+      Ordo
     </span>
   );
 }

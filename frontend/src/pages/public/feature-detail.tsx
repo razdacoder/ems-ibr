@@ -17,7 +17,7 @@ function PublicHeader() {
           className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
         >
           <Logo size={20} />
-          AuraSchedule
+          Ordo
           <InstitutionLogo size={28} className="ml-1.5" />
         </Link>
         <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
@@ -341,7 +341,7 @@ export default function FeatureDetailPage() {
               </ul>
             </Section>
 
-            {/* CTA — solid purple slab */}
+            {/* CTA — solid brand slab */}
             <section
               className="border-t border-[color:var(--border)]"
               style={{
@@ -403,7 +403,7 @@ export default function FeatureDetailPage() {
 
       <footer className="border-t border-[color:var(--border)] bg-background">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 py-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center sm:px-8">
-          <span>&copy; {new Date().getFullYear()} AuraSchedule · All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Ordo · All rights reserved.</span>
           <span className="flex items-center gap-6">
             <Link
               to="/"

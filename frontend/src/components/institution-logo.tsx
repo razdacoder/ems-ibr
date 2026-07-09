@@ -2,7 +2,7 @@ import { useBranding } from "@/api/system";
 import { cn } from "@/lib/utils";
 
 /**
- * The configured institution logo, sized to sit beside the AuraSchedule mark.
+ * The configured institution logo, sized to sit beside the Ordo mark.
  * Renders nothing until an institution logo has been uploaded, so it degrades
  * cleanly on fresh installs.
  */
