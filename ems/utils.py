@@ -849,17 +849,9 @@ def is_course_in_hall(hall, course_code):
     return False
 
 
-def _hall_can_fit_whole(hall, course_code, size):
-    """True if ``hall`` could take a course's entire remaining ``size`` in
-    one slice — it hasn't hosted that course yet, and both the capacity and
-    per-course-slice budgets are big enough."""
-    if is_course_in_hall(hall, course_code):
-        return False
-    return 0 < size <= hall["capacity"] and size <= hall.get("per_course_slice", 0)
-
-
-def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
-    """Pack timetable rows into halls under allocation-aware caps.
+def distribute_classes_to_halls(timetables, halls):
+    """Pack timetable rows into halls under allocation-aware caps, in two
+    passes.
 
     Each hall carries two budgets (set by :func:`convert_hall_to_dict`):
       * ``capacity``           — total students the hall can absorb under
@@ -868,17 +860,25 @@ def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
       * ``per_course_slice``    — max students of any one course in the hall
                                   (≈ rows × cols / 4).
 
-    Largest schedules go first so they aren't fragmented across many halls.
-    Halls are visited largest-capacity first for the same reason.
+    **Pass 1 — bulk placement.** Halls are visited largest-capacity first;
+    within each hall, courses are tried largest-remaining-size first. A hall
+    only accepts a course here if the bite is either the course's *entire*
+    remaining size, or a full ``per_course_slice`` (a genuine "this course
+    needs several big halls" chunk, like a 216-student class taking a
+    63-seat bite). A bite that's smaller than both — capped only by this
+    hall's *own* nearly-exhausted leftover capacity — is skipped rather than
+    taken just because it technically fits.
 
-    A course whose remaining size doesn't fit a hall's per-course-slice gets
-    a partial bite there — but only if no smaller hall further down the list
-    could take the whole remainder in one slice. Otherwise the bite is
-    skipped so that hall is left for the smaller course, and the shrinking
-    remainder is deferred to whichever hall can actually absorb it whole.
-    Without this check, a class's leftover tail dribbles 2-3 students at a
-    time into every small hall it happens to reach first, instead of
-    landing in one hall sized to hold it.
+    **Pass 2 — tail consolidation.** Whatever's left (every course's small
+    leftover remainder) is packed depth-first with best-fit bin-packing:
+    largest remainder first, and each bite goes to whichever eligible hall
+    currently has the *least* spare capacity. That reuses and finishes off
+    the same small set of "overflow" halls across many different courses'
+    tails, instead of each course's leftover independently landing in
+    whichever hall it happens to reach first. Without this pass, a slot with
+    many small classes ends up with each one scattered 1-3 students at a
+    time across a dozen different halls, rather than sharing a handful of
+    halls together.
     """
     class_schedules = make_schedules(timetables=timetables)
     # make_schedules already random-shuffles. Stable-sort by size desc to
@@ -886,7 +886,20 @@ def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
     class_schedules.sort(key=lambda s: s["size"], reverse=True)
     halls.sort(key=lambda h: h.get("capacity", 0), reverse=True)
 
-    for hall_idx, hall in enumerate(halls):
+    def place(hall, schedule, take):
+        hall["classes"].append(
+            {
+                "id": schedule["id"],
+                "class": schedule["class"],
+                "course": schedule["course"],
+                "student_range": take,
+            }
+        )
+        hall["capacity"] -= take
+        schedule["size"] -= take
+
+    # --- Pass 1: bulk placement --------------------------------------
+    for hall in halls:
         slice_cap = hall.get("per_course_slice", 0)
         for schedule in class_schedules:
             if schedule["size"] == 0:
@@ -902,31 +915,37 @@ def distribute_classes_to_halls(timetables, halls, remainder_threshold=5):
             take = min(schedule["size"], seats_remaining, slice_cap)
             if take <= 0:
                 continue
-
-            if take < schedule["size"] and any(
-                _hall_can_fit_whole(h, schedule["course"], schedule["size"])
-                for h in halls[hall_idx + 1:]
-            ):
-                # A later, smaller hall can swallow the whole remainder —
-                # leave it for that hall instead of fragmenting here.
+            whole_fit = take == schedule["size"]
+            full_slice = take == slice_cap and schedule["size"] > slice_cap
+            if not (whole_fit or full_slice):
+                # Only a capacity-limited partial bite is available here —
+                # defer this course's remainder to the tail-consolidation
+                # pass instead of nibbling it away hall by hall.
                 continue
 
-            # Sweep up a tiny tail rather than spilling it to another hall —
-            # but only if it still fits within both budgets.
-            tail = schedule["size"] - take
-            if 0 < tail < remainder_threshold and tail <= seats_remaining - take:
-                take += tail
+            place(hall, schedule, take)
 
-            hall["classes"].append(
-                {
-                    "id": schedule["id"],
-                    "class": schedule["class"],
-                    "course": schedule["course"],
-                    "student_range": take,
-                }
-            )
-            hall["capacity"] -= take
-            schedule["size"] -= take
+    # --- Pass 2: tail consolidation -----------------------------------
+    tails = [s for s in class_schedules if s["size"] > 0]
+    tails.sort(key=lambda s: s["size"], reverse=True)
+
+    for schedule in tails:
+        while schedule["size"] > 0:
+            candidates = [
+                h for h in halls
+                if h["capacity"] > 0
+                and h.get("per_course_slice", 0) > 0
+                and not is_course_in_hall(h, schedule["course"])
+            ]
+            if not candidates:
+                break
+            # Best-fit: the hall with the least spare capacity that can still
+            # take a bite. This finishes off nearly-full halls before
+            # spreading into fresh ones, so different courses' tails
+            # concentrate into the same small set of halls.
+            target = min(candidates, key=lambda h: h["capacity"])
+            take = min(schedule["size"], target["capacity"], target["per_course_slice"])
+            place(target, schedule, take)
 
     return [hall for hall in halls if hall["classes"]]
 

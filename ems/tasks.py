@@ -288,11 +288,10 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             pattern=constraints.seat_pattern,
         )
 
-        # Distribute classes (honour admin-configured remainder threshold)
+        # Distribute classes across halls (bulk placement + tail consolidation)
         result = distribute_classes_to_halls(
             list(timetables),
             halls_list,
-            remainder_threshold=constraints.remainder_merge_threshold,
         )
         
         # Update progress: 60%
@@ -583,7 +582,6 @@ def generate_distribution_all_task(self, job_id, user_id):
             result = distribute_classes_to_halls(
                 list(timetables),
                 halls_list,
-                remainder_threshold=constraints.remainder_merge_threshold,
             )
             save_to_db(result, str(date), period)
             results.append({'date': str(date), 'period': period, 'halls_used': len(result)})
