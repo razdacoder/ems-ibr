@@ -23,6 +23,31 @@ def _load_constraints():
     return obj
 
 
+def _allocation_is_complete(date, period):
+    """True only if a slot's allocation is actually finished, not just
+    started.
+
+    A bare ``SeatArrangement.objects.filter(...).exists()`` can't tell a
+    fully-allocated slot apart from one a crashed worker left half-built.
+    Two failure modes have hit this in practice: a hard timeout mid-hall-loop
+    leaves some of the slot's halls with no rows at all, and a timeout
+    between the hall loop and the final cross-hall reconciliation step
+    leaves rows sitting with ``seat_number=NULL``. Either one must trigger a
+    re-run, not a skip.
+    """
+    sa = SeatArrangement.objects.filter(date=str(date), period=period)
+    if not sa.exists():
+        return False
+    if sa.filter(seat_number__isnull=True).exists():
+        return False
+    dist_halls = set(
+        Distribution.objects.filter(date=str(date), period=period)
+        .values_list('hall_id', flat=True)
+    )
+    seated_halls = set(sa.values_list('hall_id', flat=True))
+    return dist_halls <= seated_halls
+
+
 def generate_random_students(num_students=100):
     """
     Generate random students if database is empty.
@@ -368,7 +393,14 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         
         if not distributions.exists():
             raise ValueError(f"No distributions found for {date} {period}. Please generate distribution first.")
-        
+
+        # Clear any prior attempt for this slot first, so this call is safe
+        # to retry — a hard timeout can leave a slot half-built (some halls
+        # never touched, or seated but never cross-hall reconciled), and
+        # re-running without clearing would bulk_create on top of those rows
+        # and duplicate every student that was already placed.
+        SeatArrangement.objects.filter(date=date, period=period).delete()
+
         total_halls = distributions.count()
         job.total_steps = 100  # Use percentage scale
         job.save()
@@ -659,7 +691,7 @@ def generate_allocation_all_task(self, job_id, user_id):
             })
             job.progress = progress
             job.save()
-            if SeatArrangement.objects.filter(date=str(date), period=period).exists():
+            if _allocation_is_complete(date, period):
                 results.append({'date': str(date), 'period': period, 'skipped': True})
                 continue
             sub_id = f'{job_id}::{date}::{period}'
