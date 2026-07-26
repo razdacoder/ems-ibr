@@ -2,6 +2,7 @@ from django.db.models import Count
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
+from ems.api.pagination import AllowUnpaginatedMixin
 from ems.api.permissions import IsDataOfficer
 from ems.api.serializers.department import (
     DepartmentSerializer,
@@ -10,7 +11,7 @@ from ems.api.serializers.department import (
 from ems.models import Department
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
+class DepartmentViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     """CRUD for Department. Lookup is by slug to mirror existing URL patterns."""
 
     serializer_class = DepartmentSerializer
@@ -27,14 +28,6 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if query:
             qs = qs.filter(name__icontains=query) | qs.filter(slug__icontains=query)
         return qs
-
-    def paginate_queryset(self, queryset):
-        # Allow consumers (e.g. the faculty form picker) to fetch every
-        # department in one request by passing ?all=true.
-        all_param = self.request.query_params.get("all")
-        if all_param and all_param.lower() in ("1", "true", "yes"):
-            return None
-        return super().paginate_queryset(queryset)
 
     def get_permissions(self):
         return [IsDataOfficer()]

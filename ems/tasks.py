@@ -386,10 +386,17 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 5, 'status': 'Loading distributions...'})
         
-        # Get distributions for the date and period
+        # Get distributions for the date and period. Ordered by hall name so
+        # the matric-number blocks are handed out predictably: the
+        # alphabetically first hall takes each class's lowest matric numbers,
+        # the next hall continues where it left off. Without an explicit
+        # order the DB is free to return halls in any order, which would move
+        # a class's block between halls from one run to the next.
         distributions = Distribution.objects.filter(
             date=date, period=period
-        ).select_related('hall').prefetch_related('items__schedule__course', 'items__schedule__class_obj')
+        ).select_related('hall').prefetch_related(
+            'items__schedule__course', 'items__schedule__class_obj'
+        ).order_by('hall__name', 'id')
         
         if not distributions.exists():
             raise ValueError(f"No distributions found for {date} {period}. Please generate distribution first.")

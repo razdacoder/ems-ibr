@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Download, FileText } from "lucide-react";
 import {
-  directoryQuery,
+  DIRECTORY_FORMATS,
+  directoryExportQuery,
   useDirectoryPreview,
   type DirectoryDoc,
+  type DirectoryFormat,
   type DirectoryScope,
   type Period,
 } from "@/api/directory";
@@ -43,6 +45,7 @@ export default function DirectoryPage() {
   const [scope, setScope] = useState<DirectoryScope>("slot");
   const [date, setDate] = useState<string | undefined>();
   const [period, setPeriod] = useState<Period>("AM");
+  const [format, setFormat] = useState<DirectoryFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
@@ -59,10 +62,10 @@ export default function DirectoryPage() {
       const label = doc === "hall" ? "hall-directory" : "visa";
       await downloadAuthenticatedFile(
         "/directory/export/",
-        `${label}-${scope}.pdf`,
-        directoryQuery({ doc, scope, date, period }),
+        `${label}-${scope}.${format}`,
+        directoryExportQuery({ doc, scope, date, period, format }),
       );
-      toast({ title: "PDF download started" });
+      toast({ title: `${format.toUpperCase()} download started` });
     } catch (err) {
       toast({
         title: "Export failed",
@@ -81,7 +84,7 @@ export default function DirectoryPage() {
       <PageHeader
         section="Operations · Documents"
         title="Directory & VISA."
-        description="Preview and export the Hall Directory (hall summary) and VISA per slot, week, or the whole exam — as PDF."
+        description="Preview and export the Hall Directory (hall summary) and VISA per slot, week, or the whole exam — as PDF, Word, or CSV."
       />
 
       <Card>
@@ -160,14 +163,38 @@ export default function DirectoryPage() {
             </Field>
           )}
 
-          <Button
-            onClick={onDownload}
-            disabled={!ready || downloading || preview.isLoading}
-            className="ml-auto"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {downloading ? "Preparing…" : "Download PDF"}
-          </Button>
+          <Field label="Format">
+            <Select
+              value={format}
+              onValueChange={(v) => setFormat(v as DirectoryFormat)}
+            >
+              <SelectTrigger className="w-[190px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIRECTORY_FORMATS.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <div className="ml-auto flex flex-col items-end gap-1">
+            <Button
+              onClick={onDownload}
+              disabled={!ready || downloading || preview.isLoading}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {downloading
+                ? "Preparing…"
+                : `Download ${DIRECTORY_FORMATS.find((f) => f.value === format)?.label ?? "PDF"}`}
+            </Button>
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              {DIRECTORY_FORMATS.find((f) => f.value === format)?.hint}
+            </span>
+          </div>
         </CardContent>
       </Card>
 

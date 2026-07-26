@@ -29,7 +29,7 @@ export default function ExportsPage() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_staff;
   const dates = useTimetableDates();
-  const halls = useHalls({ page: 1 });
+  const halls = useHalls({ all: true });
   const settings = useSystemSettings();
   const hasTimetable = !!settings.data?.has_timetable;
   const [date, setDate] = useState<string | undefined>();

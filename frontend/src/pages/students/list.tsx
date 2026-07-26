@@ -71,7 +71,7 @@ export default function StudentsListPage() {
   });
   const remove = useDeleteStudent();
   const departments = useDepartments({ all: true, enabled: !!user?.is_staff });
-  const classes = useClasses({ page: 1 });
+  const classes = useClasses({ all: true });
   const confirm = useConfirm();
 
   const onDelete = async (s: Student) => {
@@ -287,7 +287,7 @@ function StudentFormDialog({
   });
   const create = useCreateStudent();
   const update = useUpdateStudent(initial?.id ?? 0);
-  const classes = useClasses({ page: 1 });
+  const classes = useClasses({ all: true });
   const classOptions = useMemo(() => classes.data?.results ?? [], [classes.data]);
 
   useEffect(() => {

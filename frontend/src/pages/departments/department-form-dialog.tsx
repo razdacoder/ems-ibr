@@ -86,7 +86,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
 
   const create = useCreateDepartment();
   const update = useUpdateDepartment(initial?.slug ?? "");
-  const facultiesQ = useFaculties({ page: 1, enabled: open });
+  const facultiesQ = useFaculties({ all: true, enabled: open });
   const faculties = facultiesQ.data?.results ?? [];
 
   const onSubmit = async (values: FormValues) => {

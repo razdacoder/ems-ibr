@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { PaginatedResponse } from "./types";
+import { toPaginated, type PaginatedResponse } from "./types";
 
 export interface Hall {
   id: number;
@@ -28,12 +28,21 @@ export interface HallInput {
 
 const KEY = ["halls"] as const;
 
-export function useHalls(params: { page?: number; query?: string } = {}) {
+export interface HallListParams {
+  page?: number;
+  query?: string;
+  /** Fetch every hall in one response, bypassing pagination. For pickers. */
+  all?: boolean;
+}
+
+export function useHalls(params: HallListParams = {}) {
   return useQuery({
     queryKey: [...KEY, params],
     queryFn: async () => {
-      const res = await api.get<PaginatedResponse<Hall>>("/halls/", { params });
-      return res.data;
+      const res = await api.get<PaginatedResponse<Hall> | Hall[]>("/halls/", {
+        params,
+      });
+      return toPaginated(res.data);
     },
     placeholderData: keepPreviousData,
   });

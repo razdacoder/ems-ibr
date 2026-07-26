@@ -50,8 +50,8 @@ type FormState = {
 
 export default function ConstraintsPage() {
   const constraints = useConstraints();
-  const classesQ = useClasses({ page: 1 });
-  const facultiesQ = useFaculties({ page: 1 });
+  const classesQ = useClasses({ all: true });
+  const facultiesQ = useFaculties({ all: true });
   const update = useUpdateConstraints();
 
   const [form, setForm] = useState<FormState | null>(null);

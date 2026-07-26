@@ -8,11 +8,20 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ems import directory, pdf_gen
+from ems import directory, directory_export, pdf_gen
 from ems.api.views.system import _get_or_create_settings
 
 _DOC_CHOICES = {"hall", "visa"}
 _SCOPE_CHOICES = {"slot", "week", "duration"}
+# fmt -> (extension, content type)
+_FORMATS = {
+    "pdf": ("pdf", "application/pdf"),
+    "docx": (
+        "docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ),
+    "csv": ("csv", "text/csv"),
+}
 
 
 def _parse_params(request):
@@ -54,16 +63,35 @@ class DirectoryPreviewView(APIView):
 
 
 class DirectoryExportView(APIView):
-    """PDF export of the Hall Directory / VISA for the chosen scope."""
+    """Export the Hall Directory / VISA as PDF, DOCX, or CSV."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         doc, scope, date_obj, period = _parse_params(request)
+        # Deliberately "fmt", not "format": DRF reserves "format" as its
+        # renderer-negotiation query parameter (URL_FORMAT_OVERRIDE), so
+        # ?format=pdf makes it hunt for a renderer named "pdf" and 404 before
+        # this view ever runs.
+        fmt = (request.GET.get("fmt") or "pdf").lower()
+        if fmt not in _FORMATS:
+            raise ValidationError(
+                {"detail": f"fmt must be one of: {', '.join(sorted(_FORMATS))}."}
+            )
         payload = directory.build_payload(doc, scope, date_obj, period)
-        pdf_bytes = pdf_gen.build_pdf(doc, payload, _get_or_create_settings())
+
+        if fmt == "csv":
+            content = directory_export.build_csv(doc, payload)
+        elif fmt == "docx":
+            content = directory_export.build_docx(
+                doc, payload, _get_or_create_settings()
+            )
+        else:
+            content = pdf_gen.build_pdf(doc, payload, _get_or_create_settings())
+
+        extension, content_type = _FORMATS[fmt]
         label = "hall-directory" if doc == "hall" else "visa"
-        filename = f"{label}-{scope}.pdf"
-        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        filename = f"{label}-{scope}.{extension}"
+        response = HttpResponse(content, content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response

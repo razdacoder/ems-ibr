@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Course } from "./courses";
-import type { DepartmentRef, PaginatedResponse } from "./types";
+import { toPaginated, type DepartmentRef, type PaginatedResponse } from "./types";
 
 export type ExamPeriod = "" | "AM" | "PM";
 
@@ -27,6 +27,8 @@ export interface ClassListParams {
   page?: number;
   query?: string;
   department?: string;
+  /** Fetch every class in one response, bypassing pagination. For pickers. */
+  all?: boolean;
 }
 
 export interface ClassInput {
@@ -42,10 +44,11 @@ export function useClasses(params: ClassListParams = {}) {
   return useQuery({
     queryKey: [...KEY, params],
     queryFn: async () => {
-      const res = await api.get<PaginatedResponse<Class>>("/classes/", {
-        params,
-      });
-      return res.data;
+      const res = await api.get<PaginatedResponse<Class> | Class[]>(
+        "/classes/",
+        { params },
+      );
+      return toPaginated(res.data);
     },
     placeholderData: keepPreviousData,
   });

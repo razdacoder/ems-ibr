@@ -1283,17 +1283,23 @@ def allocate_students_to_seats(
     students,
     rows,
     cols,
-    max_attempts=10000,
     *,
     adjacency_mode="8-dir",
-    attempts_pass2=100,
-    attempts_pass3=300,
-    attempts_pass4=500,
     success_threshold_pct=60,
     pattern_order=None,
 ):
-    """
-    Optimized seat allocation with multi-pass approach.
+    """Deterministic seat allocation with a multi-pass approach.
+
+    **Placement is strictly matric-number ordered.** Within every course the
+    lowest matric number takes the lowest-numbered legal seat, so walking a
+    hall row by row reads matric numbers in ascending order and an
+    invigilator can track a class as one contiguous run. No pass shuffles
+    students or cells, and re-running the same slot reproduces the same map.
+
+    Students of a course still never sit within ``adjacency_mode`` reach of
+    each other — ordering decides *which* legal seat a student gets, never
+    whether the adjacency rule is relaxed.
+
     `adjacency_mode` controls which neighbouring cells block same-course placement.
     """
     if not students:  # Check if students list is empty
@@ -1315,12 +1321,20 @@ def allocate_students_to_seats(
             course_groups[course] = []
         course_groups[course].append(student)
 
-    # O(1) name -> student lookup. is_valid_position is called up to
-    # attempts_per_student times per unplaced student (see
-    # try_random_placement), so a linear `next(... for s in students ...)`
-    # scan here turns placement into O(n^2)-per-attempt and is the reason
-    # large halls could take many minutes (previously a full task timeout)
-    # instead of seconds.
+    # Sort every course group by matric number once, here — every pass below
+    # consumes these lists in order, so this single sort is what makes seat
+    # numbers ascend with matric numbers. Plain string ordering, matching the
+    # `order_by('matric_no')` the task uses to pick which students land in
+    # this hall (see generate_allocation_task); the two must agree or a
+    # hall's block would be selected by one order and seated by another.
+    for course_students in course_groups.values():
+        course_students.sort(key=lambda s: s["name"])
+
+    # O(1) name -> student lookup. is_valid_position is called once per
+    # candidate cell per unplaced student (see try_ordered_placement), so a
+    # linear `next(... for s in students ...)` scan here turns placement into
+    # O(n^2)-per-attempt and is the reason large halls could take many
+    # minutes (previously a full task timeout) instead of seconds.
     student_by_name = {student["name"]: student for student in students}
 
     def is_valid_position(student_name, row, col):
@@ -1337,7 +1351,12 @@ def allocate_students_to_seats(
         return True
 
     def try_pattern_placement(course_students, pattern="checkerboard"):
-        """Try to place students using specific patterns"""
+        """Place students on a pattern's cells, lowest matric to lowest seat.
+
+        ``course_students`` arrives matric-sorted and each ``positions`` list
+        is built row-major, so the first legal cell found for each student is
+        also the lowest-numbered one still free.
+        """
         placed = 0
 
         if pattern == "checkerboard":
@@ -1362,8 +1381,6 @@ def allocate_students_to_seats(
                 (r, c) for r in range(rows) for c in range(cols) if not seats[r][c]
             ]
 
-        random.shuffle(positions)
-
         for student in course_students:
             if student_positions[student["name"]] is not None:
                 continue  # Already placed
@@ -1378,19 +1395,30 @@ def allocate_students_to_seats(
 
         return placed
 
-    def try_random_placement(remaining_students, attempts_per_student=100):
-        """Try random placement with STRICT adjacency constraints"""
+    def try_ordered_placement(remaining_students):
+        """Seat leftovers by scanning every free cell in seat-number order.
+
+        Replaces the old random dart-throwing passes (100/300/500 blind
+        `randint` attempts per student). Two reasons: darts broke matric
+        ordering by scattering the tail across the grid, and they could fail
+        to seat a student even when a legal cell existed — a full scan finds
+        one whenever there is one, so this both preserves ordering and beats
+        the old placement rate. `remaining_students` is matric-sorted.
+        """
         placed = 0
+        free_cells = [
+            (r, c) for r in range(rows) for c in range(cols) if not seats[r][c]
+        ]
 
         for student in remaining_students:
             if student_positions[student["name"]] is not None:
                 continue  # Already placed
 
-            for _ in range(attempts_per_student):
-                row, col = random.randint(0, rows - 1), random.randint(0, cols - 1)
+            for idx, (row, col) in enumerate(free_cells):
                 if not seats[row][col] and is_valid_position(student["name"], row, col):
                     seats[row][col] = student["name"]
                     student_positions[student["name"]] = (row, col)
+                    free_cells.pop(idx)
                     placed += 1
                     break
 
@@ -1423,10 +1451,13 @@ def allocate_students_to_seats(
             for ro in (0, 1)
             for co in (0, 1)
         }
+        # Largest course first; course code breaks ties so two courses of
+        # equal size always claim quarters in the same order across runs.
         courses_sorted = sorted(
             course_groups.items(),
-            key=lambda kv: -sum(
-                1 for s in kv[1] if student_positions[s["name"]] is None
+            key=lambda kv: (
+                -sum(1 for s in kv[1] if student_positions[s["name"]] is None),
+                kv[0],
             ),
         )
         placed_here = 0
@@ -1456,10 +1487,10 @@ def allocate_students_to_seats(
     # without burning attempts on random dead-ends.
     total_placed += try_quarter_placement()
 
-    # Pass 1: Pattern-based placement per course in admin-configured order
+    # Pass 1: Pattern-based placement per course in admin-configured order.
+    # course_students stays matric-sorted — no shuffle — so anything pass 0
+    # left over is still seated in ascending matric order.
     for course, course_students in course_groups.items():
-        random.shuffle(course_students)  # Randomize within course
-
         for pattern in pattern_order:
             remaining = [
                 s for s in course_students if student_positions[s["name"]] is None
@@ -1471,23 +1502,17 @@ def allocate_students_to_seats(
             if placed > 0:
                 break  # If pattern worked, move to next course
 
-    # Pass 2: Random placement with constraint-respecting placement
-    remaining_students = [s for s in students if student_positions[s["name"]] is None]
+    # Pass 2: Ordered sweep of whatever the pattern passes could not seat.
+    # One exhaustive scan replaces the old three escalating random passes —
+    # it can only fail when no legal cell exists at all, so a fourth pass
+    # would have nothing left to find. Re-sorted by matric because students
+    # here come from `students` (hall build order), not a course group.
+    remaining_students = sorted(
+        (s for s in students if student_positions[s["name"]] is None),
+        key=lambda s: (s["course"], s["name"]),
+    )
     if remaining_students:
-        placed = try_random_placement(remaining_students, attempts_pass2)
-        total_placed += placed
-
-    # Pass 3: More attempts
-    remaining_students = [s for s in students if student_positions[s["name"]] is None]
-    if remaining_students:
-        placed = try_random_placement(remaining_students, attempts_pass3)
-        total_placed += placed
-
-    # Pass 4: Final attempt with the highest budget
-    remaining_students = [s for s in students if student_positions[s["name"]] is None]
-    if remaining_students:
-        placed = try_random_placement(remaining_students, attempts_pass4)
-        total_placed += placed
+        total_placed += try_ordered_placement(remaining_students)
 
     # NOTE: Removed relaxed and force placement passes to maintain strict adjacency constraints
     # Students that cannot be placed while maintaining constraints will remain unplaced
@@ -1539,9 +1564,6 @@ def print_seating_arrangement(
     hall_id,
     *,
     adjacency_mode="8-dir",
-    attempts_pass2=100,
-    attempts_pass3=300,
-    attempts_pass4=500,
     success_threshold_pct=60,
     pattern_order=None,
 ):
@@ -1550,9 +1572,6 @@ def print_seating_arrangement(
     result = allocate_students_to_seats(
         students, rows, cols,
         adjacency_mode=adjacency_mode,
-        attempts_pass2=attempts_pass2,
-        attempts_pass3=attempts_pass3,
-        attempts_pass4=attempts_pass4,
         success_threshold_pct=success_threshold_pct,
         pattern_order=pattern_order,
     )
@@ -1648,18 +1667,6 @@ def print_seating_arrangement(
                     )
                     print(student_name)
                 SeatArrangement.objects.bulk_create(arrangements)
-
-
-def generate_seat_allocation(rows: int, cols: int, students):
-    random.seed(0)
-    # Ensure the total number of students does not exceed rows * cols
-    if len(students) > rows * cols:
-        print(
-            f"Error: Too many students for the given hall capacity of {rows * cols} seats."
-        )
-    else:
-        # Print the seating arrangement
-        print_seating_arrangement(students, rows, cols)
 
 
 def is_valid_position(seat_number, course_code, seat_map, rows, cols):
@@ -2321,8 +2328,11 @@ def reconcile_unplaced(date, period):
         SeatArrangement.objects.filter(
             date=date, period=period, seat_number__isnull=True
         )
-        .select_related("course", "cls", "hall")
-        .order_by("course_id")
+        .select_related("course", "cls", "hall", "student")
+        # Matric order within each course, so overflow students keep landing
+        # in their destination hall in the same ascending run they would have
+        # had at home. NULL student FKs (placeholder rows) sort last.
+        .order_by("course_id", "student__matric_no")
     )
     if not unplaced_qs.exists():
         return 0
@@ -2368,12 +2378,31 @@ def reconcile_unplaced(date, period):
             "quarter_courses": quarter_courses,
         }
 
+    def cell_is_legal(state, row, col, course_id):
+        """True if course_id at (row, col) keeps 8-dir separation.
+
+        Checks the actual grid, not just which courses a quarter hosts. The
+        quarter-set test this replaced only asked "is this course already in
+        *this* quarter" — but a cell in quarter (0,0) touches cells in all
+        three other quarters, so that test seated students right next to a
+        same-course neighbour living one quarter over.
+        """
+        grid = state["grid"]
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0:
+                    continue
+                rr, cc = row + dr, col + dc
+                if 0 <= rr < state["rows"] and 0 <= cc < state["cols"]:
+                    if grid[rr][cc] == course_id:
+                        return False
+        return True
+
     reseated = 0
     reseat_writes = []
     for sa in unplaced_qs:
         target_id = None
         target_pos = None
-        target_quarter = None
         # Prefer halls with the most empty cells and a quarter that already
         # has this course (extending an existing same-course quarter is
         # always safe) or any quarter the course hasn't entered.
@@ -2384,8 +2413,12 @@ def reconcile_unplaced(date, period):
         for hall_id, state in sorted_halls:
             quarters = state["quarters"]
             qcourses = state["quarter_courses"]
-            # Try quarters that already host this course first — guaranteed
-            # safe (cells inside one quarter are never 8-dir adjacent).
+            # Quarters already hosting this course are tried first: cells
+            # within one parity quarter are mutually non-adjacent, so they are
+            # the likeliest to yield a legal cell. This is only an ordering
+            # heuristic now — every candidate cell is adjacency-checked below,
+            # including in `preferred`, so a quarter the course has not
+            # entered is no longer assumed safe.
             preferred = [
                 key for key, courses in qcourses.items()
                 if sa.course_id in courses and quarters[key]
@@ -2395,18 +2428,25 @@ def reconcile_unplaced(date, period):
                 if sa.course_id not in courses and quarters[key]
             ]
             for key in preferred + fallback:
-                row, col = quarters[key].pop()
-                state["grid"][row][col] = sa.course_id
-                qcourses[key].add(sa.course_id)
-                target_id = hall_id
-                target_pos = (row, col)
-                target_quarter = key
-                break
+                cells = quarters[key]
+                # Cells are row-major, so scanning front-to-back and taking
+                # the first *legal* one keeps reseated students in ascending
+                # seat order to match their ascending matric order, without
+                # the blind pop(0) that put them next to existing neighbours.
+                for idx, (row, col) in enumerate(cells):
+                    if cell_is_legal(state, row, col, sa.course_id):
+                        cells.pop(idx)
+                        state["grid"][row][col] = sa.course_id
+                        qcourses[key].add(sa.course_id)
+                        target_id = hall_id
+                        target_pos = (row, col)
+                        break
+                if target_id is not None:
+                    break
             if target_id is not None:
                 break
         if target_id is None:
             continue  # genuinely no room anywhere
-        del target_quarter  # only used while choosing
         # Persist the move.
         row, col = target_pos
         cols = hall_state[target_id]["cols"]

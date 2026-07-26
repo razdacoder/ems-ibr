@@ -1,11 +1,12 @@
 from rest_framework import viewsets
 
+from ems.api.pagination import AllowUnpaginatedMixin
 from ems.api.permissions import IsDataOfficer
 from ems.api.serializers.hall import HallSerializer
 from ems.models import Hall
 
 
-class HallViewSet(viewsets.ModelViewSet):
+class HallViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     serializer_class = HallSerializer
     permission_classes = [IsDataOfficer]
 

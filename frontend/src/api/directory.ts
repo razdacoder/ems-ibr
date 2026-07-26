@@ -3,7 +3,18 @@ import { api } from "@/lib/api";
 
 export type DirectoryDoc = "hall" | "visa";
 export type DirectoryScope = "slot" | "week" | "duration";
+export type DirectoryFormat = "pdf" | "docx" | "csv";
 export type Period = "AM" | "PM";
+
+export const DIRECTORY_FORMATS: {
+  value: DirectoryFormat;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "pdf", label: "PDF", hint: "Print-ready, one page per slot" },
+  { value: "docx", label: "Word (DOCX)", hint: "Editable, same layout as PDF" },
+  { value: "csv", label: "CSV", hint: "Flat data for Excel — no branding" },
+];
 
 export interface HallRow {
   hall: string;
@@ -49,6 +60,19 @@ export function directoryQuery(params: DirectoryParams) {
   };
   if (params.scope !== "duration" && params.date) q.date = params.date;
   return q;
+}
+
+/**
+ * Export params — the preview query deliberately excludes the format so that
+ * switching download format does not invalidate the cached preview.
+ *
+ * Sent as `fmt`, not `format`: DRF reserves `format` for renderer negotiation,
+ * and `?format=pdf` 404s before the view runs.
+ */
+export function directoryExportQuery(
+  params: DirectoryParams & { format: DirectoryFormat },
+) {
+  return { ...directoryQuery(params), fmt: params.format };
 }
 
 export function useDirectoryPreview(params: DirectoryParams, enabled: boolean) {

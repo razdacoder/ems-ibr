@@ -5,6 +5,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
+from ems.api.pagination import AllowUnpaginatedMixin
 from ems.api.permissions import CanManageDepartmentScoped
 from ems.api.serializers.cls import (
     ClassCourseAssignSerializer,
@@ -15,7 +16,7 @@ from ems.api.serializers.course import CourseSerializer
 from ems.models import Class, Course, TimeTable
 
 
-class ClassViewSet(viewsets.ModelViewSet):
+class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     serializer_class = ClassSerializer
 
     def get_queryset(self):

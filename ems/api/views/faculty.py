@@ -2,6 +2,7 @@ from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
+from ems.api.pagination import AllowUnpaginatedMixin
 from ems.api.permissions import IsFacultyOfficer
 from ems.api.serializers.faculty import (
     FacultySerializer,
@@ -10,7 +11,7 @@ from ems.api.serializers.faculty import (
 from ems.models import Faculty
 
 
-class FacultyViewSet(viewsets.ModelViewSet):
+class FacultyViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     """CRUD for Faculty. Admin-only. Lookup by slug."""
 
     serializer_class = FacultySerializer

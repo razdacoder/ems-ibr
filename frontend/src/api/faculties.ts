@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { PaginatedResponse } from "./departments";
+import { toPaginated, type PaginatedResponse } from "./types";
 
 export interface FacultyDepartmentBrief {
   id: number;
@@ -25,6 +25,8 @@ export interface FacultyListParams {
   page?: number;
   query?: string;
   enabled?: boolean;
+  /** Fetch every faculty in one response, bypassing pagination. For pickers. */
+  all?: boolean;
 }
 
 const KEY = ["faculties"] as const;
@@ -34,10 +36,11 @@ export function useFaculties(params: FacultyListParams = {}) {
   return useQuery({
     queryKey: [...KEY, query],
     queryFn: async () => {
-      const res = await api.get<PaginatedResponse<Faculty>>("/faculties/", {
-        params: query,
-      });
-      return res.data;
+      const res = await api.get<PaginatedResponse<Faculty> | Faculty[]>(
+        "/faculties/",
+        { params: query },
+      );
+      return toPaginated(res.data);
     },
     placeholderData: keepPreviousData,
     enabled,
