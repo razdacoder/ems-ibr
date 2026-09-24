@@ -51,7 +51,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAuth } from "@/lib/auth";
+import { canManageData, useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -63,6 +63,11 @@ export default function ClassDetailPage() {
   const remove = useRemoveCourseFromClass(numericId ?? 0);
   const { user } = useAuth();
   const isAdmin = !!user?.is_staff || !!user?.department;
+  // Mirrors the backend upload check: data managers for any department,
+  // department officers only for their own.
+  const canUpload =
+    canManageData(user) ||
+    (!!user?.department && user.department.id === cls.data?.department.id);
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
 
@@ -215,7 +220,7 @@ export default function ClassDetailPage() {
             <ClassStudentsCard classId={numericId} />
           )}
 
-          {numericId !== undefined && isAdmin && (
+          {numericId !== undefined && canUpload && (
             <ClassUploadGrid classId={numericId} />
           )}
 

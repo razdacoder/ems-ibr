@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
-import { useAuth } from "@/lib/auth";
+import { canManageData, useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -72,14 +72,16 @@ export default function ClassesListPage() {
   const remove = useDeleteClass();
   const departments = useDepartments({ all: true, enabled: !!user?.is_staff });
   const settings = useSystemSettings();
-  const uploadClasses = useUploadClassesForDepartment(user?.department?.slug ?? "");
-  const canUploadClasses = !user?.is_staff && !!user?.department;
+  const uploadClasses = useUploadClassesForDepartment();
+  // Data managers upload for any department; department officers only their own.
+  const isDataManager = canManageData(user);
+  const canUploadClasses = isDataManager || (!user?.is_staff && !!user?.department);
   const uploadsLocked = !!settings.data?.has_timetable;
   const [uploadOpen, setUploadOpen] = useState(false);
 
-  const onUploadClasses = async (file: File) => {
+  const onUploadClasses = async (file: File, deptSlug: string) => {
     try {
-      const r = await uploadClasses.mutateAsync(file);
+      const r = await uploadClasses.mutateAsync({ file, deptSlug });
       toast({
         title: "Classes uploaded",
         description: `Created ${r.created}, updated ${r.updated}`,
@@ -271,6 +273,8 @@ export default function ClassesListPage() {
           onUpload={onUploadClasses}
           isPending={uploadClasses.isPending}
           locked={uploadsLocked}
+          departments={isDataManager ? (departments.data?.results ?? []) : null}
+          ownDeptSlug={user?.department?.slug ?? ""}
         />
       )}
     </>
@@ -283,18 +287,29 @@ function UploadClassesDialog({
   onUpload,
   isPending,
   locked,
+  departments,
+  ownDeptSlug,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (file: File, deptSlug: string) => Promise<void>;
   isPending: boolean;
   locked: boolean;
+  /** Departments to choose from; null locks the upload to `ownDeptSlug`. */
+  departments: { id: number; name: string; slug: string }[] | null;
+  ownDeptSlug: string;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [deptSlug, setDeptSlug] = useState("");
 
   useEffect(() => {
-    if (!open) setFile(null);
+    if (!open) {
+      setFile(null);
+      setDeptSlug("");
+    }
   }, [open]);
+
+  const targetSlug = departments ? deptSlug : ownDeptSlug;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,8 +317,8 @@ function UploadClassesDialog({
         <DialogHeader>
           <DialogTitle>Upload classes CSV</DialogTitle>
           <DialogDescription>
-            CSV columns: Class name, Size. Existing classes are matched by name
-            and updated.
+            CSV columns: Name, Size. Existing classes are matched by name
+            within the department and updated.
           </DialogDescription>
         </DialogHeader>
         {locked && (
@@ -315,6 +330,24 @@ function UploadClassesDialog({
           </Alert>
         )}
         <div className="space-y-3">
+          {departments && (
+            <Select
+              value={deptSlug}
+              onValueChange={(v) => setDeptSlug(v ?? "")}
+              disabled={locked || isPending}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map((d) => (
+                  <SelectItem key={d.id} value={d.slug}>
+                    {d.name} ({d.slug})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Input
             type="file"
             accept=".csv,text/csv"
@@ -332,8 +365,8 @@ function UploadClassesDialog({
           </Button>
           <Button
             type="button"
-            onClick={() => file && onUpload(file)}
-            disabled={!file || locked || isPending}
+            onClick={() => file && targetSlug && onUpload(file, targetSlug)}
+            disabled={!file || !targetSlug || locked || isPending}
           >
             <Upload className="mr-2 h-4 w-4" />
             {isPending ? "Uploading…" : "Upload"}

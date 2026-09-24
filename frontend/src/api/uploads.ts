@@ -33,8 +33,21 @@ export function useUploadCourses() {
   return useUploadHook("/uploads/courses/");
 }
 
-export function useUploadClassesForDepartment(deptSlug: string) {
-  return useUploadHook(`/uploads/classes/${deptSlug}/`);
+export function useUploadClassesForDepartment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { file: File; deptSlug: string }) => {
+      const formData = new FormData();
+      formData.append("file", data.file);
+      const res = await api.post<UploadResult>(
+        `/uploads/classes/${data.deptSlug}/`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries(),
+  });
 }
 
 export function useUploadClassCourses(classId: number) {
