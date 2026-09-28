@@ -11,6 +11,8 @@ db.sqlite3
 env/
 .env
 .idea/
+.codex-artifacts
+docs
 
 # IDE files
 .vscode/
@@ -40,6 +42,7 @@ local_settings.py
 .coverage
 htmlcov/
 .venv/
+.DS_Store
 
 # Logs
 logs/*.log
