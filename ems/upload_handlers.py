@@ -133,25 +133,20 @@ def upload_courses(file) -> dict[str, int]:
 
 def upload_classes_for_department(file, department: Department) -> dict[str, int]:
     df = _read_csv(file)
-    _check_columns(df, ["Name", "Size"])
+    # A ``Size`` column is still accepted but ignored: a class's size is its
+    # uploaded student list (spec 0001).
+    _check_columns(df, ["Name"])
     _check_no_duplicates(df, "Name", "class names")
 
     created = updated = 0
     with transaction.atomic():
         for row in df.to_dict("records"):
             name = str(row["Name"]).strip()
-            size = int(row["Size"]) if pd.notna(row["Size"]) else 0
-            cls, was_created = Class.objects.get_or_create(
-                name=name,
-                department=department,
-                defaults={"size": size},
+            _cls, was_created = Class.objects.get_or_create(
+                name=name, department=department
             )
             if was_created:
                 created += 1
-            elif cls.size != size:
-                cls.size = size
-                cls.save(update_fields=["size"])
-                updated += 1
             else:
                 updated += 1
     return {"created": created, "updated": updated}
@@ -227,10 +222,14 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
 
     to_create: list[Student] = []
     to_update: list[Student] = []
+    # Classes whose lists this upload changes: this one, plus any class a
+    # re-uploaded student moves out of.
+    touched = {cls.id}
     for record in df.to_dict("records"):
         matric = record["MATRIC NUMBER"]
         if matric in existing:
             s = existing[matric]
+            touched.add(s.level_id)
             s.first_name = record["FIRSTNAME"]
             s.last_name = record["LASTNAME"]
             s.email = record["EMAIL"]
@@ -267,6 +266,8 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
                 ],
                 batch_size=250,
             )
+        # Bulk writes skip model signals, so sync the display size here.
+        Class.objects.sync_student_counts(touched)
     return {"created": len(to_create), "updated": len(to_update)}
 
 

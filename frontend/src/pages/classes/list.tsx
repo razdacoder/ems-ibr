@@ -8,6 +8,7 @@ import {
   useClasses,
   useCreateClass,
   useDeleteClass,
+  useSetClassActive,
   useUpdateClass,
 } from "@/api/classes";
 import { useDepartments } from "@/api/departments";
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Form,
   FormControl,
@@ -70,6 +72,7 @@ export default function ClassesListPage() {
     department: department === "__all__" ? undefined : department,
   });
   const remove = useDeleteClass();
+  const setActive = useSetClassActive();
   const departments = useDepartments({ all: true, enabled: !!user?.is_staff });
   const settings = useSystemSettings();
   const uploadClasses = useUploadClassesForDepartment();
@@ -97,6 +100,24 @@ export default function ClassesListPage() {
   };
 
   const confirm = useConfirm();
+
+  const onToggleActive = async (c: Class, is_active: boolean) => {
+    try {
+      await setActive.mutateAsync({ id: c.id, is_active });
+      toast({
+        title: is_active ? "Class switched on" : "Class switched off",
+        description: is_active
+          ? `${c.name} is planned in every generate run again.`
+          : `${c.name} is left out of the timetable, distribution and allocation.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Could not change the class",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
 
   const onDelete = async (c: Class) => {
     const ok = await confirm({
@@ -190,6 +211,7 @@ export default function ClassesListPage() {
               <TableHead className="w-[100px]">Dept</TableHead>
               <TableHead>Class</TableHead>
               <TableHead className="w-[140px] text-right">Students</TableHead>
+              <TableHead className="w-[90px]">Active</TableHead>
               <TableHead>Courses</TableHead>
               {isAdmin && (
                 <TableHead className="w-[280px] text-right">Actions</TableHead>
@@ -198,7 +220,10 @@ export default function ClassesListPage() {
           </TableHeader>
           <TableBody>
             {list.data?.results.map((c) => (
-              <TableRow key={c.id}>
+              <TableRow
+                key={c.id}
+                className={c.is_active ? undefined : "text-muted-foreground"}
+              >
                 <TableCell>
                   <kbd className="rounded-[4px] border border-[color:var(--border)] bg-[color:var(--muted)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide">
                     {c.department.slug}
@@ -211,6 +236,20 @@ export default function ClassesListPage() {
                   <span className="font-mono tabular-nums">
                     {c.student_count.toLocaleString()}
                   </span>
+                </TableCell>
+                <TableCell>
+                  {isAdmin ? (
+                    <Switch
+                      checked={c.is_active}
+                      onCheckedChange={(v) => onToggleActive(c, v)}
+                      disabled={setActive.isPending}
+                      aria-label={`${c.name} is sitting this session`}
+                    />
+                  ) : (
+                    <span className="font-mono text-[11px]">
+                      {c.is_active ? "Yes" : "Off"}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="whitespace-normal">
                   <div className="flex flex-wrap gap-1">
@@ -317,8 +356,9 @@ function UploadClassesDialog({
         <DialogHeader>
           <DialogTitle>Upload classes CSV</DialogTitle>
           <DialogDescription>
-            CSV columns: Name, Size. Existing classes are matched by name
-            within the department and updated.
+            CSV column: Name. Existing classes are matched by name within the
+            department. A Size column is ignored: a class's size is the
+            number of students you upload for it.
           </DialogDescription>
         </DialogHeader>
         {locked && (
@@ -379,7 +419,6 @@ function UploadClassesDialog({
 
 const schema = z.object({
   name: z.string().trim().min(1, "Class name is required"),
-  size: z.coerce.number().int().min(0),
   department_id: z.coerce.number().int().min(1, "Pick a department"),
   visa_code: z.string().trim().max(50).default(""),
 });
@@ -402,7 +441,7 @@ function ClassFormDialog({
   const [topError, setTopError] = useState<string | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", size: 0, department_id: 0, visa_code: "" },
+    defaultValues: { name: "", department_id: 0, visa_code: "" },
   });
   const create = useCreateClass();
   const update = useUpdateClass(initial?.id ?? 0);
@@ -420,11 +459,10 @@ function ClassFormDialog({
       initial
         ? {
             name: initial.name ?? "",
-            size: initial.size,
             department_id: initial.department.id,
             visa_code: initial.visa_code ?? "",
           }
-        : { name: "", size: 0, department_id: fallbackDeptId, visa_code: "" },
+        : { name: "", department_id: fallbackDeptId, visa_code: "" },
     );
     setTopError(null);
   }, [open, initial, form, userDept?.id]);
@@ -435,7 +473,6 @@ function ClassFormDialog({
       if (isEdit) {
         await update.mutateAsync({
           name: v.name,
-          size: v.size,
           visa_code: v.visa_code,
         });
         toast({ title: "Class updated" });
@@ -449,7 +486,7 @@ function ClassFormDialog({
       setTopError(env.detail);
       if (env.errors) {
         for (const [k, msgs] of Object.entries(env.errors)) {
-          if (k === "name" || k === "size" || k === "department_id") {
+          if (k === "name" || k === "department_id") {
             form.setError(k, { message: msgs.join(", ") });
           }
         }
@@ -463,7 +500,8 @@ function ClassFormDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit class" : "New class"}</DialogTitle>
           <DialogDescription>
-            Class size is auto-recalculated from enrolled students.
+            A class's size is always its uploaded student list. Upload
+            students from the class page.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -520,19 +558,14 @@ function ClassFormDialog({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="size"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Size</FormLabel>
-                  <FormControl>
-                    <Input type="number" min={0} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {isEdit && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Students</p>
+                <div className="flex h-9 items-center rounded-md border border-[color:var(--border)] bg-[color:var(--muted)] px-3 font-mono text-[12px] tabular-nums text-muted-foreground">
+                  {initial?.student_count ?? 0} uploaded
+                </div>
+              </div>
+            )}
             <FormField
               control={form.control}
               name="visa_code"

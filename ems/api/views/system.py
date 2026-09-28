@@ -104,9 +104,8 @@ class DashboardStatsView(APIView):
             halls_count = Hall.objects.count()
             courses_count = Course.objects.count()
             classes_count = Class.objects.count()
-            # Live uploaded student count (falls back to declared size when a
-            # class has no students uploaded yet).
-            students_total = Class.objects.total_effective_size()
+            # Live student count over active classes.
+            students_total = Class.objects.total_student_count()
 
             shared_qs = (
                 Course.objects.annotate(
@@ -149,7 +148,7 @@ class DashboardStatsView(APIView):
                     Course.objects.filter(courses__in=dept_classes).distinct().count()
                 )
                 classes_count = dept_classes.count()
-                students_total = dept_classes.total_effective_size()
+                students_total = dept_classes.total_student_count()
             else:
                 departments_count = halls_count = courses_count = 0
                 classes_count = students_total = 0

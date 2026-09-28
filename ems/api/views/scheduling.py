@@ -4,13 +4,14 @@ and distribution statistics. The generate/manual-assign endpoints live in
 
 from datetime import datetime
 
-from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models import Count, Prefetch, Q
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from django.db.models import Sum
-
+from ems import readiness
+from ems.api.permissions import IsSuperAdmin
 from ems.models import (
     Class,
     Course,
@@ -21,6 +22,40 @@ from ems.models import (
     TimeTable,
 )
 from ems.utils import hall_effective_capacity
+
+
+class ReadinessView(APIView):
+    """GET /api/readiness/?stage=timetable|distribution|allocation
+    [&date=YYYY-MM-DD&period=AM|PM]
+
+    What would stop the stage's generate run. No date/period = every slot
+    (the generate all case). Same checks the generate views and tasks run.
+    """
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        stage = request.query_params.get("stage")
+        if stage not in readiness.STAGES:
+            raise ValidationError(
+                {"detail": f"stage must be one of: {', '.join(readiness.STAGES)}."}
+            )
+        date = request.query_params.get("date")
+        period = request.query_params.get("period")
+        if bool(date) != bool(period):
+            raise ValidationError(
+                {"detail": "Pass date and period together, or neither."}
+            )
+        slots = None
+        if date:
+            try:
+                datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                raise ValidationError({"detail": "date must be in YYYY-MM-DD format."})
+            if period not in ("AM", "PM"):
+                raise ValidationError({"detail": "period must be AM or PM."})
+            slots = [(date, period)]
+        return Response(readiness.check(stage, slots))
 
 
 class TimetableListView(APIView):
@@ -112,7 +147,7 @@ class TimetableEstimateView(APIView):
         # ─── Per-class load (1 exam per class per period) ───────────────
         worst_am = worst_pm = worst_total = 0
         class_count = 0
-        for cls in Class.objects.all().prefetch_related("courses").only("id", "name"):
+        for cls in Class.objects.active().prefetch_related("courses").only("id", "name"):
             class_count += 1
             am = pm = 0
             key = (cls.name or "").strip().lower()
@@ -141,11 +176,13 @@ class TimetableEstimateView(APIView):
         for course in (
             Course.objects.filter(exam_type="PBE")
             .prefetch_related(
-                Prefetch("courses", queryset=Class.objects.with_student_count())
+                Prefetch(
+                    "courses", queryset=Class.objects.active().with_student_count()
+                )
             )
         ):
-            # Effective size = live uploaded count, falling back to declared size.
-            seats = sum(cls.effective_size for cls in course.courses.all())
+            # Live student count of the course's active classes.
+            seats = sum(cls.student_count for cls in course.courses.all())
             # split_course's logic: PM only if any class is mapped to PM;
             # else AM (default).
             period = "AM"

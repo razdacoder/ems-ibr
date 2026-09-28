@@ -9,9 +9,11 @@ from .models import (
     BackgroundJob, Class, Course, Distribution, GenerationConstraints,
     Hall, TimeTable, SeatArrangement, DistributionItem, Student, Department
 )
+from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
     get_courses, get_halls, split_course, generate,
-    distribute_classes_to_halls, save_to_db, print_seating_arrangement
+    distribute_classes_to_halls, save_to_db, print_seating_arrangement,
+    record_planned_students, slot_student_counts,
 )
 
 
@@ -46,6 +48,47 @@ def _allocation_is_complete(date, period):
     )
     seated_halls = set(sa.values_list('hall_id', flat=True))
     return dist_halls <= seated_halls
+
+
+def _fail_not_ready(job, report):
+    """Stop a job the readiness safety net refused. Expected, so no
+    traceback: the lists are what the officer needs to fix the data."""
+    job.status = 'failed'
+    job.error_message = str(NotReady(report))
+    job.result_data = failed_result(report)
+    job.completed_at = timezone.now()
+    job.save()
+    return {'status': 'failed', 'message': job.error_message}
+
+
+def _assert_ready(stage, slots=None):
+    report = check_readiness(stage, slots)
+    if not report['ready']:
+        raise NotReady(report)
+    return report
+
+
+def _distribute_slot(date, period, halls_list):
+    """Distribute one slot, save it, and record what it planned.
+
+    Returns ``(result, skipped_inactive, unplaced_by_class)``. The student
+    counts are read once, so ``planned_students`` is exactly the number the
+    halls were planned for.
+    """
+    from django.db import transaction
+    from .readiness import skipped_inactive
+
+    timetables = list(
+        TimeTable.objects.filter(date=date, period=period).select_related(
+            'course', 'class_obj', 'class_obj__department'
+        )
+    )
+    size_map = slot_student_counts(timetables)
+    result = distribute_classes_to_halls(timetables, halls_list, size_map=size_map)
+    with transaction.atomic():
+        save_to_db(result, str(date), period)
+        unplaced = record_planned_students(timetables, size_map, result)
+    return result, skipped_inactive([(date, period)]), unplaced
 
 
 def generate_random_students(num_students=100):
@@ -133,6 +176,10 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         # Parse dates
         startDate = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         endDate = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+
+        # Safety net: the view checks this before queuing, but a list may
+        # have changed since.
+        _assert_ready('timetable')
 
         constraints = _load_constraints()
         excluded_days = set(constraints.excluded_weekdays or [])
@@ -249,7 +296,9 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         
         print(f"[TASK] Job completed successfully. Job ID: {job_id}")
         return job.result_data
-        
+
+    except NotReady as e:
+        return _fail_not_ready(job, e.report)
     except Exception as e:
         import traceback
         print(f"[ERROR] Timetable generation failed: {str(e)}")
@@ -292,6 +341,8 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         
         if not timetables.exists():
             raise ValueError(f"No timetables found for {date} {period}")
+
+        _assert_ready('distribution', [(date, period)])
         
         # Update progress: 30%
         job.progress = 30
@@ -313,24 +364,13 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             pattern=constraints.seat_pattern,
         )
 
-        # Distribute classes across halls (bulk placement + tail consolidation)
-        result = distribute_classes_to_halls(
-            list(timetables),
-            halls_list,
-        )
-        
-        # Update progress: 60%
-        job.progress = 60
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 60, 'status': 'Classes distributed, preparing to save...'})
-        
-        # Update progress: 70%
+        # Distribute classes across halls (bulk placement + tail
+        # consolidation), save, and record planned_students.
+        _, skipped, unplaced = _distribute_slot(date, period, halls_list)
+
         job.progress = 70
         job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 70, 'status': 'Saving distribution...'})
-        
-        # Save to database
-        save_to_db(result, date, period)
+        self.update_state(state='PROGRESS', meta={'progress': 70, 'status': 'Distribution saved...'})
         
         # Complete job
         job.status = 'success'
@@ -341,12 +381,16 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             'message': 'Distribution generated successfully',
             'distributions_created': distributions_count,
             'date': date,
-            'period': period
+            'period': period,
+            'skipped_inactive': skipped,
+            'unplaced_by_class': unplaced,
         }
         job.save()
-        
+
         return {'status': 'success', 'message': 'Distribution generated successfully'}
-        
+
+    except NotReady as e:
+        return _fail_not_ready(job, e.report)
     except Exception as e:
         import traceback
         job.status = 'failed'
@@ -400,6 +444,10 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         
         if not distributions.exists():
             raise ValueError(f"No distributions found for {date} {period}. Please generate distribution first.")
+
+        # Safety net: refuse a slot whose student lists changed after its
+        # distribution, before anything is cleared or seated.
+        _assert_ready('allocation', [(date, period)])
 
         # Clear any prior attempt for this slot first, so this call is safe
         # to retry — a hard timeout can leave a slot half-built (some halls
@@ -562,6 +610,8 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'message': f'Allocated {total_allocated} students across {processed_halls} halls. {total_unplaced} unplaced.'
         }
 
+    except NotReady as e:
+        return _fail_not_ready(job, e.report)
     except Exception as e:
         import traceback
         job.status = 'failed'
@@ -593,12 +643,16 @@ def generate_distribution_all_task(self, job_id, user_id):
         )
         if not slots:
             raise ValueError('No timetable rows found — generate the timetable first.')
+        # Check every slot before distributing any.
+        _assert_ready('distribution')
         total = len(slots)
         results = []
         # Halls don't change between slots — read + convert them once instead
         # of re-querying every iteration. distribute_classes_to_halls mutates
         # its hall dicts in place, so rebuild a fresh copy per slot below.
         halls_qs = list(Hall.objects.all())
+        skipped_inactive = []
+        unplaced_by_class = []
         for i, (date, period) in enumerate(slots):
             progress = int((i / total) * 95)
             self.update_state(state='PROGRESS', meta={
@@ -610,19 +664,16 @@ def generate_distribution_all_task(self, job_id, user_id):
             if Distribution.objects.filter(date=str(date), period=period).exists():
                 results.append({'date': str(date), 'period': period, 'skipped': True})
                 continue
-            timetables = TimeTable.objects.filter(
-                date=date, period=period
-            ).select_related('course', 'class_obj', 'class_obj__department')
             halls_list = convert_hall_to_dict(
                 halls_qs,
                 safety_factor=float(constraints.pbe_hall_utilization),
                 pattern=constraints.seat_pattern,
             )
-            result = distribute_classes_to_halls(
-                list(timetables),
-                halls_list,
+            result, skipped, unplaced = _distribute_slot(date, period, halls_list)
+            skipped_inactive.extend(skipped)
+            unplaced_by_class.extend(
+                {'date': str(date), 'period': period, **u} for u in unplaced
             )
-            save_to_db(result, str(date), period)
             results.append({'date': str(date), 'period': period, 'halls_used': len(result)})
 
         job.status = 'success'
@@ -634,9 +685,13 @@ def generate_distribution_all_task(self, job_id, user_id):
             'slots_processed': total,
             'slots_skipped': skipped,
             'slots': results,
+            'skipped_inactive': skipped_inactive,
+            'unplaced_by_class': unplaced_by_class,
         }
         job.save()
         return {'status': 'success', 'message': job.result_data['message']}
+    except NotReady as e:
+        return _fail_not_ready(job, e.report)
     except SoftTimeLimitExceeded:
         # Soft limit hit — fail gracefully before the hard SIGKILL so the job
         # isn't left stuck in 'running'. This task is resumable: it skips slots
@@ -688,6 +743,8 @@ def generate_allocation_all_task(self, job_id, user_id):
         )
         if not slots:
             raise ValueError('No distributions found — generate distribution first.')
+        # Check every slot before seating anyone in any of them.
+        _assert_ready('allocation')
         total = len(slots)
         results = []
         for i, (date, period) in enumerate(slots):
@@ -743,6 +800,8 @@ def generate_allocation_all_task(self, job_id, user_id):
         }
         job.save()
         return {'status': 'success', 'message': job.result_data['message']}
+    except NotReady as e:
+        return _fail_not_ready(job, e.report)
     except SoftTimeLimitExceeded:
         # Soft limit hit — fail gracefully before the hard SIGKILL. Resumable:
         # slots that already have a SeatArrangement are skipped on re-run.

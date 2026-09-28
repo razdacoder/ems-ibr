@@ -17,7 +17,7 @@ from ems.utils import (
     distribute_classes_to_halls,
 )
 
-from .helpers import make_class, make_course, make_hall, quietly, schedule
+from .helpers import listed_class, make_course, make_hall, quietly, schedule
 
 
 def run_distribution(pattern="sequential", utilization=1.0):
@@ -25,7 +25,7 @@ def run_distribution(pattern="sequential", utilization=1.0):
     halls = convert_hall_to_dict(
         Hall.objects.all(), safety_factor=utilization, pattern=pattern
     )
-    timetables = list(TimeTable.objects.select_related("course", "class_obj"))
+    timetables = list(TimeTable.objects.select_related("course", "class_obj__department"))
     return distribute_classes_to_halls(timetables, halls)
 
 
@@ -108,7 +108,7 @@ class BalancedLoadTests(TestCase):
         for n in range(4):
             make_hall(f"Room {n}", 10, 10)  # 100 seats each, 800 in all
         for n in range(8):  # 320 students, 40% of the seats
-            schedule(make_class(40), make_course(f"C{n:02}"))
+            schedule(listed_class(40), make_course(f"C{n:02}"))
 
         result = run_distribution()
 
@@ -122,7 +122,7 @@ class BalancedLoadTests(TestCase):
         make_hall("Big", 20, 20)
         make_hall("Small", 10, 10)
         for n in range(10):  # 250 of 500 seats
-            schedule(make_class(25), make_course(f"C{n:02}"))
+            schedule(listed_class(25), make_course(f"C{n:02}"))
 
         loads = assigned(run_distribution())
 
@@ -135,7 +135,7 @@ class BalancedLoadTests(TestCase):
         for n in range(3):
             make_hall(f"Room {n}", 10, 10)
         for n in range(12):  # 300 students, 300 seats, 25 per course
-            schedule(make_class(25), make_course(f"C{n:02}"))
+            schedule(listed_class(25), make_course(f"C{n:02}"))
 
         loads = assigned(run_distribution())
 
@@ -145,7 +145,7 @@ class BalancedLoadTests(TestCase):
         make_hall("Room A", 10, 10)
         make_hall("Room B", 8, 10)
         for n in range(10):  # 400 students for 180 seats
-            schedule(make_class(40), make_course(f"C{n:02}"))
+            schedule(listed_class(40), make_course(f"C{n:02}"))
 
         loads = assigned(run_distribution())
 
@@ -179,7 +179,7 @@ class SeatableAssignmentTests(TestCase):
                 n = 0
                 while demand < seats * rng.uniform(0.5, 1.1):
                     size = rng.choice([7, 12, 19, 23, 31, 40, 55])
-                    schedule(make_class(size), make_course(f"S{seed}C{n:02}"))
+                    schedule(listed_class(size), make_course(f"S{seed}C{n:02}"))
                     demand += size
                     n += 1
                 random.seed(seed)
@@ -196,7 +196,7 @@ class SeatableAssignmentTests(TestCase):
         make_hall("Room A", 12, 15)
         make_hall("Room B", 10, 10)
         for n, size in enumerate([40, 33, 27, 20, 18, 11, 9]):
-            schedule(make_class(size), make_course(f"C{n:02}"))
+            schedule(listed_class(size), make_course(f"C{n:02}"))
         random.seed(1)
 
         result = run_distribution(pattern="checkerboard", utilization=0.9)
@@ -218,7 +218,7 @@ class LargeCourseTests(TestCase):
             make_hall(f"Room {n}", 10, 10)  # 1000 seats, 25 per quarter
         course = make_course("COM 115")
         for _ in range(3):
-            schedule(make_class(60), course)  # 180 students, one course
+            schedule(listed_class(60), course)  # 180 students, one course
 
         result = run_distribution()
 
@@ -231,7 +231,7 @@ class LargeCourseTests(TestCase):
             make_hall(f"Room {n}", 10, 10)
         course = make_course("COM 115")
         for _ in range(3):
-            schedule(make_class(60), course)
+            schedule(listed_class(60), course)
 
         result = run_distribution()
 
@@ -244,7 +244,7 @@ class LargeCourseTests(TestCase):
         # without two of them sitting side by side.
         make_hall("Room A", 10, 10)
         make_hall("Room B", 10, 10)
-        schedule(make_class(80), make_course("GNS 202"))
+        schedule(listed_class(80), make_course("GNS 202"))
 
         result = run_distribution()
 

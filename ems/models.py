@@ -5,7 +5,8 @@ from django.contrib.auth.models import (
     PermissionsMixin,
 )
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, F, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 
 
 class Faculty(models.Model):
@@ -212,31 +213,61 @@ class Course(models.Model):
         return f"{self.name} - {self.code}"
 
 
+def _student_count_filter():
+    """A class's student list: students whose ``level`` is the class **and**
+    whose ``department`` is the class's department. This is the same set
+    allocation seats, so planning and seating always agree (spec 0001)."""
+    return Q(student__department=F("department"))
+
+
 class ClassQuerySet(models.QuerySet):
-    """Adds student-count helpers so callers read the live uploaded count
-    rather than the denormalized ``size`` field."""
+    """Student count helpers. Every planning stage reads the live student
+    count through these. Nothing that plans seats reads ``Class.size``."""
+
+    def active(self):
+        return self.filter(is_active=True)
 
     def with_student_count(self):
-        """Annotate ``_student_count`` = live number of enrolled students.
+        """Annotate ``_student_count`` = live number of students in the class.
 
         Classes loaded through this carry the count, so the ``student_count``
-        / ``effective_size`` properties resolve without an extra query.
+        property resolves without an extra query.
         """
-        return self.annotate(_student_count=Count("student"))
-
-    def effective_size_map(self) -> dict:
-        """Map of ``class id -> effective size`` (live student count, or the
-        declared ``size`` when no students are uploaded for that class)."""
-        return {
-            cid: (sc if sc else size)
-            for cid, sc, size in self.with_student_count().values_list(
-                "id", "_student_count", "size"
+        return self.annotate(
+            _student_count=Count(
+                "student", filter=_student_count_filter(), distinct=True
             )
-        }
+        )
 
-    def total_effective_size(self) -> int:
-        """Sum of effective sizes across the queryset."""
-        return sum(self.effective_size_map().values())
+    def student_count_map(self) -> dict:
+        """Map of ``class id -> student count``. No fallback: a class with no
+        students maps to 0."""
+        return dict(self.with_student_count().values_list("id", "_student_count"))
+
+    def total_student_count(self) -> int:
+        """Sum of student counts over the active classes in the queryset."""
+        return sum(self.active().student_count_map().values())
+
+    def sync_student_counts(self, class_ids) -> int:
+        """Set ``size`` to the live student count for ``class_ids`` in one
+        ``UPDATE``. ``size`` is a display copy only; planning never reads it.
+        Call after every write that adds, removes or moves students (bulk
+        writes skip model signals)."""
+        ids = {cid for cid in class_ids if cid}
+        if not ids:
+            return 0
+        count_sq = (
+            Student.objects.filter(
+                level_id=OuterRef("pk"), department_id=OuterRef("department_id")
+            )
+            .order_by()
+            .values("level_id")
+            .annotate(n=Count("id"))
+            .values("n")
+        )
+        return self.filter(pk__in=ids).update(
+            size=Coalesce(Subquery(count_sq), Value(0))
+        )
 
 
 class Class(models.Model):
@@ -245,9 +276,13 @@ class Class(models.Model):
     department = models.ForeignKey(
         Department, related_name="class_dep", on_delete=models.CASCADE
     )
-    # Declared size from class-data upload. Kept as a fallback for classes
-    # with no uploaded students yet; ``effective_size`` is the number to use.
-    size = models.IntegerField()
+    # Display copy of the live student count, kept in step by
+    # ``ClassQuerySet.sync_student_counts``. Read only in the API and never
+    # read by planning code: plan from ``student_count`` instead.
+    size = models.IntegerField(default=0)
+    # Off = the class is not sitting this session. It is left out of every
+    # planning stage and never blocks a generate run.
+    is_active = models.BooleanField(default=True)
     # Optional override for the VISA short code. Blank => auto-derived from
     # ``name`` (see ems.directory.derive_visa_code).
     visa_code = models.CharField(max_length=50, blank=True, default="")
@@ -256,7 +291,7 @@ class Class(models.Model):
 
     @property
     def student_count(self) -> int:
-        """Live number of students enrolled in this class (from uploaded data).
+        """Live number of students in this class (level and department match).
 
         Uses the ``_student_count`` annotation when present (see
         ``ClassQuerySet.with_student_count``); otherwise counts on demand.
@@ -264,14 +299,7 @@ class Class(models.Model):
         annotated = getattr(self, "_student_count", None)
         if annotated is not None:
             return annotated
-        return self.student_set.count()
-
-    @property
-    def effective_size(self) -> int:
-        """Students to plan for: the live uploaded count, falling back to the
-        declared ``size`` when no students have been uploaded yet."""
-        count = self.student_count
-        return count if count else self.size
+        return self.student_set.filter(department_id=self.department_id).count()
 
     @property
     def full_label(self) -> str:
@@ -331,6 +359,10 @@ class TimeTable(models.Model):
                                   related_name="timetable_class")
     period = models.CharField(max_length=50, choices=PERIOD)
     date = models.DateField()
+    # The class's student count when distribution last ran for this row.
+    # NULL = never distributed. Allocation refuses a slot whose rows no longer
+    # match the live count (the list changed after distribution).
+    planned_students = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"

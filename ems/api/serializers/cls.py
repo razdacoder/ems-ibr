@@ -30,15 +30,18 @@ class ClassSerializer(serializers.ModelSerializer):
             "department_id",
             "courses",
             "student_count",
+            "is_active",
             "visa_code",
             "visa_label",
             "full_label",
         ]
-        read_only_fields = ["id"]
+        # ``size`` is a display copy of the student count, kept in step on
+        # every student write; a written value is ignored.
+        read_only_fields = ["id", "size"]
         extra_kwargs = {"visa_code": {"required": False, "allow_blank": True}}
 
     def get_student_count(self, obj):
-        return getattr(obj, "_student_count", obj.student_set.count())
+        return obj.student_count
 
     def validate_name(self, value):
         if value is None:
@@ -47,13 +50,6 @@ class ClassSerializer(serializers.ModelSerializer):
         if not name:
             raise serializers.ValidationError("Class name is required.")
         return name
-
-    def validate_size(self, value):
-        if value is None or value < 0:
-            raise serializers.ValidationError(
-                "Class size must be a non-negative integer."
-            )
-        return value
 
     def validate(self, attrs):
         name = attrs.get("name") or (self.instance.name if self.instance else None)

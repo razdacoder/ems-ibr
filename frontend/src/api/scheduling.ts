@@ -192,3 +192,51 @@ export function useHallAllocation(params: {
     enabled: !!(params.date && params.period && params.hall_id),
   });
 }
+
+export type ReadinessStage = "timetable" | "distribution" | "allocation";
+
+export interface Readiness {
+  ready: boolean;
+  stage: ReadinessStage;
+  empty_classes: Array<{
+    class_id: number;
+    label: string;
+    department: string;
+    courses: string[];
+  }>;
+  stale: Array<{
+    date: string;
+    period: Period;
+    class_id: number;
+    label: string;
+    course: string;
+    planned: number | null;
+    current: number;
+  }>;
+  skipped_inactive: Array<{
+    date: string;
+    period: Period;
+    class_id: number;
+    label: string;
+    course: string;
+  }>;
+}
+
+/** What would stop a stage's generate run. No slot = every slot (the
+ * "generate all" case). Super admins only, so pass `enabled` accordingly. */
+export function useReadiness(
+  stage: ReadinessStage,
+  slot?: { date: string; period: Period },
+  enabled: boolean = true,
+) {
+  return useQuery({
+    queryKey: ["readiness", stage, slot ?? null],
+    queryFn: async () => {
+      const res = await api.get<Readiness>("/readiness/", {
+        params: { stage, ...slot },
+      });
+      return res.data;
+    },
+    enabled,
+  });
+}

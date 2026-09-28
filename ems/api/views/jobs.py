@@ -14,6 +14,7 @@ from ems.api.permissions import IsJobOwnerOrAdmin, IsSuperAdmin
 from ems.api.serializers.job import BackgroundJobSerializer
 from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
+from ems.readiness import blocking_message, check as check_readiness
 from ems.models import (
     BackgroundJob,
     Class,
@@ -23,7 +24,16 @@ from ems.models import (
     Faculty,
     Hall,
     SeatArrangement,
+    TimeTable,
 )
+
+
+def _assert_ready(stage: str, slots=None) -> None:
+    """409 before a job is queued when the stage's readiness check fails.
+    The task repeats the same check (``ems.readiness``) as a safety net."""
+    report = check_readiness(stage, slots)
+    if not report["ready"]:
+        raise Conflict(blocking_message(report))
 
 
 def _assert_generation_allowed() -> None:
@@ -265,7 +275,9 @@ class GenerateTimetableView(_BaseGenerateView):
             if not resource_qs:
                 raise ValidationError({"detail": message})
 
-        missing = Class.objects.filter(courses__isnull=True).select_related(
+        # Inactive classes are not sitting, so they never block a run.
+        active_classes = Class.objects.active()
+        missing = active_classes.filter(courses__isnull=True).select_related(
             "department"
         )
         if missing.exists():
@@ -303,7 +315,7 @@ class GenerateTimetableView(_BaseGenerateView):
                 days_available += 1
             cursor += timedelta(days=1)
         max_courses = max(
-            (cls.courses.count() for cls in Class.objects.prefetch_related("courses")),
+            (cls.courses.count() for cls in active_classes.prefetch_related("courses")),
             default=0,
         )
         if days_available < max_courses:
@@ -315,6 +327,8 @@ class GenerateTimetableView(_BaseGenerateView):
                     )
                 }
             )
+
+        _assert_ready("timetable")
 
         job_id = self._create_job(
             request.user, {"start_date": start, "end_date": end}
@@ -336,6 +350,7 @@ class GenerateDistributionView(_BaseGenerateView):
                 f"A distribution for {date} ({period}) already exists. "
                 "Clear it before regenerating."
             )
+        _assert_ready("distribution", [(date, period)])
         job_id = self._create_job(request.user, {"date": date, "period": period})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
 
@@ -362,6 +377,7 @@ class GenerateAllocationView(_BaseGenerateView):
             raise Conflict(
                 f"Seat allocation for {date} ({period}) already exists."
             )
+        _assert_ready("allocation", [(date, period)])
         job_id = self._create_job(request.user, {"date": date, "period": period})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
 
@@ -375,11 +391,12 @@ class GenerateDistributionAllView(_BaseGenerateView):
     def post(self, request):
         _assert_generation_allowed()
         # Lightweight gate: timetable must exist somewhere.
-        from ems.models import TimeTable
         if not TimeTable.objects.exists():
             raise ValidationError(
                 {"detail": "No timetable found. Generate the timetable first."}
             )
+        # Every slot is checked before any is distributed.
+        _assert_ready("distribution")
         job_id = self._create_job(request.user, {})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
 
@@ -396,6 +413,8 @@ class GenerateAllocationAllView(_BaseGenerateView):
             raise ValidationError(
                 {"detail": "No distributions found. Generate distribution first."}
             )
+        # Every slot is checked before anyone is seated.
+        _assert_ready("allocation")
         job_id = self._create_job(request.user, {})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
 

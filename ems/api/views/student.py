@@ -7,7 +7,7 @@ from ems.api.serializers.student import (
     StudentSerializer,
     assert_student_deletable,
 )
-from ems.models import Student
+from ems.models import Class, Student
 
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -59,13 +59,9 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         assert_student_deletable(instance)
-        cls = instance.level
+        class_id = instance.level_id
         instance.delete()
-        if cls is not None:
-            cls.size = Student.objects.filter(
-                level=cls, department=cls.department
-            ).count()
-            cls.save(update_fields=["size"])
+        Class.objects.sync_student_counts([class_id])
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

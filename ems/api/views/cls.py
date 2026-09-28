@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -24,7 +24,7 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
             Class.objects.all()
             .select_related("department")
             .prefetch_related("courses")
-            .annotate(_student_count=Count("student", distinct=True))
+            .with_student_count()
             .order_by("department__name", "name")
         )
         params = self.request.query_params

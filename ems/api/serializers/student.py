@@ -72,8 +72,18 @@ class StudentSerializer(serializers.ModelSerializer):
         student = Student.objects.create(
             level=cls, department=cls.department, **validated_data
         )
-        cls.size = Student.objects.filter(level=cls, department=cls.department).count()
-        cls.save(update_fields=["size"])
+        Class.objects.sync_student_counts([cls.id])
+        return student
+
+    def update(self, instance, validated_data):
+        old_class_id = instance.level_id
+        cls = validated_data.get("level")
+        if cls is not None:
+            # A student always belongs to their class's department, or no
+            # count (and no allocation) would include them.
+            validated_data["department"] = cls.department
+        student = super().update(instance, validated_data)
+        Class.objects.sync_student_counts([old_class_id, student.level_id])
         return student
 
 

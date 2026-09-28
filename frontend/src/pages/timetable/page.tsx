@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import {
+  useReadiness,
   useTimetable,
   useTimetableDates,
   useTimetableEstimate,
@@ -64,6 +65,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { ReadinessPanel } from "@/components/readiness-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -157,6 +159,8 @@ export default function TimetablePage() {
   const [genOpen, setGenOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const readiness = useReadiness("timetable", undefined, isAdmin);
+  const blocked = readiness.data?.ready === false;
 
   return (
     <div className="space-y-10">
@@ -170,13 +174,20 @@ export default function TimetablePage() {
         }
         actions={
           isAdmin && (
-            <Button onClick={() => setGenOpen(true)} size="lg" className="h-10">
+            <Button
+              onClick={() => setGenOpen(true)}
+              disabled={blocked}
+              size="lg"
+              className="h-10"
+            >
               <CalendarPlus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
               Generate timetable
             </Button>
           )
         }
       />
+
+      {isAdmin && <ReadinessPanel report={readiness.data} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <Tabs
@@ -341,11 +352,16 @@ export default function TimetablePage() {
         jobId={jobId}
         title="Timetable generation"
         open={progressOpen}
-        onOpenChange={setProgressOpen}
+        onOpenChange={(o) => {
+          setProgressOpen(o);
+          // A refused job fails, so check again whatever the outcome.
+          if (!o) readiness.refetch();
+        }}
         onSuccess={() => {
           dates.refetch();
           list.refetch();
           all.refetch();
+          readiness.refetch();
         }}
       />
     </div>

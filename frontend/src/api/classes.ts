@@ -13,10 +13,13 @@ export type ExamPeriod = "" | "AM" | "PM";
 export interface Class {
   id: number;
   name: string | null;
+  /** Display copy of the student count, kept in step by the server. Read-only. */
   size: number;
   department: DepartmentRef;
   courses: Course[];
   student_count: number;
+  /** Off = not sitting this session: left out of every planning stage. */
+  is_active: boolean;
   /** Override for the VISA short code; blank => auto-derived. */
   visa_code: string;
   /** Resolved VISA code (override if set, else auto-derived). Read-only. */
@@ -33,9 +36,9 @@ export interface ClassListParams {
 
 export interface ClassInput {
   name: string;
-  size: number;
   department_id: number;
   visa_code?: string;
+  is_active?: boolean;
 }
 
 const KEY = ["classes"] as const;
@@ -84,6 +87,22 @@ export function useUpdateClass(id: number) {
       return res.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/** Switch a class on or off for this session. Refreshes the readiness
+ * checks too, since switching a class off can unblock a generate run. */
+export function useSetClassActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
+      const res = await api.patch<Class>(`/classes/${id}/`, { is_active });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["readiness"] });
+    },
   });
 }
 

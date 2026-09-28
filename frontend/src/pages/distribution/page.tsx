@@ -3,6 +3,7 @@ import { Layers } from "lucide-react";
 import {
   useDistribution,
   useDistributionStatistics,
+  useReadiness,
 } from "@/api/scheduling";
 import { useTimetableDates } from "@/api/scheduling";
 import { useGenerateDistributionAll } from "@/api/jobs";
@@ -26,6 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { ReadinessPanel } from "@/components/readiness-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -46,6 +48,9 @@ export default function DistributionPage() {
   const list = useDistribution({ date, period });
   const stats = useDistributionStatistics(date, period);
   const generate = useGenerateDistributionAll();
+  // Generate covers every slot, so check every slot.
+  const readiness = useReadiness("distribution", undefined, isAdmin);
+  const blocked = readiness.data?.ready === false;
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
 
@@ -74,7 +79,7 @@ export default function DistributionPage() {
           isAdmin && (
             <Button
               onClick={onGenerate}
-              disabled={generate.isPending}
+              disabled={generate.isPending || blocked}
               size="lg"
               className="h-10"
             >
@@ -84,6 +89,8 @@ export default function DistributionPage() {
           )
         }
       />
+
+      {isAdmin && <ReadinessPanel report={readiness.data} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -251,10 +258,15 @@ export default function DistributionPage() {
         jobId={jobId}
         title="Distribution generation"
         open={progressOpen}
-        onOpenChange={setProgressOpen}
+        onOpenChange={(o) => {
+          setProgressOpen(o);
+          // A refused job fails, so check again whatever the outcome.
+          if (!o) readiness.refetch();
+        }}
         onSuccess={() => {
           list.refetch();
           stats.refetch();
+          readiness.refetch();
         }}
       />
     </div>

@@ -258,9 +258,8 @@ def dashboard(request):
         halls = Hall.objects.all().count()
         courses_count = Course.objects.all().count()
         classes_count = Class.objects.all().count()
-        # Live uploaded student count (falls back to declared size when a
-        # class has no students uploaded yet).
-        students = Class.objects.total_effective_size()
+        # Live student count over active classes.
+        students = Class.objects.total_student_count()
 
         # Courses shared across multiple departments (optimized)
         shared_courses_qs = (
@@ -311,7 +310,7 @@ def dashboard(request):
                 Course.objects.filter(courses__in=dept_classes).distinct().count()
             )
             classes_count = dept_classes.count()
-            students = dept_classes.total_effective_size()
+            students = dept_classes.total_student_count()
             # Non-admin users don't see shared courses (single department view)
             shared_courses = []
         else:

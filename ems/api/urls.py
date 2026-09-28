@@ -32,6 +32,7 @@ from ems.api.views.scheduling import (
     DistributionListView,
     DistributionStatisticsView,
     HallAllocationView,
+    ReadinessView,
     TimetableDatesView,
     TimetableEstimateView,
     TimetableListView,
@@ -94,6 +95,7 @@ upload_patterns = [
 
 
 scheduling_patterns = [
+    path("readiness/", ReadinessView.as_view(), name="api-readiness"),
     path("timetable/", TimetableListView.as_view(), name="api-timetable"),
     path(
         "timetable/dates/",

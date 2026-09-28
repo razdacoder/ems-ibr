@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   useAddCourseToClass,
   useClass,
+  useSetClassActive,
   useRemoveCourseFromClass,
 } from "@/api/classes";
 import { useCreateStudent, useStudents } from "@/api/students";
@@ -33,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Form,
   FormControl,
@@ -61,6 +63,7 @@ export default function ClassDetailPage() {
   const numericId = id ? Number(id) : undefined;
   const cls = useClass(numericId);
   const remove = useRemoveCourseFromClass(numericId ?? 0);
+  const setActive = useSetClassActive();
   const { user } = useAuth();
   const isAdmin = !!user?.is_staff || !!user?.department;
   // Mirrors the backend upload check: data managers for any department,
@@ -120,13 +123,49 @@ export default function ClassDetailPage() {
                 </span>
               </p>
             </div>
-            <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                Students enrolled
-              </p>
-              <p className="mt-1 font-serif text-[2rem] tabular-nums">
-                {cls.data.student_count}
-              </p>
+            <div className="flex gap-3">
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Students enrolled
+                </p>
+                <p className="mt-1 font-serif text-[2rem] tabular-nums">
+                  {cls.data.student_count}
+                </p>
+              </div>
+              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4">
+                <p
+                  id="class-active-label"
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                >
+                  Sitting this session
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  {isAdmin ? (
+                    <Switch
+                      checked={cls.data.is_active}
+                      disabled={setActive.isPending}
+                      aria-labelledby="class-active-label"
+                      onCheckedChange={async (is_active) => {
+                        try {
+                          await setActive.mutateAsync({
+                            id: cls.data!.id,
+                            is_active,
+                          });
+                        } catch (err) {
+                          toast({
+                            title: "Could not change the class",
+                            description: extractErrorEnvelope(err).detail,
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <span className="text-sm">
+                    {cls.data.is_active ? "Yes" : "No, left out of planning"}
+                  </span>
+                </div>
+              </div>
             </div>
           </header>
 

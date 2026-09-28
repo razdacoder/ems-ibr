@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import {
   useAllocation,
+  useReadiness,
   useTimetableDates,
 } from "@/api/scheduling";
 import { useGenerateAllocationAll } from "@/api/jobs";
@@ -32,6 +33,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { ReadinessPanel } from "@/components/readiness-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -51,6 +53,9 @@ export default function AllocationPage() {
 
   const list = useAllocation({ date, period });
   const generate = useGenerateAllocationAll();
+  // Generate covers every slot, so check every slot.
+  const readiness = useReadiness("allocation", undefined, isAdmin);
+  const blocked = readiness.data?.ready === false;
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
 
@@ -79,7 +84,7 @@ export default function AllocationPage() {
           isAdmin && (
             <Button
               onClick={onGenerate}
-              disabled={generate.isPending}
+              disabled={generate.isPending || blocked}
               size="lg"
               className="h-10"
             >
@@ -89,6 +94,8 @@ export default function AllocationPage() {
           )
         }
       />
+
+      {isAdmin && <ReadinessPanel report={readiness.data} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -243,9 +250,14 @@ export default function AllocationPage() {
         jobId={jobId}
         title="Seat allocation"
         open={progressOpen}
-        onOpenChange={setProgressOpen}
+        onOpenChange={(o) => {
+          setProgressOpen(o);
+          // A refused job fails, so check again whatever the outcome.
+          if (!o) readiness.refetch();
+        }}
         onSuccess={() => {
           list.refetch();
+          readiness.refetch();
         }}
       />
     </div>

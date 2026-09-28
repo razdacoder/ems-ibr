@@ -7,7 +7,7 @@ import zipfile
 import pandas as pd  # type: ignore
 from django.conf import settings
 from django.db.models import Prefetch
-from typing_extensions import Counter
+from collections import Counter
 
 from .models import (
     Class,
@@ -49,39 +49,45 @@ def get_courses():
 
     Each class also carries its department + faculty slugs so the CBE
     auto-split routine can bucket classes by faculty without re-querying.
+
+    Only active classes are planned, and ``size`` is the live student count
+    (spec 0001). A course with no active class is left out.
     """
     courses = Course.objects.prefetch_related(
         Prefetch(
             "courses",
-            queryset=Class.objects.select_related(
-                "department__faculty"
-            ).with_student_count(),
+            queryset=Class.objects.active()
+            .select_related("department__faculty")
+            .with_student_count(),
         )
     ).all()
 
-    return [
-        {
-            "id": course.id,
-            "code": course.code,
-            "exam_type": course.exam_type,
-            "classes": [
+    result = []
+    for course in courses:
+        classes = [
+            {
+                "id": cls.id,
+                "name": cls.name,
+                "size": cls.student_count,
+                "department_slug": cls.department.slug if cls.department else None,
+                "faculty_slug": (
+                    cls.department.faculty.slug
+                    if cls.department and cls.department.faculty
+                    else None
+                ),
+            }
+            for cls in course.courses.all()
+        ]
+        if classes:
+            result.append(
                 {
-                    "id": cls.id,
-                    "name": cls.name,
-                    # Live uploaded count, falling back to declared size.
-                    "size": cls.effective_size,
-                    "department_slug": cls.department.slug if cls.department else None,
-                    "faculty_slug": (
-                        cls.department.faculty.slug
-                        if cls.department and cls.department.faculty
-                        else None
-                    ),
+                    "id": course.id,
+                    "code": course.code,
+                    "exam_type": course.exam_type,
+                    "classes": classes,
                 }
-                for cls in course.courses.all()
-            ],
-        }
-        for course in courses
-    ]
+            )
+    return result
 
 
 # Save timetable to DB
@@ -735,13 +741,60 @@ def get_total_no_seats(halls):
 
 
 def get_total_no_seats_needed(timetables):
-    # Effective size = live uploaded student count, falling back to the
-    # declared class size. Built once to avoid a per-row query.
-    size_map = Class.objects.effective_size_map()
-    sum = 0
-    for timetable in timetables:
-        sum += size_map.get(timetable.class_obj_id, timetable.class_obj.size)
-    return sum
+    """Seats a set of timetable rows needs: the live student count of each
+    active row's class. Inactive classes need none."""
+    rows = [t for t in timetables if t.class_obj.is_active]
+    size_map = slot_student_counts(rows)
+    return sum(size_map.get(t.class_obj_id, 0) for t in rows)
+
+
+def slot_student_counts(timetables) -> dict:
+    """``{class id: student count}`` for the classes in ``timetables``, in one
+    query. Distribution reads the counts once and uses the same numbers to
+    plan and to record ``planned_students``."""
+    return Class.objects.filter(
+        pk__in={t.class_obj_id for t in timetables}
+    ).student_count_map()
+
+
+def planned_rows(timetables):
+    """Rows distribution plans seats for: paper exams whose class is active.
+    CBE runs on computers; inactive classes are not sitting."""
+    return [
+        t
+        for t in timetables
+        if t.course.exam_type != "CBE" and t.class_obj.is_active
+    ]
+
+
+def record_planned_students(timetables, size_map, result) -> list:
+    """Write ``TimeTable.planned_students`` for every planned row, and return
+    ``unplaced_by_class``: rows given halls for fewer students than planned.
+
+    ``size_map`` must be the map distribution planned with, so the recorded
+    number is exactly the one it used, whether or not everyone found a hall.
+    """
+    rows = planned_rows(timetables)
+    for row in rows:
+        row.planned_students = size_map.get(row.class_obj_id, 0)
+    TimeTable.objects.bulk_update(rows, ["planned_students"], batch_size=500)
+
+    given = Counter()
+    for hall in result:
+        for item in hall["classes"]:
+            given[item["id"]] += item["student_range"]
+    return [
+        {
+            "timetable_id": row.id,
+            "class_id": row.class_obj_id,
+            "label": row.class_obj.full_label,
+            "course": row.course.code,
+            "planned": row.planned_students,
+            "assigned": given[row.id],
+        }
+        for row in rows
+        if row.planned_students > given[row.id]
+    ]
 
 
 # Allocation runs the checkerboard pattern under 8-dir adjacency. That means:
@@ -819,24 +872,22 @@ def convert_hall_to_dict(
     return halls_dict
 
 
-def make_schedules(timetables):
-    # Effective size = live uploaded student count, falling back to the
-    # declared class size. Built once to avoid a per-row query.
-    size_map = Class.objects.effective_size_map()
-    tt = []
-    for timetable in timetables:
-        if timetable.course.exam_type == "CBE":
-            continue
-        tt.append(
-            {
-                "id": timetable.id,
-                "class": timetable.class_obj.name,
-                "course": timetable.course.code,
-                "size": size_map.get(
-                    timetable.class_obj_id, timetable.class_obj.size
-                ),
-            }
-        )
+def make_schedules(timetables, size_map=None):
+    """One entry per planned row, sized by the class's live student count.
+    ``size_map`` (from :func:`slot_student_counts`) lets the caller record
+    the same numbers it planned with."""
+    rows = planned_rows(timetables)
+    if size_map is None:
+        size_map = slot_student_counts(rows)
+    tt = [
+        {
+            "id": timetable.id,
+            "class": timetable.class_obj.name,
+            "course": timetable.course.code,
+            "size": size_map.get(timetable.class_obj_id, 0),
+        }
+        for timetable in rows
+    ]
     random.shuffle(tt)
     return tt
 
@@ -895,7 +946,7 @@ def _max_seatable_bite(hall, course_code, limit):
     return lo
 
 
-def distribute_classes_to_halls(timetables, halls):
+def distribute_classes_to_halls(timetables, halls, size_map=None):
     """Pack timetable rows into halls under allocation-aware caps, in two
     passes.
 
@@ -940,7 +991,7 @@ def distribute_classes_to_halls(timetables, halls):
     the cross hall reconcile scattered them a few at a time across other
     halls (broken matric ranges, mixed attendance sheets).
     """
-    class_schedules = make_schedules(timetables=timetables)
+    class_schedules = make_schedules(timetables=timetables, size_map=size_map)
     # make_schedules already random-shuffles. Stable-sort by size desc to
     # place big courses first while keeping intra-size randomness.
     class_schedules.sort(key=lambda s: s["size"], reverse=True)

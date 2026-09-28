@@ -21,6 +21,21 @@ def make_class(size, department=None, name="ND I"):
     )
 
 
+def listed_class(students, department=None, name="ND I"):
+    """A class with ``students`` real students uploaded. Planning counts the
+    uploaded list, never ``Class.size`` (spec 0001)."""
+    cls = make_class(students, department, name)
+    tag = next(_seq)
+    Student.objects.bulk_create(
+        Student(
+            first_name="Ada", last_name=f"L{tag}-{n}", matric_no=f"L{tag:05}{n:05}",
+            email=f"l{tag}-{n}@example.com", department=cls.department, level=cls,
+        )
+        for n in range(students)
+    )
+    return cls
+
+
 def make_course(code):
     return Course.objects.create(name=f"Course {code}", code=code, exam_type="PBE")
 
