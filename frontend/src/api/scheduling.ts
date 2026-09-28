@@ -3,10 +3,15 @@ import { api } from "@/lib/api";
 
 export type Period = "AM" | "PM";
 
+/** "relaxed": a paper course too big for one period under the strict rule,
+ * seated with only side, front and back neighbours blocked (spec 0002). */
+export type SeatingRule = "strict" | "relaxed";
+
 export interface TimetableEntry {
   id: number;
   date: string;
   period: Period;
+  seating_rule: SeatingRule;
   course: { id: number; code: string; name: string };
   class: {
     id: number;
@@ -58,6 +63,10 @@ export interface TimetableEstimate {
   pm_seat_demand: number;
   seats_per_period: number;
   bottleneck: "per_class" | "seat_throughput";
+  relaxed_count: number;
+  refused_count: number;
+  strict_limit: number;
+  relaxed_limit: number;
 }
 
 export function useTimetableEstimate(enabled: boolean = true) {
@@ -137,6 +146,9 @@ export function useAllocation(params: { date?: string; period?: Period }) {
       }>("/allocation/", { params });
       return res.data;
     },
+    // Without a date the API returns one row per hall per slot, so the same
+    // hall repeats once for every exam day.
+    enabled: Boolean(params.date),
   });
 }
 
@@ -150,6 +162,8 @@ export interface HallAllocationData {
   };
   date: string;
   period: string;
+  /** The courses seated in this hall, with their seating rule. */
+  courses: Array<{ code: string; name: string; seating_rule: SeatingRule }>;
   placed: Array<{
     id: number;
     seat_number: number;
@@ -219,6 +233,14 @@ export interface Readiness {
     class_id: number;
     label: string;
     course: string;
+  }>;
+  outdated_rules: Array<{
+    date: string;
+    period: Period;
+    course: string;
+    stored_rule: SeatingRule | "mixed";
+    current_rule: SeatingRule | "refused";
+    students: number;
   }>;
 }
 

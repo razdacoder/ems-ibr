@@ -40,6 +40,7 @@ from ems.api.views.scheduling import (
 from ems.api.views.exports import (
     ArrangementExportView,
     AttendanceSheetsView,
+    BulkAttendanceSheetsView,
     BroadsheetView,
     DistributionExportView,
     TimetableExportView,
@@ -168,6 +169,11 @@ export_patterns = [
         "attendance-sheets/",
         AttendanceSheetsView.as_view(),
         name="api-export-attendance-sheets",
+    ),
+    path(
+        "attendance-sheets/bulk/",
+        BulkAttendanceSheetsView.as_view(),
+        name="api-export-attendance-sheets-bulk",
     ),
     path("broadsheet/", BroadsheetView.as_view(), name="api-export-broadsheet"),
 ]

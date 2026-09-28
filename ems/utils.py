@@ -1,4 +1,3 @@
-import math
 import os
 import random
 import shutil
@@ -9,6 +8,18 @@ from django.conf import settings
 from django.db.models import Prefetch
 from collections import Counter
 
+from . import seating_rules
+from .identifiers import clean_number_text
+from .seating_rules import (
+    RELAXED,
+    STRICT,
+    even_half,
+    even_seats,
+    largest_quarter,
+    relaxed_quarter_usage,
+)
+# Re-exported: hall_per_course_slice moved to seating_rules (spec 0002).
+from .seating_rules import hall_per_course_slice  # noqa: F401
 from .models import (
     Class,
     Course,
@@ -102,9 +113,41 @@ def save_to_timetable_db(schedules):
                     class_obj=Class.objects.get(id=cls["id"]),
                     date=schedule["date"],
                     period=schedule["period"],
+                    seating_rule=course_rule(schedule["course"]),
                 )
             )
     TimeTable.objects.bulk_create(timetables)
+
+
+def classify_courses(courses, strict_limit, relaxed_limit):
+    """Give every course its seating rule once, before the AM/PM split
+    (spec 0002). Returns ``(kept, refused_oversized)``.
+
+    A paper course's student count is the sum of its active classes' live
+    counts (``get_courses``). CBE is always strict and never classified. A
+    paper course too big even for the relaxed rule is left out and reported.
+    """
+    kept, refused = [], []
+    for course in courses:
+        if course["exam_type"] != "PBE":
+            course["seating_rule"] = STRICT
+            kept.append(course)
+            continue
+        students = sum(cls["size"] for cls in course["classes"])
+        rule = seating_rules.classify(students, strict_limit, relaxed_limit)
+        if rule == seating_rules.REFUSED:
+            refused.append(
+                {
+                    "code": course["code"],
+                    "students": students,
+                    "strict_limit": strict_limit,
+                    "relaxed_limit": relaxed_limit,
+                }
+            )
+            continue
+        course["seating_rule"] = rule
+        kept.append(course)
+    return kept, refused
 
 
 # Split courses into AM and PM periods.
@@ -228,6 +271,26 @@ def is_class_scheduled(course, date, Schedules):
     return False
 
 
+def course_rule(course):
+    """The course's seating rule. CBE sections split off later carry none,
+    and CBE is always strict."""
+    return course.get("seating_rule", STRICT)
+
+
+def relaxed_blocked(course, date, period, Schedules):
+    """True if ``course`` is relaxed and another relaxed course is already
+    booked for this date and period. At most one relaxed course per period
+    keeps the other checkerboard half free for strict courses."""
+    if course_rule(course) != RELAXED:
+        return False
+    return any(
+        s["date"] == date
+        and s["period"] == period
+        and course_rule(s["course"]) == RELAXED
+        for s in Schedules
+    )
+
+
 # Helper function to get total available seats per period
 def get_total_seats(Halls, utilization=0.9):
     # Floor per hall to match distribution's per-hall rounding, so the
@@ -305,6 +368,7 @@ def can_schedule_cbe(schedules, date, course, max_students=4500):
 # Helper function to check if timetable can still be scheduled based on the number of seats remaining
 def can_continue(
     date,
+    period,
     seat_remaining,
     courses,
     Schedules,
@@ -340,11 +404,12 @@ def can_continue(
             if (
                 seat_remaining >= Seat_Required
                 and not is_class_scheduled(course, date, Schedules)
+                and not relaxed_blocked(course, date, period, Schedules)
             ):
                 return True
 
     # Log why we can't continue
-    print(f"[INFO] Cannot continue scheduling for {date} (AM). Remaining seats: {seat_remaining}")
+    print(f"[INFO] Cannot continue scheduling for {date} ({period}). Remaining seats: {seat_remaining}")
     current_cbe_count = get_cbe_student_count(Schedules, date)
     print(f"[INFO] Current CBE students for {date}: {current_cbe_count}/{daily_cap}")
 
@@ -380,6 +445,8 @@ def can_continue(
                 reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
             if is_class_scheduled(course, date, Schedules):
                 reasons.append("class already scheduled")
+            if relaxed_blocked(course, date, period, Schedules):
+                reasons.append("another relaxed course already sits this period")
 
         if reasons:
             print(f"[SKIP] Course {course['code']} ({course['exam_type']}) skipped: {', '.join(reasons)}")
@@ -387,11 +454,13 @@ def can_continue(
     return False
 
 
-def can_continue_PM(date, seat_remaining, courses, Schedules):
+def can_continue_PM(date, period, seat_remaining, courses, Schedules):
     for course in courses:
         Seat_Required = sum([Class["size"] for Class in course["classes"]])
-        if seat_remaining >= Seat_Required and not is_class_scheduled(
-            course, date, Schedules
+        if (
+            seat_remaining >= Seat_Required
+            and not is_class_scheduled(course, date, Schedules)
+            and not relaxed_blocked(course, date, period, Schedules)
         ):
             return True
     
@@ -404,6 +473,8 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
             reasons.append(f"insufficient seats ({seat_remaining} < {Seat_Required})")
         if is_class_scheduled(course, date, Schedules):
             reasons.append("class already scheduled")
+        if relaxed_blocked(course, date, period, Schedules):
+            reasons.append("another relaxed course already sits this period")
         
         if reasons:
             print(f"[SKIP] Course {course['code']} skipped: {', '.join(reasons)}")
@@ -413,6 +484,7 @@ def can_continue_PM(date, seat_remaining, courses, Schedules):
 
 def filter_courses(
     date,
+    period,
     seat_remaining,
     courses,
     schedules,
@@ -443,8 +515,10 @@ def filter_courses(
         # PBE courses require seat availability
         else:
             seat_required = sum(cls["size"] for cls in course["classes"])
-            if seat_remaining >= seat_required and not is_class_scheduled(
-                course, date, schedules
+            if (
+                seat_remaining >= seat_required
+                and not is_class_scheduled(course, date, schedules)
+                and not relaxed_blocked(course, date, period, schedules)
             ):
                 eligible_courses.append(course)
     return eligible_courses
@@ -453,6 +527,7 @@ def filter_courses(
 # Get the next valid course to schedule
 def get_next_course(
     date,
+    period,
     seat_remaining,
     courses,
     Schedules,
@@ -489,7 +564,7 @@ def get_next_course(
 
     # Then handle PBE courses with seat constraints
     courses_to_select = filter_courses(
-        date, seat_remaining, courses, Schedules,
+        date, period, seat_remaining, courses, Schedules,
         fullday_threshold=fullday_threshold,
         autosplit_threshold=autosplit_threshold,
         daily_cap=daily_cap,
@@ -555,7 +630,7 @@ def generate(
         # While there are still seats available and courses to add
         while AM_scheduling:
             if not can_continue(
-                Date, Total_Seats_AM, courses_AM, Schedules,
+                Date, "AM", Total_Seats_AM, courses_AM, Schedules,
                 fullday_threshold=fullday_threshold,
                 autosplit_threshold=autosplit_threshold,
                 daily_cap=daily_cap,
@@ -565,7 +640,7 @@ def generate(
                 break
 
             Course = get_next_course(
-                Date, Total_Seats_AM, courses_AM, Schedules,
+                Date, "AM", Total_Seats_AM, courses_AM, Schedules,
                 fullday_threshold=fullday_threshold,
                 autosplit_threshold=autosplit_threshold,
                 daily_cap=daily_cap,
@@ -619,7 +694,8 @@ def generate(
                 ):
                     Schedule = {"course": Course, "date": Date, "period": "AM"}
                     Schedules.append(Schedule)
-                    print(f"[OK] Scheduled {Course['code']} (AM) - {Seat_Required} seats, {Total_Seats_AM - Seat_Required} remaining")
+                    rule_info = " [RELAXED SEATING]" if course_rule(Course) == RELAXED else ""
+                    print(f"[OK] Scheduled {Course['code']} (AM){rule_info} - {Seat_Required} seats, {Total_Seats_AM - Seat_Required} remaining")
                     Total_Seats_AM -= Seat_Required
                     courses_AM.remove(Course)
                     am_scheduled_count += 1
@@ -628,7 +704,7 @@ def generate(
                         print(f"[INFO] AM period full for {Date}")
                     if (
                         len(filter_courses(
-                            Date, Total_Seats_AM, courses_AM, Schedules,
+                            Date, "AM", Total_Seats_AM, courses_AM, Schedules,
                             fullday_threshold=fullday_threshold,
                             autosplit_threshold=autosplit_threshold,
                             daily_cap=daily_cap,
@@ -643,13 +719,13 @@ def generate(
         PM_scheduling = True
         pm_scheduled_count = 0
         while PM_scheduling:
-            if not can_continue_PM(Date, Total_Seats_PM, courses_PM, Schedules):
+            if not can_continue_PM(Date, "PM", Total_Seats_PM, courses_PM, Schedules):
                 PM_scheduling = False
                 print(f"[INFO] Stopped PM scheduling for {Date}. Courses scheduled: {pm_scheduled_count}")
                 break
             else:
                 Course = get_next_course(
-                    Date, Total_Seats_PM, courses_PM, Schedules,
+                    Date, "PM", Total_Seats_PM, courses_PM, Schedules,
                     fullday_threshold=fullday_threshold,
                     autosplit_threshold=autosplit_threshold,
                     daily_cap=daily_cap,
@@ -665,7 +741,8 @@ def generate(
                 ):
                     Schedule = {"course": Course, "date": Date, "period": "PM"}
                     Schedules.append(Schedule)
-                    print(f"[OK] Scheduled {Course['code']} (PM) - {Seat_Required} seats, {Total_Seats_PM - Seat_Required} remaining")
+                    rule_info = " [RELAXED SEATING]" if course_rule(Course) == RELAXED else ""
+                    print(f"[OK] Scheduled {Course['code']} (PM){rule_info} - {Seat_Required} seats, {Total_Seats_PM - Seat_Required} remaining")
                     Total_Seats_PM -= Seat_Required
                     courses_PM.remove(Course)
                     pm_scheduled_count += 1
@@ -674,7 +751,7 @@ def generate(
                         print(f"[INFO] PM period full for {Date}")
                     if (
                         len(filter_courses(
-                            Date, Total_Seats_PM, courses_PM, Schedules,
+                            Date, "PM", Total_Seats_PM, courses_PM, Schedules,
                             fullday_threshold=fullday_threshold,
                             autosplit_threshold=autosplit_threshold,
                             daily_cap=daily_cap,
@@ -726,6 +803,16 @@ def generate(
         'pm_skipped': len(courses_PM),
         'skipped_am_codes': [c['code'] for c in courses_AM],
         'skipped_pm_codes': [c['code'] for c in courses_PM],
+        'relaxed_courses': [
+            {
+                'code': s['course']['code'],
+                'date': str(s['date']),
+                'period': s['period'],
+                'students': sum(cls['size'] for cls in s['course']['classes']),
+            }
+            for s in Schedules
+            if course_rule(s['course']) == RELAXED
+        ],
     }
 
 
@@ -819,22 +906,6 @@ def hall_effective_capacity(rows: int, cols: int, pattern: str = "checkerboard")
     return (rows * cols + 1) // 2  # checkerboard
 
 
-def hall_per_course_slice(rows: int, cols: int, pattern: str = "checkerboard") -> int:
-    """Largest course that's guaranteed to fit any quarter of the hall.
-
-    Each course is confined to one ``(r%2, c%2)`` parity quarter so all its
-    students stay pairwise non-8-dir-adjacent. When ``rows`` or ``cols`` is
-    odd the four quarters have unequal sizes (e.g. a 15×20 hall has two
-    80-cell and two 70-cell quarters). To guarantee zero adjacency-overflow
-    we cap at the *smallest* quarter — ``floor(r/2) × floor(c/2)`` — rather
-    than the largest. Pattern is irrelevant; same-course adjacency binds.
-    """
-    del pattern
-    if rows <= 0 or cols <= 0:
-        return 0
-    return max(1, rows // 2) * max(1, cols // 2)
-
-
 def convert_hall_to_dict(
     halls,
     safety_factor: float = 0.90,
@@ -860,16 +931,49 @@ def convert_hall_to_dict(
                 # distribution. Headroom keeps the allocator's randomized
                 # passes from running out of free seats.
                 "capacity": int(effective * safety_factor),
-                # Slice equals the smallest quarter, so the deterministic
-                # quarter placer always finds room — no headroom multiplier
-                # needed.
-                "per_course_slice": hall_per_course_slice(
-                    hall.rows, hall.columns, pattern
-                ),
+                # The biggest quarter: a course may fill it whole.
+                # _max_seatable_bite checks each bite against the quarters
+                # actually left, so no unseatable mix gets through.
+                "per_course_slice": largest_quarter(hall.rows, hall.columns),
+                # The smallest quarter: a pass 1 bite this big fills a
+                # quarter, so it is worth taking even short of the cap.
+                "min_quarter": hall_per_course_slice(hall.rows, hall.columns),
+                # Cap for the slot's relaxed course, if any (spec 0002).
+                "even_half": even_half(hall.rows, hall.columns),
                 "classes": [],
             }
         )
     return halls_dict
+
+
+def relaxed_course_code(timetables):
+    """Code of the one relaxed course among a slot's ``timetables`` rows, or
+    ``None``. Timetable generation books at most one per period (spec 0002),
+    so more than one means the timetable is broken: refuse rather than seat
+    two courses on the same checkerboard half."""
+    codes = {t.course.code for t in timetables if t.seating_rule == RELAXED}
+    if len(codes) > 1:
+        raise ValueError(
+            f"More than one relaxed course in one slot ({', '.join(sorted(codes))}). "
+            "Regenerate the timetable."
+        )
+    return next(iter(codes), None)
+
+
+def slot_relaxed_course_id(date, period):
+    """Id of the slot's relaxed course, or ``None``, in one query. Reconcile,
+    manual assignment and the attendance exports read the rule through this
+    once per call, never per student."""
+    ids = set(
+        TimeTable.objects.filter(
+            date=date, period=period, seating_rule=RELAXED
+        ).values_list("course_id", flat=True)
+    )
+    if len(ids) > 1:
+        raise ValueError(
+            f"More than one relaxed course on {date} {period}. Regenerate the timetable."
+        )
+    return next(iter(ids), None)
 
 
 def make_schedules(timetables, size_map=None):
@@ -901,23 +1005,36 @@ def is_course_in_hall(hall, course_code):
     return False
 
 
-def _quarters_can_seat(rows, cols, bites):
-    """True if the allocator's quarter placer would seat every ``bites``
-    entry in a ``rows`` x ``cols`` hall.
+def _quarters_can_seat(rows, cols, bites, relaxed_course=None):
+    """True if the allocator's pass 0 would seat every ``bites`` entry in a
+    ``rows`` x ``cols`` hall.
 
-    ``bites`` is ``[(course_code, count), ...]``. This replays
-    ``try_quarter_placement`` exactly: courses largest first (course code
-    breaks ties), each into whichever ``(r%2, c%2)`` quarter has the most free
-    cells, and a course must fit one quarter whole. The two must stay in step:
-    anything this accepts is seated by pass 0 with no leftovers, so nothing
-    reaches the adjacency fallback passes or the cross hall reconcile.
+    ``bites`` is ``[(course_code, count), ...]``. This replays pass 0
+    exactly. ``relaxed_course`` (the slot's relaxed course code, or ``None``)
+    is placed first, whatever its size, on the first ``count`` seats of
+    ``even_seats``. Then ``try_quarter_placement`` runs on what is left:
+    strict courses largest first (course code breaks ties), each into
+    whichever ``(r%2, c%2)`` quarter has the most free cells, and a course
+    must fit one quarter whole. The two must stay in step: anything this
+    accepts is seated by pass 0 with no leftovers, so nothing reaches the
+    adjacency fallback passes or the cross hall reconcile.
     """
     free = {
         (ro, co): ((rows + 1 - ro) // 2) * ((cols + 1 - co) // 2)
         for ro in (0, 1)
         for co in (0, 1)
     }
-    for _course, count in sorted(bites, key=lambda b: (-b[1], b[0])):
+    strict_bites = []
+    for course, count in bites:
+        if course != relaxed_course:
+            strict_bites.append((course, count))
+            continue
+        if count > even_half(rows, cols):
+            return False
+        in_q00, in_q11 = relaxed_quarter_usage(rows, cols, count)
+        free[(0, 0)] -= in_q00
+        free[(1, 1)] -= in_q11
+    for _course, count in sorted(strict_bites, key=lambda b: (-b[1], b[0])):
         best = max(free, key=free.get)
         if count > free[best]:
             return False
@@ -925,12 +1042,13 @@ def _quarters_can_seat(rows, cols, bites):
     return True
 
 
-def _max_seatable_bite(hall, course_code, limit):
+def _max_seatable_bite(hall, course_code, limit, relaxed_course=None):
     """Largest bite (at most ``limit``) of ``course_code`` this hall can still
     seat without leaving anyone unplaced. Only ever returns a verified size.
 
     Counts of the same course are summed, because the allocator seats a
-    course as one group in one quarter whichever classes it came from."""
+    course as one group (one quarter, or the even seats for the relaxed
+    course) whichever classes it came from."""
     existing = {}
     for c in hall["classes"]:
         existing[c["course"]] = existing.get(c["course"], 0) + c["student_range"]
@@ -939,14 +1057,24 @@ def _max_seatable_bite(hall, course_code, limit):
         mid = (lo + hi + 1) // 2
         bites = dict(existing)
         bites[course_code] = bites.get(course_code, 0) + mid
-        if _quarters_can_seat(hall["rows"], hall["columns"], list(bites.items())):
+        if _quarters_can_seat(
+            hall["rows"], hall["columns"], list(bites.items()), relaxed_course
+        ):
             lo = mid
         else:
             hi = mid - 1
     return lo
 
 
-def distribute_classes_to_halls(timetables, halls, size_map=None):
+def course_cap(hall, course_code, relaxed_course=None):
+    """Most students of one course this hall can take: its checkerboard half
+    for the slot's relaxed course, its quarter slice for any other."""
+    if relaxed_course is not None and course_code == relaxed_course:
+        return hall.get("even_half", 0)
+    return hall.get("per_course_slice", 0)
+
+
+def distribute_classes_to_halls(timetables, halls, size_map=None, relaxed_course=None):
     """Pack timetable rows into halls under allocation-aware caps, in two
     passes.
 
@@ -954,13 +1082,13 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
       * ``capacity``           — total students the hall can absorb under
                                   checkerboard + 8-dir adjacency, with safety
                                   headroom (≈ 0.45 × rows × cols).
-      * ``per_course_slice``    — max students of any one course in the hall
-                                  (≈ rows × cols / 4).
+      * ``per_course_slice``    — max students of any one course in the hall:
+                                  its biggest quarter (≈ rows × cols / 4).
 
     **Pass 1 — bulk placement.** Halls are visited largest-capacity first;
     within each hall, courses are tried largest-remaining-size first. A hall
     only accepts a course here if the bite is either the course's *entire*
-    remaining size, or a full ``per_course_slice`` (a genuine "this course
+    remaining size, or fills a whole quarter (a genuine "this course
     needs several big halls" chunk, like a 216-student class taking a
     63-seat bite). A bite that's smaller than both — capped only by this
     hall's *own* nearly-exhausted leftover capacity — is skipped rather than
@@ -977,12 +1105,10 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
     time across a dozen different halls, rather than sharing a handful of
     halls together.
 
-    **Balanced load.** When the slot needs fewer seats than the halls offer,
-    both passes first run with every hall's budget scaled to the same share
-    (demand / total capacity). Without this, largest first filling packed
-    the big halls to their limit and left many small halls empty. Any
-    leftover the scaled budgets could not take is then placed against the
-    full budgets.
+    **Largest halls first.** Every hall keeps its full budget, so the big
+    halls fill before smaller ones are opened. On a light slot the spare
+    capacity is left as whole unused small halls, not as gaps spread over
+    every hall.
 
     **Seatable bites only.** Every bite is also capped by
     :func:`_max_seatable_bite`, so a hall is never handed a mix of courses
@@ -990,22 +1116,17 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
     this, a hall filled to its whole grid always left students unplaced, and
     the cross hall reconcile scattered them a few at a time across other
     halls (broken matric ranges, mixed attendance sheets).
+
+    **Relaxed course.** ``relaxed_course`` is the slot's relaxed course code
+    (spec 0002), or ``None``. Its cap per hall is the hall's ``even_half``
+    instead of ``per_course_slice``, in both passes, and the seatability model
+    places it first on the even parity seats.
     """
     class_schedules = make_schedules(timetables=timetables, size_map=size_map)
     # make_schedules already random-shuffles. Stable-sort by size desc to
     # place big courses first while keeping intra-size randomness.
     class_schedules.sort(key=lambda s: s["size"], reverse=True)
     halls.sort(key=lambda h: h.get("capacity", 0), reverse=True)
-
-    demand = sum(s["size"] for s in class_schedules)
-    total_capacity = sum(max(h.get("capacity", 0), 0) for h in halls)
-    held_back = {}
-    if 0 < demand < total_capacity:
-        load = demand / total_capacity
-        for hall in halls:
-            share = math.ceil(hall["capacity"] * load)
-            held_back[id(hall)] = hall["capacity"] - share
-            hall["capacity"] = share
 
     def place(hall, schedule, take):
         existing = next(
@@ -1027,7 +1148,6 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
 
     # --- Pass 1: bulk placement --------------------------------------
     for hall in halls:
-        slice_cap = hall.get("per_course_slice", 0)
         for schedule in class_schedules:
             if schedule["size"] == 0:
                 continue
@@ -1039,18 +1159,26 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
             if seats_remaining <= 0:
                 break
 
+            slice_cap = course_cap(hall, schedule["course"], relaxed_course)
             take = min(schedule["size"], seats_remaining, slice_cap)
             if take <= 0:
                 continue
+            # The most the quarters actually left can seat. For a strict
+            # course that may be a smaller quarter than ``slice_cap``.
+            take = _max_seatable_bite(
+                hall, schedule["course"], take, relaxed_course
+            )
+            if take <= 0:
+                continue
             whole_fit = take == schedule["size"]
-            full_slice = take == slice_cap and schedule["size"] > slice_cap
-            if not (whole_fit or full_slice):
+            full_quarter = schedule["size"] > take >= (
+                slice_cap if schedule["course"] == relaxed_course
+                else hall["min_quarter"]
+            )
+            if not (whole_fit or full_quarter):
                 # Only a capacity-limited partial bite is available here —
                 # defer this course's remainder to the tail-consolidation
                 # pass instead of nibbling it away hall by hall.
-                continue
-            if _max_seatable_bite(hall, schedule["course"], take) < take:
-                # The quarters are too full for this bite; defer it too.
                 continue
 
             place(hall, schedule, take)
@@ -1058,8 +1186,7 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
     # --- Pass 2: tail consolidation -----------------------------------
     def consolidate_tails(top_up=False):
         """``top_up`` lets a course grow its bite in a hall it already sits
-        in. Needed once held back capacity is released: on a light slot a big
-        course may already hold a small bite in every hall."""
+        in, for a remainder no fresh hall could take."""
         tails = [s for s in class_schedules if s["size"] > 0]
         tails.sort(key=lambda s: s["size"], reverse=True)
 
@@ -1067,19 +1194,20 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
             while schedule["size"] > 0:
                 candidates = []
                 for h in halls:
+                    cap = course_cap(h, schedule["course"], relaxed_course)
                     if (
                         h["capacity"] <= 0
-                        or h.get("per_course_slice", 0) <= 0
+                        or cap <= 0
                         or (
                             not top_up
                             and is_course_in_hall(h, schedule["course"])
                         )
                     ):
                         continue
-                    limit = min(
-                        schedule["size"], h["capacity"], h["per_course_slice"]
+                    limit = min(schedule["size"], h["capacity"], cap)
+                    take = _max_seatable_bite(
+                        h, schedule["course"], limit, relaxed_course
                     )
-                    take = _max_seatable_bite(h, schedule["course"], limit)
                     if take > 0:
                         candidates.append((h, take))
                 if not candidates:
@@ -1092,14 +1220,7 @@ def distribute_classes_to_halls(timetables, halls, size_map=None):
                 place(target, schedule, take)
 
     consolidate_tails()
-
-    # Release the capacity balanced loading held back and place whatever the
-    # shared budgets could not absorb.
-    if held_back:
-        for hall in halls:
-            hall["capacity"] += held_back[id(hall)]
-        consolidate_tails()
-        consolidate_tails(top_up=True)
+    consolidate_tails(top_up=True)
 
     return [hall for hall in halls if hall["classes"]]
 
@@ -1441,6 +1562,7 @@ def allocate_students_to_seats(
     adjacency_mode="8-dir",
     success_threshold_pct=60,
     pattern_order=None,
+    relaxed_courses=(),
 ):
     """Deterministic seat allocation with a multi-pass approach.
 
@@ -1455,6 +1577,11 @@ def allocate_students_to_seats(
     whether the adjacency rule is relaxed.
 
     `adjacency_mode` controls which neighbouring cells block same-course placement.
+
+    ``relaxed_courses`` holds the codes of courses in this hall seated under
+    the relaxed rule (spec 0002; at most one per hall). Pass 0 seats such a
+    course first on the even parity seats in seat number order, and for it
+    only side, front and back neighbours block, in every pass.
     """
     if not students:  # Check if students list is empty
         return {}, students, 0  # Return all students as unplaced with 0% placement
@@ -1462,6 +1589,10 @@ def allocate_students_to_seats(
     if pattern_order is None:
         pattern_order = ["checkerboard", "diagonal", "sequential"]
     directions = _ADJACENCY_DIRECTIONS.get(adjacency_mode, _ADJACENCY_DIRECTIONS["8-dir"])
+    relaxed_courses = set(relaxed_courses or ())
+    # The relaxed rule narrows the configured one; with adjacency off there
+    # is nothing to relax.
+    relaxed_directions = seating_rules.neighbours(RELAXED) if directions else []
 
     # Initialize seat grid and student tracking
     seats = [[None for _ in range(cols)] for _ in range(rows)]
@@ -1496,7 +1627,8 @@ def allocate_students_to_seats(
         if not directions:  # adjacency_mode == "off"
             return True
         course = student_by_name[student_name]["course"]
-        for dr, dc in directions:
+        blocked = relaxed_directions if course in relaxed_courses else directions
+        for dr, dc in blocked:
             r, c = row + dr, col + dc
             if 0 <= r < rows and 0 <= c < cols and seats[r][c]:
                 adjacent_student = student_by_name[seats[r][c]]
@@ -1578,6 +1710,22 @@ def allocate_students_to_seats(
 
         return placed
 
+    def try_relaxed_placement():
+        """Seat each relaxed course first, lowest matric to the lowest even
+        parity seat (``even_seats``). Even parity seats never share an edge,
+        so this is always legal under the relaxed rule. The distribution
+        model (``_quarters_can_seat``) replays exactly this."""
+        if not directions:
+            return 0
+        placed_here = 0
+        for course_code in sorted(relaxed_courses & course_groups.keys()):
+            cells = [(r, c) for r, c in even_seats(rows, cols) if not seats[r][c]]
+            for student, (row, col) in zip(course_groups[course_code], cells):
+                seats[row][col] = student["name"]
+                student_positions[student["name"]] = (row, col)
+                placed_here += 1
+        return placed_here
+
     def try_quarter_placement():
         """Deterministic 'quarter' placement — the only layout that's
         provably safe under 8-dir same-course adjacency.
@@ -1608,7 +1756,11 @@ def allocate_students_to_seats(
         # Largest course first; course code breaks ties so two courses of
         # equal size always claim quarters in the same order across runs.
         courses_sorted = sorted(
-            course_groups.items(),
+            (
+                (code, group)
+                for code, group in course_groups.items()
+                if code not in relaxed_courses
+            ),
             key=lambda kv: (
                 -sum(1 for s in kv[1] if student_positions[s["name"]] is None),
                 kv[0],
@@ -1639,6 +1791,9 @@ def allocate_students_to_seats(
     # Pass 0: Deterministic quarter placement — guarantees no same-course
     # 8-dir adjacency for everything it seats, achieving the theoretical max
     # without burning attempts on random dead-ends.
+    # The relaxed course goes first, on the even parity seats; strict
+    # courses then take quarters of what is left.
+    total_placed += try_relaxed_placement()
     total_placed += try_quarter_placement()
 
     # Pass 1: Pattern-based placement per course in admin-configured order.
@@ -1720,6 +1875,7 @@ def print_seating_arrangement(
     adjacency_mode="8-dir",
     success_threshold_pct=60,
     pattern_order=None,
+    relaxed_courses=(),
 ):
     from .models import Student  # Import here to avoid circular imports
 
@@ -1728,6 +1884,7 @@ def print_seating_arrangement(
         adjacency_mode=adjacency_mode,
         success_threshold_pct=success_threshold_pct,
         pattern_order=pattern_order,
+        relaxed_courses=relaxed_courses,
     )
     if result is None:
         print("Error: allocate_students_to_seats returned None.")
@@ -1823,16 +1980,19 @@ def print_seating_arrangement(
                 SeatArrangement.objects.bulk_create(arrangements)
 
 
-def is_valid_position(seat_number, course_code, seat_map, rows, cols):
+def is_valid_position(seat_number, course_code, seat_map, rows, cols, rule=STRICT):
     """
     Check if a seat position is valid for manual assignment based on adjacency constraints.
 
     Args:
         seat_number (int): The seat number to check (1-based)
-        course_code (str): The course code of the student to be placed
-        seat_map (dict): Dictionary mapping seat numbers to course codes
+        course_code: The course of the student to be placed (a code or an
+            id, matching the values of ``seat_map``)
+        seat_map (dict): Dictionary mapping seat numbers to courses
         rows (int): Number of rows in the hall
         cols (int): Number of columns in the hall
+        rule (str): The course's seating rule for the slot (spec 0002):
+            8-dir for strict, 4-dir for relaxed
 
     Returns:
         bool: True if the position is valid, False otherwise
@@ -1842,10 +2002,7 @@ def is_valid_position(seat_number, course_code, seat_map, rows, cols):
     row = seat_index // cols
     col = seat_index % cols
 
-    # Define adjacency directions (8-directional)
-    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-
-    for dr, dc in directions:
+    for dr, dc in seating_rules.neighbours(rule):
         adj_row, adj_col = row + dr, col + dc
 
         # Check if adjacent position is within bounds
@@ -2124,6 +2281,12 @@ def validate_student_csv_memory(csv_io, file_name, department_slug):
             engine="c",
         )
         df = df.astype(str).apply(lambda x: x.str.strip())
+        # Strip spreadsheet float tails ("2530710047.0").
+        df = df.assign(**{
+            col: df[col].map(clean_number_text)
+            for col in ("MATRIC NUMBER", "PHONE NUMBER")
+            if col in df.columns
+        })
     except Exception as e:
         return {
             "file_name": file_name,
@@ -2242,6 +2405,12 @@ def validate_student_csv(file_path, department_slug):
                 engine="c",
             )
             df = df.astype(str).apply(lambda x: x.str.strip())
+            # Strip spreadsheet float tails ("2530710047.0").
+            df = df.assign(**{
+                col: df[col].map(clean_number_text)
+                for col in ("MATRIC NUMBER", "PHONE NUMBER")
+                if col in df.columns
+            })
             break
         except UnicodeDecodeError as e:
             last_error = e
@@ -2472,7 +2641,8 @@ def reconcile_unplaced(date, period):
     Runs after every hall has been allocated independently. Walks every
     ``SeatArrangement`` row with ``seat_number=NULL`` and, course-by-course,
     finds a destination hall whose empty parity quarter can absorb the
-    student without breaking 8-dir same-course adjacency.
+    student without breaking the course's seating rule: 8-dir for strict
+    courses, 4-dir for the slot's relaxed course (spec 0002).
 
     Returns the number of students reseated.
     """
@@ -2492,6 +2662,10 @@ def reconcile_unplaced(date, period):
         return 0
 
     halls = list(Hall.objects.all())
+    # The slot's rule, looked up once: only its relaxed course is 4-dir.
+    relaxed_course_id = slot_relaxed_course_id(date, period)
+    strict_offsets = seating_rules.neighbours(STRICT)
+    relaxed_offsets = seating_rules.neighbours(RELAXED)
 
     # Build per-hall occupancy maps once.
     hall_state: dict[int, dict] = {}
@@ -2533,7 +2707,7 @@ def reconcile_unplaced(date, period):
         }
 
     def cell_is_legal(state, row, col, course_id):
-        """True if course_id at (row, col) keeps 8-dir separation.
+        """True if course_id at (row, col) keeps its rule's separation.
 
         Checks the actual grid, not just which courses a quarter hosts. The
         quarter-set test this replaced only asked "is this course already in
@@ -2542,14 +2716,14 @@ def reconcile_unplaced(date, period):
         same-course neighbour living one quarter over.
         """
         grid = state["grid"]
-        for dr in (-1, 0, 1):
-            for dc in (-1, 0, 1):
-                if dr == 0 and dc == 0:
-                    continue
-                rr, cc = row + dr, col + dc
-                if 0 <= rr < state["rows"] and 0 <= cc < state["cols"]:
-                    if grid[rr][cc] == course_id:
-                        return False
+        offsets = (
+            relaxed_offsets if course_id == relaxed_course_id else strict_offsets
+        )
+        for dr, dc in offsets:
+            rr, cc = row + dr, col + dc
+            if 0 <= rr < state["rows"] and 0 <= cc < state["cols"]:
+                if grid[rr][cc] == course_id:
+                    return False
         return True
 
     reseated = 0

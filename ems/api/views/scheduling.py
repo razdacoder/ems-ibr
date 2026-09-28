@@ -21,7 +21,9 @@ from ems.models import (
     SeatArrangement,
     TimeTable,
 )
-from ems.utils import hall_effective_capacity
+from ems import seating_rules
+from ems.seating_rules import RELAXED, STRICT
+from ems.utils import hall_effective_capacity, slot_relaxed_course_id
 
 
 class ReadinessView(APIView):
@@ -76,6 +78,7 @@ class TimetableListView(APIView):
                 "id": t.id,
                 "date": str(t.date),
                 "period": t.period,
+                "seating_rule": t.seating_rule,
                 "course": {"id": t.course_id, "code": t.course.code, "name": t.course.name},
                 "class": {
                     "id": t.class_obj_id,
@@ -166,10 +169,14 @@ class TimetableEstimateView(APIView):
         # ─── Seat-throughput (PBE only; CBE is computer-based) ──────────
         # Use allocation-reachable seats for the active pattern so the
         # estimate matches what timetable and distribution will budget.
+        hall_sizes = list(Hall.objects.values_list("rows", "columns"))
         total_effective_seats = sum(
-            hall_effective_capacity(h.rows, h.columns, pattern)
-            for h in Hall.objects.all().only("rows", "columns")
+            hall_effective_capacity(rows, cols, pattern) for rows, cols in hall_sizes
         )
+        # Same limits and classify as timetable generation (spec 0002).
+        strict_limit = seating_rules.strict_limit(hall_sizes)
+        relaxed_limit = seating_rules.relaxed_limit(hall_sizes)
+        relaxed_count = refused_count = 0
         seats_per_period = int(total_effective_seats * utilization)
 
         am_seat_demand = pm_seat_demand = 0
@@ -183,6 +190,10 @@ class TimetableEstimateView(APIView):
         ):
             # Live student count of the course's active classes.
             seats = sum(cls.student_count for cls in course.courses.all())
+            if course.courses.all():  # no active class: never planned
+                rule = seating_rules.classify(seats, strict_limit, relaxed_limit)
+                relaxed_count += rule == RELAXED
+                refused_count += rule == seating_rules.REFUSED
             # split_course's logic: PM only if any class is mapped to PM;
             # else AM (default).
             period = "AM"
@@ -235,6 +246,10 @@ class TimetableEstimateView(APIView):
                 "seats_per_period": seats_per_period,
                 "bottleneck": bottleneck,
                 "seat_pattern": pattern,
+                "relaxed_count": relaxed_count,
+                "refused_count": refused_count,
+                "strict_limit": strict_limit,
+                "relaxed_limit": relaxed_limit,
             }
         )
 
@@ -378,9 +393,21 @@ class HallAllocationView(APIView):
         if not request.user.is_staff and request.user.department_id:
             qs = qs.filter(cls__department_id=request.user.department_id)
 
+        relaxed_course_id = slot_relaxed_course_id(date, period)
         placed = []
         unplaced = []
+        courses = {}
         for sa in qs:
+            courses.setdefault(
+                sa.course_id,
+                {
+                    "code": sa.course.code,
+                    "name": sa.course.name,
+                    "seating_rule": (
+                        RELAXED if sa.course_id == relaxed_course_id else STRICT
+                    ),
+                },
+            )
             row = {
                 "id": sa.id,
                 "seat_number": sa.seat_number,
@@ -410,6 +437,7 @@ class HallAllocationView(APIView):
                 },
                 "date": date,
                 "period": period,
+                "courses": sorted(courses.values(), key=lambda c: c["code"]),
                 "placed": placed,
                 "unplaced": unplaced,
             }

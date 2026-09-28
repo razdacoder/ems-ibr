@@ -4,49 +4,57 @@ Both the attendance-sheet generator (``ems.views``) and the seat-arrangement
 exporter (``ems.csv_gen``) print the same institution header on every Word
 document: the configured logo, institution name/heading/address/contact, and
 the active session & semester. This module centralises that so the two stay in
-sync and read from ``SystemSettings`` rather than a hard-coded static path.
+sync and read from ``SystemSettings``. The logo is the uploaded one only (on
+Cloudinary in production); there is no bundled fallback image.
 """
 
-import os
+import io
+import logging
 
-from django.conf import settings as django_settings
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt
 
+logger = logging.getLogger(__name__)
 
-def resolve_logo_path(settings_obj) -> str | None:
-    """Filesystem path to the branding logo, or None if none is usable.
+# Default for ``add_document_branding(logo=...)``: fetch the logo itself.
+_LOAD = object()
 
-    Prefers the uploaded ``SystemSettings.logo``; falls back to the bundled
-    ``static/assets/images/logo.png`` so existing deployments keep their mark.
+
+def load_logo(settings_obj) -> bytes | None:
+    """The uploaded ``SystemSettings.logo`` as bytes, or None.
+
+    Read through the field's storage, so it works whether the logo is on
+    Cloudinary or the local disk. A bulk export calls this once and passes
+    the bytes to every document instead of downloading the logo per sheet.
     """
     logo = getattr(settings_obj, "logo", None)
-    if logo:
-        try:
-            if logo.storage.exists(logo.name):
-                return logo.path
-        except (ValueError, NotImplementedError):
-            pass
-    fallback = os.path.join(
-        django_settings.BASE_DIR, "static", "assets", "images", "logo.png"
-    )
-    return fallback if os.path.exists(fallback) else None
+    if not logo:
+        return None
+    try:
+        with logo.storage.open(logo.name, "rb") as f:
+            return f.read()
+    except Exception:
+        logger.warning("Institution logo %s could not be read", logo.name, exc_info=True)
+        return None
 
 
-def add_document_branding(doc, settings_obj) -> None:
+def add_document_branding(doc, settings_obj, logo=_LOAD) -> None:
     """Prepend the institution header (logo + metadata + session) to ``doc``.
 
     Mirrors the previous inline header layout: left-aligned logo, then a
-    centred institution block, then the session/semester line.
+    centred institution block, then the session/semester line. ``logo`` is
+    the image bytes from :func:`load_logo`; left out, it is loaded here.
     """
+    if logo is _LOAD:
+        logo = load_logo(settings_obj)
+
     # Logo (or a text placeholder when no image is available).
     logo_paragraph = doc.add_paragraph()
     logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    logo_path = resolve_logo_path(settings_obj)
-    if logo_path:
+    if logo:
         try:
             run = logo_paragraph.add_run()
-            run.add_picture(logo_path, width=Inches(1.0))
+            run.add_picture(io.BytesIO(logo), width=Inches(1.0))
         except Exception:
             placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
             placeholder.bold = True

@@ -34,3 +34,4 @@ daphne==4.1.2
 
 Pillow==12.2.0
 reportlab==4.5.1
+cloudinary==1.46.2

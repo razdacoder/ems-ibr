@@ -159,3 +159,106 @@ class HallAttendanceApiTests(AttendanceFixture):
         response = self.get(self.client_for(is_staff=True))
 
         self.assertEqual(response.status_code, 404)
+
+
+class BulkHallAttendanceApiTests(AttendanceFixture):
+    """Every hall's sheets for one slot, one folder per hall."""
+
+    url = reverse("api-export-attendance-sheets-bulk")
+
+    def setUp(self):
+        super().setUp()
+        self.second_hall = make_hall("AG 1 & 2", 8, 10)
+        self.law = make_class(2, make_department("lw"), name="ND I")
+        for n, student in enumerate(enrol(self.law, ["2400000011", "2400000013"])):
+            SeatArrangement.objects.create(
+                date=DATE, period=PERIOD, student=student, seat_number=1 + 2 * n,
+                hall=self.second_hall, course=self.course, cls=self.law,
+            )
+
+    def client_for(self, is_staff):
+        user = User.objects.create_user(
+            email=f"bulk{is_staff}@example.com", password="x", is_staff=is_staff
+        )
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def test_puts_each_halls_sheets_in_its_own_folder(self):
+        response = self.client_for(is_staff=True).get(self.url, {"date": DATE, "period": PERIOD})
+
+        self.assertEqual(response.status_code, 200)
+        sheets = read_sheets(response)
+        folders = sorted({name.split("/")[0] for name in sheets})
+        self.assertEqual(folders, ["AG 1 & 2", "BB 1"])
+        self.assertEqual(len(sheets), 3)
+        ag = [s for n, s in sheets.items() if n.startswith("AG 1 & 2/")]
+        self.assertEqual(ag[0]["matrics"], ["2400000011", "2400000013"])
+        self.assertIn("EXAM HALL: AG 1 & 2", ag[0]["text"])
+
+    def test_sheets_match_the_single_hall_export(self):
+        client = self.client_for(is_staff=True)
+        bulk = read_sheets(client.get(self.url, {"date": DATE, "period": PERIOD}))
+        single = read_sheets(client.get(
+            reverse("api-export-attendance-sheets"),
+            {"date": DATE, "period": PERIOD, "hall_id": self.hall.id},
+        ))
+
+        self.assertEqual({f"BB 1/{n}": s for n, s in single.items()},
+                         {n: s for n, s in bulk.items() if n.startswith("BB 1/")})
+
+    def test_refuses_a_user_without_an_admin_role(self):
+        response = self.client_for(is_staff=False).get(self.url, {"date": DATE, "period": PERIOD})
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_asks_for_date_and_period(self):
+        response = self.client_for(is_staff=True).get(self.url, {"date": DATE})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_reports_a_slot_with_nobody_seated(self):
+        SeatArrangement.objects.update(seat_number=None)
+
+        response = self.client_for(is_staff=True).get(self.url, {"date": DATE, "period": PERIOD})
+
+        self.assertEqual(response.status_code, 404)
+
+
+class LogoTests(AttendanceFixture):
+    def sheet_images(self, response):
+        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        return [n for n in archive.namelist()], [
+            len(Document(io.BytesIO(archive.read(n))).inline_shapes) for n in archive.namelist()
+        ]
+
+    def get(self):
+        user = User.objects.create_user(email="logo@example.com", password="x", is_staff=True)
+        client = APIClient()
+        client.force_authenticate(user)
+        return client.get(
+            reverse("api-export-attendance-sheets-bulk"), {"date": DATE, "period": PERIOD}
+        )
+
+    def test_without_an_uploaded_logo_no_bundled_image_is_printed(self):
+        # The old fallback printed a bundled ExamNova image.
+        _names, images = self.sheet_images(self.get())
+
+        self.assertEqual(set(images), {0})
+
+    def test_prints_the_uploaded_logo_read_through_its_storage(self):
+        from unittest import mock
+        from ems import branding
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (4, 4), "navy").save(buf, "PNG")
+        png = buf.getvalue()
+        with mock.patch.object(branding, "load_logo", return_value=png) as loaded, \
+                mock.patch("ems.api.views.exports.load_logo", return_value=png) as api_loaded:
+            _names, images = self.sheet_images(self.get())
+
+        self.assertEqual(set(images), {1})
+        self.assertEqual(api_loaded.call_count, 1, "fetched once per export, not per sheet")
+        loaded.assert_not_called()

@@ -6,18 +6,44 @@ the renderer is bypassed, so the existing functions in ``ems.csv_gen`` and
 ``Content-Disposition`` headers) can be used as-is.
 """
 
+import io
+import zipfile
 from datetime import datetime
+from itertools import groupby
+
+from django.http import HttpResponse
 
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.views import APIView
 
 from ems import csv_gen
-from ems.models import SeatArrangement
+from ems.branding import load_logo
+from ems.models import SeatArrangement, SystemSettings
+from ems.utils import slot_relaxed_course_id
 from ems.views import (
     generate_attendance_sheets as legacy_generate_attendance_sheets,
     generate_broadsheet as legacy_generate_broadsheet,
+    write_hall_attendance_sheets,
 )
+
+
+def _slot_params(request):
+    """``(date, period)`` from the query string, validated."""
+    date = request.query_params.get("date")
+    period = request.query_params.get("period")
+    if not date or period not in ("AM", "PM"):
+        raise ValidationError({"detail": "date and period (AM or PM) are required."})
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValidationError({"detail": "date must be YYYY-MM-DD."}) from exc
+    return date, period
+
+
+def _zip_folder(name: str) -> str:
+    """A hall name usable as one folder in a zip path."""
+    return "".join("_" if c in '/\\:*?"<>|' else c for c in name).strip() + "/"
 
 
 class TimetableExportView(APIView):
@@ -87,6 +113,59 @@ class AttendanceSheetsView(APIView):
                 }
             )
         return legacy_generate_attendance_sheets(request)
+
+
+class BulkAttendanceSheetsView(APIView):
+    """Every hall's attendance sheets for one slot in a single zip, one
+    folder per hall. Same sheets, and the same audience, as the per hall
+    export (:class:`AttendanceSheetsView`)."""
+
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        date, period = _slot_params(request)
+        placed = (
+            SeatArrangement.objects.filter(
+                date=date, period=period, seat_number__isnull=False
+            )
+            .select_related("student", "course", "cls", "hall")
+            .order_by("hall__name", "hall_id", "course__name", "cls_id", "student__matric_no")
+        )
+        if not placed.exists():
+            raise NotFound(
+                {
+                    "detail": "No seat allocation found for that date and period. "
+                    "Generate the allocation first."
+                }
+            )
+        settings_obj = SystemSettings.objects.first() or SystemSettings.objects.create(
+            session="2024/2025", semester="1st Semester"
+        )
+        # Looked up once for the whole export, not per hall or per sheet.
+        logo = load_logo(settings_obj)
+        relaxed_course_id = slot_relaxed_course_id(date, period)
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for _hall_id, rows in groupby(placed.iterator(chunk_size=2000), key=lambda a: a.hall_id):
+                rows = list(rows)
+                hall = rows[0].hall
+                write_hall_attendance_sheets(
+                    zip_file,
+                    date=date,
+                    period=period,
+                    hall=hall,
+                    arrangements=rows,
+                    settings_obj=settings_obj,
+                    relaxed_course_id=relaxed_course_id,
+                    logo=logo,
+                    folder=_zip_folder(hall.name),
+                )
+        response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+        response["Content-Disposition"] = (
+            f'attachment; filename="Attendance_Sheets_All_Halls_{date}_{period}.zip"'
+        )
+        return response
 
 
 class BroadsheetView(APIView):

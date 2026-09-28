@@ -20,7 +20,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 
-from .branding import add_document_branding
+from .branding import add_document_branding, load_logo
+from .identifiers import clean_number_text
 from .broadsheet import TimetableBroadSheet
 from .models import (
     BackgroundJob,
@@ -36,7 +37,8 @@ from .models import (
     TimeTable,
     User,
 )
-from .utils import handle_uploaded_file
+from .seating_rules import RELAXED_SHEET_LINE
+from .utils import handle_uploaded_file, slot_relaxed_course_id
 
 
 def back_view(request):
@@ -78,7 +80,7 @@ def feature_detail_view(request, slug):
         'timetable-generation': {
             'title': 'Timetable Generation',
             'subtitle': 'Automatically create conflict-free exam schedules.',
-            'overview': 'The timetable generation module is the core of ExamNova. It automatically builds a comprehensive examination schedule based on courses, classes, and available time slots. It ensures that no class has conflicting exams, appropriately handles different exam types (PBE vs CBE), and intelligently spaces out the schedule.',
+            'overview': 'The timetable generation module is the core of Ordo. It automatically builds a comprehensive examination schedule based on courses, classes, and available time slots. It ensures that no class has conflicting exams, appropriately handles different exam types (PBE vs CBE), and intelligently spaces out the schedule.',
             'icon_class': 'indigo',
             'icon': 'fas fa-calendar-check',
             'capabilities': [
@@ -154,7 +156,7 @@ def feature_detail_view(request, slug):
         'reports-exports': {
             'title': 'Reports & Exports',
             'subtitle': 'Generate professional documents for exam halls.',
-            'overview': 'ExamNova provides a comprehensive suite of reporting and export tools to generate all the necessary documentation for conducting examinations.',
+            'overview': 'Ordo provides a comprehensive suite of reporting and export tools to generate all the necessary documentation for conducting examinations.',
             'icon_class': 'indigo',
             'icon': 'fas fa-file-word',
             'capabilities': [
@@ -192,7 +194,7 @@ def feature_detail_view(request, slug):
         'background-jobs': {
             'title': 'Background Job Monitor',
             'subtitle': 'Track, retry, and manage all long-running tasks.',
-            'overview': 'ExamNova uses asynchronous background processing for heavy tasks like timetable generation and seat allocation. The Job Monitor provides full visibility into these processes.',
+            'overview': 'Ordo uses asynchronous background processing for heavy tasks like timetable generation and seat allocation. The Job Monitor provides full visibility into these processes.',
             'icon_class': 'emerald',
             'icon': 'fas fa-tasks',
             'capabilities': [
@@ -855,6 +857,189 @@ def hall_allocation(request):
     return render(request, template_name=template_name, context=context)
 
 
+def write_hall_attendance_sheets(
+    zip_file, *, date, period, hall, arrangements, settings_obj,
+    relaxed_course_id, logo, folder=""
+):
+    """Write one DOCX attendance sheet per (course, class) seated in ``hall``
+    into ``zip_file`` under ``folder``, and return how many were written.
+
+    ``arrangements`` are the hall's rows for the slot, ordered by course,
+    class and matric number. ``logo`` is the image bytes from
+    :func:`ems.branding.load_logo`, fetched once by the caller. The per hall
+    export and the bulk export both call this, so their sheets are identical.
+    """
+    # One sheet per (course, class). Keying on course alone merged two
+    # classes sitting the same course into one sheet, labelled with only
+    # the first class and their matric runs interleaved.
+    courses_data = {}
+    for arrangement in arrangements:
+        if arrangement.seat_number:  # Only placed students
+            course_key = (
+                f"{arrangement.course.name} ({arrangement.course.code})",
+                arrangement.cls_id,
+            )
+            if course_key not in courses_data:
+                courses_data[course_key] = {
+                    "course": arrangement.course,
+                    "cls": arrangement.cls,
+                    "students": [],
+                }
+            courses_data[course_key]["students"].append(arrangement)
+
+    written = 0
+    for course_key, course_data in courses_data.items():
+        # Create Word document for each course
+        doc = Document()
+
+        # Institution branding header (logo + metadata + session).
+        add_document_branding(doc, settings_obj, logo=logo)
+
+        # Add course information header
+        course_header = doc.add_paragraph()
+        course_header.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        course_run = course_header.add_run(
+            f"COURSE TITLE: {course_data['course'].name.upper()}"
+        )
+        course_run.bold = True
+        course_run.add_break()
+        code_run = course_header.add_run(
+            f"COURSE CODE: {course_data['course'].code}"
+        )
+        code_run.bold = True
+        if course_data["course"].id == relaxed_course_id:
+            code_run.add_break()
+            course_header.add_run(RELAXED_SHEET_LINE).bold = True
+
+        # Add exam details
+        exam_details = doc.add_paragraph()
+        exam_details.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        hall_run = exam_details.add_run(f"EXAM HALL: {hall.name}")
+        hall_run.bold = True
+        hall_run.add_break()
+
+        date_run = exam_details.add_run(
+            f"DATE: {datetime.strptime(date, '%Y-%m-%d').strftime('%d %B, %Y')}"
+        )
+        date_run.bold = True
+
+        # Add level and period
+        level_period = doc.add_paragraph()
+        level_period.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        level_run = level_period.add_run(
+            f"LEVEL/CLASS: {course_data['cls'].full_label}"
+        )
+        level_run.bold = True
+        level_run.add_break()
+        period_run = level_period.add_run(f"PERIOD OF EXAM: {period}")
+        period_run.bold = True
+
+        # Add attendance sheet header
+        attendance_header = doc.add_paragraph()
+        attendance_header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        attendance_run = attendance_header.add_run("ATTENDANCE SHEET")
+        attendance_run.bold = True
+
+        # Add spacing
+        doc.add_paragraph()
+        doc.add_paragraph()
+
+        # Create attendance table
+        table = doc.add_table(rows=1, cols=7)
+        table.style = "Table Grid"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+        # Add table headers
+        hdr_cells = table.rows[0].cells
+        headers = [
+            "S/NO",
+            "MATRIC NO",
+            "STUDENT'S NAME",
+            "SEAT NO",
+            "SCRIPT NO",
+            "SIGN IN",
+            "SIGN OUT",
+        ]
+        for i, header in enumerate(headers):
+            hdr_cells[i].text = header
+            hdr_cells[i].paragraphs[0].runs[0].bold = True
+
+        # Add student data
+        for idx, student in enumerate(course_data["students"], 1):
+            row_cells = table.add_row().cells
+            row_cells[0].text = str(idx)
+            row_cells[1].text = student.student.matric_no
+            row_cells[
+                2
+            ].text = (
+                f"{student.student.first_name} {student.student.last_name}".upper()
+            )
+            row_cells[3].text = (
+                str(student.seat_number) if student.seat_number else ""
+            )
+            # Leave script no, sign in, sign out empty for manual filling
+
+        # Add extra blank rows (20-25 as requested)
+        for i in range(25):
+            row_cells = table.add_row().cells
+            if i < 3:  # First 3 extra rows have numbers
+                row_cells[0].text = str(len(course_data["students"]) + i + 1)
+
+        # Add spacing
+        doc.add_paragraph()
+        doc.add_paragraph()
+
+        # Add footer information
+        footer_info = doc.add_paragraph()
+        footer_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        total_run = footer_info.add_run(
+            "TOTAL NUMBER OF STUDENTS……………………………TOTAL NUMBER OF SCRIPTS……………………."
+        )
+        total_run.bold = True
+
+        invigilator_info = doc.add_paragraph()
+        invigilator_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        invig_run = invigilator_info.add_run(
+            "NAME OF INVIGILATOR SUBMITING SCRIPTS………………………………………………. SIGN…………...."
+        )
+        invig_run.bold = True
+
+        committee_info = doc.add_paragraph()
+        committee_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        committee_run = committee_info.add_run(
+            "NAME OF EXAM COMMITTEE MEMBER RECEIVING SCRIPTS…………………………………………………"
+        )
+        committee_run.bold = True
+
+        signature_info = doc.add_paragraph()
+        signature_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sig_run = signature_info.add_run(
+            "SIGNATURE……………………………….                                        DATE…………………………………..."
+        )
+        sig_run.bold = True
+
+        # Add range information
+        if course_data["students"]:
+            last_matric = course_data["students"][-1].student.matric_no.split("/")[
+                -1
+            ]
+            range_info = doc.add_paragraph()
+            range_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            range_run = range_info.add_run(f"RANGE: {last_matric}")
+            range_run.bold = True
+
+        # Save document to buffer
+        doc_buffer = io.BytesIO()
+        doc.save(doc_buffer)
+        doc_buffer.seek(0)
+
+        # Add to zip file
+        filename = f"Attendance_{course_data['course'].code}_{hall.name}_{course_data['cls'].full_label}_{date}_{period}.docx"
+        zip_file.writestr(folder + filename, doc_buffer.getvalue())
+        written += 1
+    return written
+
+
 @login_required(login_url="login")
 @admin_required
 def generate_attendance_sheets(request):
@@ -895,178 +1080,26 @@ def generate_attendance_sheets(request):
         return redirect("allocation")
 
     hall = arrangements.first().hall
-
-    # One sheet per (course, class). Keying on course alone merged two
-    # classes sitting the same course into one sheet, labelled with only
-    # the first class and their matric runs interleaved.
-    courses_data = {}
-    for arrangement in arrangements:
-        if arrangement.seat_number:  # Only placed students
-            course_key = (
-                f"{arrangement.course.name} ({arrangement.course.code})",
-                arrangement.cls_id,
-            )
-            if course_key not in courses_data:
-                courses_data[course_key] = {
-                    "course": arrangement.course,
-                    "cls": arrangement.cls,
-                    "students": [],
-                }
-            courses_data[course_key]["students"].append(arrangement)
-
-    if not courses_data:
-        messages.error(request, "No placed students found for attendance sheets.")
-        return redirect("allocation")
+    # The slot's relaxed course, looked up once for the whole export.
+    relaxed_course_id = slot_relaxed_course_id(date, period)
 
     # Create a zip file containing all attendance sheets
     zip_buffer = io.BytesIO()
-
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for course_key, course_data in courses_data.items():
-            # Create Word document for each course
-            doc = Document()
+        written = write_hall_attendance_sheets(
+            zip_file,
+            date=date,
+            period=period,
+            hall=hall,
+            arrangements=arrangements,
+            settings_obj=settings_obj,
+            relaxed_course_id=relaxed_course_id,
+            logo=load_logo(settings_obj),
+        )
+    if not written:
+        messages.error(request, "No placed students found for attendance sheets.")
+        return redirect("allocation")
 
-            # Institution branding header (logo + metadata + session).
-            add_document_branding(doc, settings_obj)
-
-            # Add course information header
-            course_header = doc.add_paragraph()
-            course_header.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            course_run = course_header.add_run(
-                f"COURSE TITLE: {course_data['course'].name.upper()}"
-            )
-            course_run.bold = True
-            course_run.add_break()
-            code_run = course_header.add_run(
-                f"COURSE CODE: {course_data['course'].code}"
-            )
-            code_run.bold = True
-
-            # Add exam details
-            exam_details = doc.add_paragraph()
-            exam_details.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            hall_run = exam_details.add_run(f"EXAM HALL: {hall.name}")
-            hall_run.bold = True
-            hall_run.add_break()
-
-            date_run = exam_details.add_run(
-                f"DATE: {datetime.strptime(date, '%Y-%m-%d').strftime('%d %B, %Y')}"
-            )
-            date_run.bold = True
-
-            # Add level and period
-            level_period = doc.add_paragraph()
-            level_period.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            level_run = level_period.add_run(
-                f"LEVEL/CLASS: {course_data['cls'].full_label}"
-            )
-            level_run.bold = True
-            level_run.add_break()
-            period_run = level_period.add_run(f"PERIOD OF EXAM: {period}")
-            period_run.bold = True
-
-            # Add attendance sheet header
-            attendance_header = doc.add_paragraph()
-            attendance_header.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            attendance_run = attendance_header.add_run("ATTENDANCE SHEET")
-            attendance_run.bold = True
-
-            # Add spacing
-            doc.add_paragraph()
-            doc.add_paragraph()
-
-            # Create attendance table
-            table = doc.add_table(rows=1, cols=7)
-            table.style = "Table Grid"
-            table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-            # Add table headers
-            hdr_cells = table.rows[0].cells
-            headers = [
-                "S/NO",
-                "MATRIC NO",
-                "STUDENT'S NAME",
-                "SEAT NO",
-                "SCRIPT NO",
-                "SIGN IN",
-                "SIGN OUT",
-            ]
-            for i, header in enumerate(headers):
-                hdr_cells[i].text = header
-                hdr_cells[i].paragraphs[0].runs[0].bold = True
-
-            # Add student data
-            for idx, student in enumerate(course_data["students"], 1):
-                row_cells = table.add_row().cells
-                row_cells[0].text = str(idx)
-                row_cells[1].text = student.student.matric_no
-                row_cells[
-                    2
-                ].text = (
-                    f"{student.student.first_name} {student.student.last_name}".upper()
-                )
-                row_cells[3].text = (
-                    str(student.seat_number) if student.seat_number else ""
-                )
-                # Leave script no, sign in, sign out empty for manual filling
-
-            # Add extra blank rows (20-25 as requested)
-            for i in range(25):
-                row_cells = table.add_row().cells
-                if i < 3:  # First 3 extra rows have numbers
-                    row_cells[0].text = str(len(course_data["students"]) + i + 1)
-
-            # Add spacing
-            doc.add_paragraph()
-            doc.add_paragraph()
-
-            # Add footer information
-            footer_info = doc.add_paragraph()
-            footer_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            total_run = footer_info.add_run(
-                "TOTAL NUMBER OF STUDENTS……………………………TOTAL NUMBER OF SCRIPTS……………………."
-            )
-            total_run.bold = True
-
-            invigilator_info = doc.add_paragraph()
-            invigilator_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            invig_run = invigilator_info.add_run(
-                "NAME OF INVIGILATOR SUBMITING SCRIPTS………………………………………………. SIGN…………...."
-            )
-            invig_run.bold = True
-
-            committee_info = doc.add_paragraph()
-            committee_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            committee_run = committee_info.add_run(
-                "NAME OF EXAM COMMITTEE MEMBER RECEIVING SCRIPTS…………………………………………………"
-            )
-            committee_run.bold = True
-
-            signature_info = doc.add_paragraph()
-            signature_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            sig_run = signature_info.add_run(
-                "SIGNATURE……………………………….                                        DATE…………………………………..."
-            )
-            sig_run.bold = True
-
-            # Add range information
-            if course_data["students"]:
-                last_matric = course_data["students"][-1].student.matric_no.split("/")[
-                    -1
-                ]
-                range_info = doc.add_paragraph()
-                range_info.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                range_run = range_info.add_run(f"RANGE: {last_matric}")
-                range_run.bold = True
-
-            # Save document to buffer
-            doc_buffer = io.BytesIO()
-            doc.save(doc_buffer)
-            doc_buffer.seek(0)
-
-            # Add to zip file
-            filename = f"Attendance_{course_data['course'].code}_{hall.name}_{course_data['cls'].full_label}_{date}_{period}.docx"
-            zip_file.writestr(filename, doc_buffer.getvalue())
 
     # Prepare response
     zip_buffer.seek(0)
@@ -1907,6 +1940,12 @@ def upload_class_students(request, id):
 
         # Remove any whitespace and convert to string
         students_df = students_df.astype(str).apply(lambda x: x.str.strip())
+        # Strip spreadsheet float tails ("2530710047.0").
+        students_df = students_df.assign(**{
+            col: students_df[col].map(clean_number_text)
+            for col in ("MATRIC NUMBER", "PHONE NUMBER")
+            if col in students_df.columns
+        })
 
         # Validation: Check if number of students matches class size
         total_students_in_file = len(students_df)

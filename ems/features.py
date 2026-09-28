@@ -10,7 +10,7 @@ FEATURES_DATA: dict[str, dict] = {
         "title": "Timetable Generation",
         "subtitle": "Automatically create conflict-free exam schedules.",
         "overview": (
-            "The timetable generation module is the core of ExamNova. It "
+            "The timetable generation module is the core of Ordo. It "
             "automatically builds a comprehensive examination schedule based "
             "on courses, classes, and available time slots. It ensures that no "
             "class has conflicting exams, appropriately handles different exam "
@@ -98,7 +98,7 @@ FEATURES_DATA: dict[str, dict] = {
         "title": "Reports & Exports",
         "subtitle": "Generate professional documents for exam halls.",
         "overview": (
-            "ExamNova provides a comprehensive suite of reporting and export "
+            "Ordo provides a comprehensive suite of reporting and export "
             "tools to generate all the necessary documentation for conducting "
             "examinations."
         ),
@@ -144,7 +144,7 @@ FEATURES_DATA: dict[str, dict] = {
         "title": "Background Job Monitor",
         "subtitle": "Track, retry, and manage all long-running tasks.",
         "overview": (
-            "ExamNova uses asynchronous background processing for heavy tasks "
+            "Ordo uses asynchronous background processing for heavy tasks "
             "like timetable generation and seat allocation. The Job Monitor "
             "provides full visibility into these processes."
         ),

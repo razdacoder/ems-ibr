@@ -148,7 +148,7 @@ export default function AllocationPage() {
               </AlertDescription>
             </Alert>
           ) : null}
-          {list.isLoading ? (
+          {list.isLoading || (!date && dates.isLoading) ? (
             <Skeleton className="h-40" />
           ) : list.data?.generated ? (
             <Table>

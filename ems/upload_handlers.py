@@ -16,6 +16,7 @@ from typing import Iterable
 import pandas as pd
 from django.db import transaction
 
+from ems.identifiers import clean_number_text
 from ems.models import Class, Course, Department, Student
 
 
@@ -200,6 +201,13 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
     # duplicate-matric-number check).
     df = df.dropna(subset=["MATRIC NUMBER"])
     df = df.astype(str).apply(lambda c: c.str.strip())
+    # A CSV saved from Excel can hold "2530710047.0"; strip that tail
+    # before the duplicate check so "X" and "X.0" count as one student.
+    df = df.assign(**{
+        col: df[col].map(clean_number_text)
+        for col in ("MATRIC NUMBER", "PHONE NUMBER")
+        if col in df.columns
+    })
     df = df[~df["MATRIC NUMBER"].str.lower().isin(("", "nan"))]
     if df.empty:
         raise UploadError("No student rows with a matric number were found in the file.")

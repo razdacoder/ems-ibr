@@ -99,37 +99,43 @@ class MaxSeatableBiteTests(TestCase):
         self.assertEqual(_max_seatable_bite(self.hall([]), "A", 0), 0)
 
 
-class BalancedLoadTests(TestCase):
+class LargestFirstTests(TestCase):
     def setUp(self):
         random.seed(0)  # make_schedules shuffles
 
-    def test_a_light_slot_uses_every_hall_instead_of_packing_the_biggest(self):
-        make_hall("AUD", 20, 20)  # 400 seats
+    def test_a_light_slot_fills_the_biggest_hall_and_leaves_small_ones_empty(self):
+        make_hall("AUD", 20, 20)  # 400 seats, 100 per quarter
         for n in range(4):
-            make_hall(f"Room {n}", 10, 10)  # 100 seats each, 800 in all
-        for n in range(8):  # 320 students, 40% of the seats
+            make_hall(f"Room {n}", 10, 10)  # 100 seats each
+        for n in range(8):  # 320 students, two courses per quarter
             schedule(listed_class(40), make_course(f"C{n:02}"))
 
         result = run_distribution()
 
-        self.assertEqual(len(result), 5, "every hall should take a share")
-        # About 40% of AUD is its fair share; the old largest first filling
-        # put all 320 students in it (80%).
-        self.assertLessEqual(assigned(result)["AUD"], 200)
-        self.assertEqual(sum(assigned(result).values()), 320)
+        self.assertEqual(assigned(result), {"AUD": 320})
+        self.assertEqual(unplaced_after_seating(result[0]), [])
 
-    def test_halls_fill_in_proportion_to_their_size(self):
-        make_hall("Big", 20, 20)
+    def test_the_big_hall_fills_before_the_small_one_is_opened(self):
         make_hall("Small", 10, 10)
-        for n in range(10):  # 250 of 500 seats
+        make_hall("Big", 20, 20)
+        for n in range(18):  # 450 of 500 seats
             schedule(listed_class(25), make_course(f"C{n:02}"))
 
         loads = assigned(run_distribution())
 
-        self.assertEqual(sum(loads.values()), 250)
-        self.assertAlmostEqual(
-            loads.get("Big", 0) / 400, loads.get("Small", 0) / 100, delta=0.15
-        )
+        self.assertEqual(loads, {"Big": 400, "Small": 50})
+
+    def test_a_course_may_fill_a_quarter_bigger_than_the_smallest(self):
+        # 18 x 15: quarters of 72, 63, 72 and 63 seats. Capping every course
+        # at the smallest quarter left 9 seats empty in each 72 quarter.
+        make_hall("AG 1 & 2", 18, 15)
+        for code, size in (("BAM", 72), ("CEC", 72), ("MEC", 63), ("OTM", 63)):
+            schedule(listed_class(size), make_course(code))
+
+        result = run_distribution()
+
+        self.assertEqual(assigned(result), {"AG 1 & 2": 270})
+        self.assertEqual(unplaced_after_seating(result[0]), [])
 
     def test_a_slot_that_needs_every_seat_fills_every_hall(self):
         for n in range(3):

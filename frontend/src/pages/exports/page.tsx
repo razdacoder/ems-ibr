@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { useTimetableDates } from "@/api/scheduling";
 import { useHalls } from "@/api/halls";
-import { useSystemSettings } from "@/api/system";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +29,9 @@ export default function ExportsPage() {
   const isAdmin = !!user?.is_staff;
   const dates = useTimetableDates();
   const halls = useHalls({ all: true });
-  const settings = useSystemSettings();
-  const hasTimetable = !!settings.data?.has_timetable;
+  // Whether a timetable exists. Not ``has_timetable``: that flag is the
+  // upload lock, and "Enable bulk upload" clears it with the timetable kept.
+  const hasTimetable = (dates.data?.dates.length ?? 0) > 0;
   const [date, setDate] = useState<string | undefined>();
   const [period, setPeriod] = useState<"AM" | "PM">("AM");
   const [hallId, setHallId] = useState<string | undefined>();
@@ -145,7 +145,7 @@ export default function ExportsPage() {
             />
             <ExportCard
               title="Arrangement ZIP"
-              description="Per-course seat arrangements (CSV bundle)."
+              description="Attendance sheets for the selected slot grouped by course (DOCX zip)."
               disabled={!hasTimetable || !date || !period}
               disabledHint={!hasTimetable ? "No timetable has been generated yet." : undefined}
               onDownload={() =>
@@ -157,8 +157,21 @@ export default function ExportsPage() {
               }
             />
             <ExportCard
-              title="Attendance sheets"
-              description="DOCX zip with one sheet per course."
+              title="Attendance sheets · all halls"
+              description="Every hall's attendance sheets for the selected slot, one folder per hall (DOCX zip)."
+              disabled={!hasTimetable || !date || !period}
+              disabledHint={!hasTimetable ? "No timetable has been generated yet." : undefined}
+              onDownload={() =>
+                tryDownload(
+                  "/exports/attendance-sheets/bulk/",
+                  `attendance-all-halls-${date}-${period}.zip`,
+                  { date, period },
+                )
+              }
+            />
+            <ExportCard
+              title="Attendance sheets · one hall"
+              description="The selected hall's sheets, one per course and class (DOCX zip)."
               disabled={!hasTimetable || !date || !period || !hallId}
               disabledHint={!hasTimetable ? "No timetable has been generated yet." : undefined}
               onDownload={() =>

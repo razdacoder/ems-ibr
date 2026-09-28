@@ -15,6 +15,8 @@ from ems.api.serializers.job import BackgroundJobSerializer
 from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
 from ems.readiness import blocking_message, check as check_readiness
+from ems.seating_rules import RELAXED, STRICT
+from ems.utils import is_valid_position, slot_relaxed_course_id
 from ems.models import (
     BackgroundJob,
     Class,
@@ -451,13 +453,32 @@ class ManualSeatAssignmentView(APIView):
                 {"detail": f"Seat must be between 1 and {max_seats}."}
             )
 
-        if SeatArrangement.objects.filter(
-            date=sa.date,
-            period=sa.period,
-            hall=sa.hall,
-            seat_number=seat,
-        ).exists():
+        # The hall's seat map for the slot: seat number -> course id.
+        seat_map = dict(
+            SeatArrangement.objects.filter(
+                date=sa.date,
+                period=sa.period,
+                hall=sa.hall,
+                seat_number__isnull=False,
+            ).values_list("seat_number", "course_id")
+        )
+        if seat in seat_map:
             raise Conflict(f"Seat {seat} is already occupied.")
+
+        # Same adjacency rule the allocator applies (spec 0002): 4-dir for
+        # the slot's relaxed course, 8-dir for everyone else.
+        rule = (
+            RELAXED
+            if sa.course_id == slot_relaxed_course_id(sa.date, sa.period)
+            else STRICT
+        )
+        if not is_valid_position(
+            seat, sa.course_id, seat_map, sa.hall.rows, sa.hall.columns, rule
+        ):
+            raise Conflict(
+                f"Seat {seat} is next to a student of the same course "
+                f"({sa.course.code})."
+            )
 
         sa.seat_number = seat
         sa.save(update_fields=["seat_number"])

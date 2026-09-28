@@ -9,11 +9,12 @@ from .models import (
     BackgroundJob, Class, Course, Distribution, GenerationConstraints,
     Hall, TimeTable, SeatArrangement, DistributionItem, Student, Department
 )
+from . import seating_rules
 from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
-    get_courses, get_halls, split_course, generate,
+    get_courses, get_halls, split_course, generate, classify_courses,
     distribute_classes_to_halls, save_to_db, print_seating_arrangement,
-    record_planned_students, slot_student_counts,
+    record_planned_students, slot_student_counts, relaxed_course_code,
 )
 
 
@@ -84,7 +85,10 @@ def _distribute_slot(date, period, halls_list):
         )
     )
     size_map = slot_student_counts(timetables)
-    result = distribute_classes_to_halls(timetables, halls_list, size_map=size_map)
+    result = distribute_classes_to_halls(
+        timetables, halls_list, size_map=size_map,
+        relaxed_course=relaxed_course_code(timetables),
+    )
     with transaction.atomic():
         save_to_db(result, str(date), period)
         unplaced = record_planned_students(timetables, size_map, result)
@@ -208,6 +212,19 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         halls = get_halls(pattern=constraints.seat_pattern)
         
         print(f"[TASK] Loaded {len(courses)} courses and {len(halls)} halls")
+
+        # Classify every course once, before the AM/PM split (spec 0002).
+        hall_sizes = list(Hall.objects.values_list('rows', 'columns'))
+        strict_limit = seating_rules.strict_limit(hall_sizes)
+        relaxed_limit = seating_rules.relaxed_limit(hall_sizes)
+        courses, refused_oversized = classify_courses(
+            courses, strict_limit, relaxed_limit
+        )
+        print(
+            f"[TASK] Seating limits per course per period - strict: {strict_limit}, "
+            f"relaxed: {relaxed_limit}. Refused as oversized: "
+            f"{[r['code'] for r in refused_oversized]}"
+        )
         
         # Update progress: 20%
         job.progress = int(total_steps * 0.2)
@@ -278,8 +295,18 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         job.completed_at = timezone.now()
         
         # Include detailed summary in result
+        message = 'Timetable generated successfully'
+        if summary.get('relaxed_courses'):
+            codes = ', '.join(r['code'] for r in summary['relaxed_courses'])
+            message += f'. Relaxed seating: {codes}'
+        if refused_oversized:
+            codes = ', '.join(r['code'] for r in refused_oversized)
+            message += (
+                f'. Refused as too big for one period even with relaxed '
+                f'seating: {codes}'
+            )
         job.result_data = {
-            'message': 'Timetable generated successfully',
+            'message': message,
             'dates_count': len(dates),
             'total_scheduled': summary.get('total_scheduled', 0),
             'am_scheduled': summary.get('am_scheduled', 0),
@@ -291,6 +318,11 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
                 'PM': summary.get('skipped_pm_codes', []),
             },
             'timetables_created': TimeTable.objects.count(),
+            'relaxed_courses': [
+                {**r, 'strict_limit': strict_limit, 'relaxed_limit': relaxed_limit}
+                for r in summary.get('relaxed_courses', [])
+            ],
+            'refused_oversized': refused_oversized,
         }
         job.save()
         
@@ -493,11 +525,15 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             
             # Track student IDs used in this specific hall
             hall_used_ids_by_class = {}
+            # Courses here seated under the relaxed rule (spec 0002).
+            relaxed_courses = set()
             
             # Build student list for this hall
             for item in distribution.items.all():
                 course_code = item.schedule.course.code
                 class_obj = item.schedule.class_obj
+                if item.schedule.seating_rule == seating_rules.RELAXED:
+                    relaxed_courses.add(course_code)
                 class_key = f"{class_obj.id}_{course_code}"
                 
                 # Initialize tracking sets if needed
@@ -560,6 +596,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
                 datetime.strptime(date, "%Y-%m-%d").date(),
                 period, distribution.hall.id,
                 success_threshold_pct=constraints.placement_success_threshold_pct,
+                relaxed_courses=relaxed_courses,
             )
             
             # Count results for this hall

@@ -189,6 +189,10 @@ WHITENOISE_AUTOREFRESH = True if DEBUG else False
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Uploaded institution logo. Set in production: the container's own disk is
+# wiped on every deploy. Format: cloudinary://<api_key>:<api_secret>@<cloud_name>
+CLOUDINARY_URL = env("CLOUDINARY_URL", default="")
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 

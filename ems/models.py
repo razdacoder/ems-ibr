@@ -8,6 +8,10 @@ from django.db import models
 from django.db.models import Count, F, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 
+from .cloudinary_storage import select_logo_storage
+from .identifiers import clean_number_text
+from .seating_rules import RULE_CHOICES, STRICT
+
 
 class Faculty(models.Model):
     name = models.CharField(max_length=200, unique=True)
@@ -51,7 +55,14 @@ class SystemSettings(models.Model):
     exam_heading = models.CharField(max_length=255, blank=True, default="")
     contact_email = models.EmailField(blank=True, default="")
     contact_phone = models.CharField(max_length=50, blank=True, default="")
-    logo = models.ImageField(upload_to="branding/", null=True, blank=True)
+    # On Cloudinary when CLOUDINARY_URL is set: the app's own disk does not
+    # survive a redeploy, and the attendance sheets print this image.
+    logo = models.ImageField(
+        upload_to="branding/",
+        storage=select_logo_storage,
+        null=True,
+        blank=True,
+    )
     # Primary brand colour as a hex string (e.g. "#7C3AED"); blank = default theme.
     brand_color = models.CharField(max_length=9, blank=True, default="")
 
@@ -363,6 +374,13 @@ class TimeTable(models.Model):
     # NULL = never distributed. Allocation refuses a slot whose rows no longer
     # match the live count (the list changed after distribution).
     planned_students = models.IntegerField(null=True, blank=True)
+    # Written once by timetable generation (spec 0002). "relaxed" = the course
+    # is too big for one period under the strict rule and is seated with only
+    # side, front and back neighbours blocked. Every row of one course in a
+    # slot carries the same value.
+    seating_rule = models.CharField(
+        max_length=10, choices=RULE_CHOICES, default=STRICT
+    )
 
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"
@@ -394,6 +412,13 @@ class Student(models.Model):
             models.Index(fields=['department', 'level']),
             models.Index(fields=['matric_no', 'department']),
         ]
+
+    def save(self, *args, **kwargs):
+        # Bulk uploads clean these before bulk_create; this covers every
+        # single-student save.
+        self.matric_no = clean_number_text(self.matric_no)
+        self.phone = clean_number_text(self.phone)
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.first_name} {self.last_name} - {self.matric_no}"

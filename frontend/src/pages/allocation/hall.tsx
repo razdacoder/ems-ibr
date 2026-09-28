@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RelaxedSeatingBadge } from "@/components/relaxed-seating-badge";
 import {
   Table,
   TableBody,
@@ -47,6 +48,17 @@ export default function HallAllocationPage() {
   });
   const [seatInputs, setSeatInputs] = useState<Record<number, string>>({});
   const [placedView, setPlacedView] = useState<"list" | "grid">("list");
+
+  // Courses in this hall seated under the relaxed rule (spec 0002).
+  const relaxedCodes = useMemo(
+    () =>
+      new Set(
+        (data.data?.courses ?? [])
+          .filter((c) => c.seating_rule === "relaxed")
+          .map((c) => c.code),
+      ),
+    [data.data],
+  );
 
   const courseColors = useMemo(() => {
     // Fixed six-color palette. Foreground is chosen for ≥ 4.5:1 contrast
@@ -137,6 +149,17 @@ export default function HallAllocationPage() {
                 {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
                 {data.data.hall.columns} grid · cap {data.data.hall.capacity}
               </p>
+              {relaxedCodes.size > 0 && (
+                <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <RelaxedSeatingBadge />
+                  <span>
+                    <span className="font-mono text-[12px] text-foreground">
+                      {[...relaxedCodes].join(", ")}
+                    </span>{" "}
+                    may sit diagonally next to each other. Watch the diagonals.
+                  </span>
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-6 self-start sm:self-end">
               <div>
@@ -290,6 +313,7 @@ export default function HallAllocationPage() {
                                 style={{ backgroundColor: palette.ring }}
                               />
                               {code}
+                              {relaxedCodes.has(code) && <RelaxedSeatingBadge />}
                             </span>
                           ))}
                         </div>

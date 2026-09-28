@@ -80,3 +80,58 @@ class UploadClassStudentsTests(TestCase):
     def test_rejects_a_file_with_no_matric_numbers(self):
         with self.assertRaisesMessage(UploadError, "No student rows"):
             upload_class_students(csv_file(",Ada,Obi,ada@example.com,0803\n"), self.cls)
+
+
+class SpreadsheetFloatTailTests(TestCase):
+    """A CSV saved from Excel can hold "2530710047.0" for 2530710047."""
+
+    def setUp(self):
+        self.cls = make_class(0)
+
+    def test_strips_the_float_tail_from_matric_and_phone_numbers(self):
+        upload_class_students(
+            csv_file("2530710047.0,Ada,Obi,ada@example.com,8031234567.0\n"), self.cls
+        )
+
+        student = Student.objects.get()
+        self.assertEqual(student.matric_no, "2530710047")
+        self.assertEqual(student.phone, "8031234567")
+
+    def test_a_float_tail_reupload_updates_the_same_student(self):
+        upload_class_students(csv_file("2530710047,Ada,Obi,ada@example.com,\n"), self.cls)
+        upload_class_students(csv_file("2530710047.0,Ada,Obi,new@example.com,\n"), self.cls)
+
+        self.assertEqual(Student.objects.get().email, "new@example.com")
+
+    def test_x_and_x_dot_0_in_one_file_are_duplicates(self):
+        body = "2530710047,Ada,Obi,a@example.com,\n2530710047.0,Ada,Obi,a@example.com,\n"
+
+        with self.assertRaises(UploadError):
+            upload_class_students(csv_file(body), self.cls)
+
+    def test_a_single_student_save_is_cleaned_too(self):
+        student = Student.objects.create(
+            first_name="Ada", last_name="Obi", matric_no="2530710047.0",
+            email="a@example.com", department=self.cls.department, level=self.cls,
+            phone="8031234567.00",
+        )
+
+        student.refresh_from_db()
+        self.assertEqual((student.matric_no, student.phone), ("2530710047", "8031234567"))
+
+
+class CleanNumberTextTests(TestCase):
+    def test_only_an_all_digit_value_with_a_zero_decimal_changes(self):
+        from ems.identifiers import clean_number_text
+
+        cases = {
+            "2530710047.0": "2530710047",
+            " 2530710047.00 ": "2530710047",
+            "0012345678": "0012345678",
+            "ND/2023/001": "ND/2023/001",
+            "20.5": "20.5",
+            "": "",
+            None: "",
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(clean_number_text(raw), expected, raw)

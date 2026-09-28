@@ -20,7 +20,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from ems.branding import resolve_logo_path
+from ems.branding import load_logo
 
 
 def _styles():
@@ -48,10 +48,10 @@ def _styles():
 
 def _branding(settings_obj, styles) -> list:
     flow = []
-    path = resolve_logo_path(settings_obj)
-    if path:
+    logo = styles.get("logo")
+    if logo:
         try:
-            img = Image(path)
+            img = Image(io.BytesIO(logo))
             ratio = (img.imageWidth or 1) / (img.imageHeight or 1)
             img.drawHeight = 14 * mm
             img.drawWidth = 14 * mm * ratio
@@ -129,6 +129,8 @@ def build_pdf(doc_type: str, payload: list[dict], settings_obj) -> bytes:
         title="Hall Directory" if doc_type == "hall" else "VISA",
     )
     styles = _styles()
+    # Fetched once for the whole PDF, not once per page.
+    styles["logo"] = load_logo(settings_obj)
     story = []
     for i, slot in enumerate(payload):
         if i > 0:

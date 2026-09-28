@@ -13,6 +13,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 
 from .branding import add_document_branding
 from .models import Distribution, TimeTable, SeatArrangement, SystemSettings
+from .seating_rules import RELAXED_SHEET_LINE
+from .utils import slot_relaxed_course_id
 
 
 def export_department_timetable(request: HttpRequest) -> HttpResponse:
@@ -187,6 +189,9 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
     def safe_name(name: str) -> str:
         return ''.join(c if c.isalnum() or c in ' -_.' else '_' for c in name)
 
+    # The slot's relaxed course, looked up once for the whole export.
+    relaxed_course_id = slot_relaxed_course_id(date_obj, period)
+
     # Create a zip containing DOCX attendance sheets grouped by course folders
     in_memory_zip = io.BytesIO()
     with zipfile.ZipFile(in_memory_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
@@ -213,6 +218,9 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
                 course_run.add_break()
                 code_run = course_header.add_run(f"COURSE CODE: {course.code}")
                 code_run.bold = True
+                if course.id == relaxed_course_id:
+                    code_run.add_break()
+                    course_header.add_run(RELAXED_SHEET_LINE).bold = True
 
                 # Exam details
                 exam_details = doc.add_paragraph()

@@ -12,7 +12,8 @@ from collections import defaultdict
 
 from django.db.models import Q
 
-from ems.models import Class, Distribution, TimeTable
+from ems import seating_rules
+from ems.models import Class, Distribution, Hall, TimeTable
 
 STAGES = ("timetable", "distribution", "allocation")
 
@@ -137,9 +138,66 @@ def skipped_inactive(slots=None) -> list:
     ]
 
 
+def outdated_rules(slots=None) -> list:
+    """Paper courses in ``slots`` whose stored ``seating_rule`` no longer
+    matches ``classify`` with today's student counts and halls (spec 0002).
+
+    For example a strict course that has since grown past ``strict_limit``:
+    distributing it under the old rule would leave students without a seat.
+    The student count is the course's active classes, as at generation.
+    """
+    stored = defaultdict(set)
+    codes = {}
+    for date, period, course_id, code, rule in _distributed_rows(slots).values_list(
+        "date", "period", "course_id", "course__code", "seating_rule"
+    ):
+        stored[(str(date), period, course_id)].add(rule)
+        codes[course_id] = code
+    if not stored:
+        return []
+
+    classes_by_course = defaultdict(set)
+    for cid, course_id in Class.objects.active().filter(
+        courses__in=codes.keys()
+    ).values_list("id", "courses"):
+        if course_id in codes:
+            classes_by_course[course_id].add(cid)
+    counts = Class.objects.filter(
+        pk__in={cid for ids in classes_by_course.values() for cid in ids}
+    ).student_count_map()
+    students = {
+        course_id: sum(counts.get(cid, 0) for cid in classes_by_course[course_id])
+        for course_id in codes
+    }
+
+    halls = list(Hall.objects.values_list("rows", "columns"))
+    strict = seating_rules.strict_limit(halls)
+    relaxed = seating_rules.relaxed_limit(halls)
+
+    outdated = []
+    for (date, period, course_id), rules in sorted(
+        stored.items(), key=lambda kv: (kv[0][0], kv[0][1], codes[kv[0][2]])
+    ):
+        current = seating_rules.classify(students[course_id], strict, relaxed)
+        stored_rule = next(iter(rules)) if len(rules) == 1 else "mixed"
+        if stored_rule != current:
+            outdated.append(
+                {
+                    "date": date,
+                    "period": period,
+                    "course": codes[course_id],
+                    "stored_rule": stored_rule,
+                    "current_rule": current,
+                    "students": students[course_id],
+                }
+            )
+    return outdated
+
+
 def check(stage: str, slots=None) -> dict:
     """Full readiness report for ``stage``. ``ready`` is false when any class
-    is empty or any row is stale; ``skipped_inactive`` alone never blocks."""
+    is empty, any row is stale, or (distribution) any course's seating rule
+    is out of date; ``skipped_inactive`` alone never blocks."""
     if stage not in STAGES:
         raise ValueError(f"Unknown stage '{stage}'.")
     report = {
@@ -147,14 +205,20 @@ def check(stage: str, slots=None) -> dict:
         "empty_classes": [],
         "stale": [],
         "skipped_inactive": [],
+        "outdated_rules": [],
     }
     if stage in ("timetable", "distribution"):
         report["empty_classes"] = empty_classes(stage, slots)
     if stage == "distribution":
         report["skipped_inactive"] = skipped_inactive(slots)
+        report["outdated_rules"] = outdated_rules(slots)
     if stage == "allocation":
         report["stale"] = stale_rows(slots)
-    report["ready"] = not report["empty_classes"] and not report["stale"]
+    report["ready"] = (
+        not report["empty_classes"]
+        and not report["stale"]
+        and not report["outdated_rules"]
+    )
     return report
 
 
@@ -187,6 +251,12 @@ def blocking_message(report: dict) -> str:
             f"{_sample(items)}. Regenerate the distribution for "
             f"{_sample(slots)} before allocating."
         )
+    if report.get("outdated_rules"):
+        codes = sorted({o["course"] for o in report["outdated_rules"]})
+        parts.append(
+            f"Timetable seating rule outdated for {_sample(codes)}, "
+            "regenerate the timetable."
+        )
     parts.append(
         f"See the readiness check (GET /api/readiness/?stage={report['stage']})."
     )
@@ -200,4 +270,5 @@ def failed_result(report: dict) -> dict:
         "error_type": "NotReady",
         "empty_classes": report["empty_classes"],
         "stale": report["stale"],
+        "outdated_rules": report.get("outdated_rules", []),
     }

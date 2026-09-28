@@ -6,12 +6,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const SHOW = 12;
 
 /** Lists what blocks a generate run (empty student lists, lists changed
- * since distribution) and, as a note, inactive classes that will be
- * skipped. Renders nothing when there is nothing to say. */
+ * since distribution, seating rules the timetable no longer matches) and,
+ * as a note, inactive classes that will be skipped. Renders nothing when
+ * there is nothing to say. */
 export function ReadinessPanel({ report }: { report: Readiness | undefined }) {
   if (!report) return null;
   const { empty_classes, stale, skipped_inactive } = report;
-  if (!empty_classes.length && !stale.length && !skipped_inactive.length) {
+  const outdated_rules = report.outdated_rules ?? [];
+  if (
+    !empty_classes.length &&
+    !stale.length &&
+    !skipped_inactive.length &&
+    !outdated_rules.length
+  ) {
     return null;
   }
 
@@ -64,6 +71,39 @@ export function ReadinessPanel({ report }: { report: Readiness | undefined }) {
                 }, now ${s.current}`,
               }))}
             />
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {outdated_rules.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle>
+            Timetable seating rule outdated for{" "}
+            {[...new Set(outdated_rules.map((o) => o.course))].join(", ")}
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              These courses changed size since the timetable was generated, so
+              the seating rule it chose no longer fits. Regenerate the
+              timetable before distributing.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {outdated_rules.slice(0, SHOW).map((o) => (
+                <li
+                  key={`${o.date}-${o.period}-${o.course}`}
+                  className="font-mono text-[11px] text-muted-foreground"
+                >
+                  {o.date} {o.period} · {o.course} · {o.students} students ·
+                  timetable says {o.stored_rule}, now {o.current_rule}
+                </li>
+              ))}
+              {outdated_rules.length > SHOW && (
+                <li className="font-mono text-[11px] text-muted-foreground">
+                  and {outdated_rules.length - SHOW} more
+                </li>
+              )}
+            </ul>
           </AlertDescription>
         </Alert>
       )}

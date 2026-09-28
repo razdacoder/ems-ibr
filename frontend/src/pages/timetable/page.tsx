@@ -66,6 +66,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
 import { ReadinessPanel } from "@/components/readiness-panel";
+import { RelaxedSeatingBadge } from "@/components/relaxed-seating-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -306,8 +307,13 @@ export default function TimetablePage() {
                             {row.class.name}
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-[12px] tracking-wide text-foreground">
-                              {row.course.code}
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              <span className="font-mono text-[12px] tracking-wide text-foreground">
+                                {row.course.code}
+                              </span>
+                              {row.seating_rule === "relaxed" && (
+                                <RelaxedSeatingBadge />
+                              )}
                             </span>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
@@ -495,6 +501,19 @@ function GenerateTimetableDialog({
                     </>
                   )}
                 </p>
+                {(estimate.data.relaxed_count > 0 ||
+                  estimate.data.refused_count > 0) && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    One course can seat{" "}
+                    {estimate.data.strict_limit.toLocaleString()} students a
+                    period, or {estimate.data.relaxed_limit.toLocaleString()}{" "}
+                    with relaxed seating.{" "}
+                    {estimate.data.relaxed_count > 0 &&
+                      `${estimate.data.relaxed_count} course${estimate.data.relaxed_count === 1 ? "" : "s"} will get relaxed seating. `}
+                    {estimate.data.refused_count > 0 &&
+                      `${estimate.data.refused_count} course${estimate.data.refused_count === 1 ? " is" : "s are"} too big even for that and will be refused.`}
+                  </p>
+                )}
               </div>
             )}
             <FormField
@@ -811,6 +830,7 @@ function TimetableCalendar({
                         <span className="font-mono text-[12px]">
                           {e.course.code}
                         </span>
+                        {e.seating_rule === "relaxed" && <RelaxedSeatingBadge />}
                         <span
                           className="flex-1 truncate text-muted-foreground"
                           title={e.course.name}
