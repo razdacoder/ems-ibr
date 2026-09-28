@@ -9,6 +9,8 @@ import { ConfirmProvider } from "./lib/confirm";
 import { ThemeProvider } from "./lib/theme";
 import { BrandApplier } from "./lib/brand";
 import { Toaster } from "./components/toaster";
+import { TooltipProvider } from "./components/ui/tooltip";
+import "@fontsource-variable/outfit";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -18,7 +20,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <BrandApplier />
         <AuthProvider>
           <ConfirmProvider>
-            <RouterProvider router={router} />
+            <TooltipProvider delay={150}>
+              <RouterProvider router={router} />
+            </TooltipProvider>
             <Toaster />
           </ConfirmProvider>
         </AuthProvider>

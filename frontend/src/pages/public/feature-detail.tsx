@@ -4,8 +4,7 @@ import { useFeature } from "@/api/public";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Logo } from "@/components/logo";
-import { InstitutionLogo } from "@/components/institution-logo";
+import { BrandLockup } from "@/components/logo";
 import { useReveal } from "@/lib/use-reveal";
 
 function PublicHeader() {
@@ -14,11 +13,9 @@ function PublicHeader() {
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
         <Link
           to="/"
-          className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
+          className="flex items-center"
         >
-          <Logo size={20} />
-          Ordo
-          <InstitutionLogo size={28} className="ml-1.5" />
+          <BrandLockup />
         </Link>
         <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
           <Link
@@ -38,7 +35,7 @@ function PublicHeader() {
           <ThemeToggle size="sm" iconOnly />
           <Button render={<Link to="/login" />} variant="brand" size="sm">
             Sign in
-            <ArrowUpRight className="ml-1 size-3.5" strokeWidth={2.25} />
+            <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
           </Button>
         </div>
       </div>
@@ -389,10 +386,10 @@ export default function FeatureDetailPage() {
                   <Button
                     render={<Link to="/login" />}
                     size="lg"
-                    className="h-11 rounded-md bg-card px-5 text-[14px] text-foreground hover:bg-background/90"
+                    variant="inverse"
                   >
                     Sign in
-                    <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
+                    <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
                   </Button>
                 </div>
               </div>

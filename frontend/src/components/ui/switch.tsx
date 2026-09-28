@@ -1,42 +1,30 @@
-import * as React from "react"
+"use client"
 
-import { cn } from "@/lib/utils"
+import { Switch as SwitchPrimitive } from "@base-ui/react/switch"
+import { cn } from "cn"
 
-/** A native on/off switch: a button with `role="switch"`, so it is keyboard
- * and screen reader friendly without extra dependencies. */
 function Switch({
-  checked,
-  onCheckedChange,
   className,
-  disabled,
+  size = "default",
   ...props
-}: Omit<React.ComponentProps<"button">, "onChange"> & {
-  checked: boolean
-  onCheckedChange?: (checked: boolean) => void
+}: SwitchPrimitive.Root.Props & {
+  size?: "sm" | "default"
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <SwitchPrimitive.Root
       data-slot="switch"
-      data-state={checked ? "checked" : "unchecked"}
-      disabled={disabled}
-      onClick={() => onCheckedChange?.(!checked)}
+      data-size={size}
       className={cn(
-        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-[color:var(--border)]",
+        "peer group/switch relative inline-flex shrink-0 items-center rounded-none border transition-all outline-none group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-[size=default]:h-4.5 data-[size=default]:w-8.25 data-[size=sm]:h-3.5 data-[size=sm]:w-6.25 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:border-primary data-checked:bg-primary group-has-[:focus-visible]/field-label:data-checked:border-primary data-unchecked:border-input/50 data-unchecked:bg-input group-has-[:focus-visible]/field-label:data-unchecked:border-input/50 data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className
       )}
       {...props}
     >
-      <span
-        className={cn(
-          "pointer-events-none block size-4 rounded-full bg-background shadow-sm transition-transform",
-          checked ? "translate-x-4" : "translate-x-0.5"
-        )}
+      <SwitchPrimitive.Thumb
+        data-slot="switch-thumb"
+        className="pointer-events-none block bg-background ring-0 transition-transform group-data-[size=default]/switch:size-3.5 group-data-[size=sm]/switch:size-2.5 data-checked:translate-x-[calc(100%+2px)] dark:data-checked:bg-primary-foreground data-unchecked:translate-x-0.25 dark:data-unchecked:bg-foreground"
       />
-    </button>
+    </SwitchPrimitive.Root>
   )
 }
 

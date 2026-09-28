@@ -68,10 +68,8 @@ export default function FacultiesListPage() {
               setEditing(null);
               setDialogOpen(true);
             }}
-            size="lg"
-            className="h-10"
           >
-            <Plus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+            <Plus data-icon="inline-start" strokeWidth={2.25} />
             New faculty
           </Button>
         }

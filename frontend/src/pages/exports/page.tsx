@@ -219,7 +219,7 @@ function ExportCard({
       </CardHeader>
       <CardFooter className="flex items-center justify-between gap-3">
         <Button onClick={onDownload} disabled={disabled} variant="outline">
-          <Download className="mr-2 h-4 w-4" /> Download
+          <Download data-icon="inline-start" /> Download
         </Button>
         {disabled && disabledHint && (
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">

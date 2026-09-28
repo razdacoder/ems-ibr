@@ -102,7 +102,7 @@ export default function StudentsListPage() {
         toolbar={
           isAdmin && (
             <Button onClick={() => { setEditing(null); setOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> New student
+              <Plus data-icon="inline-start" /> New student
             </Button>
           )
         }

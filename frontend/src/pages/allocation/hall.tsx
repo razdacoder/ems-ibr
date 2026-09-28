@@ -197,12 +197,11 @@ export default function HallAllocationPage() {
                     ? "Sorted by seat number"
                     : `${data.data.hall.rows} × ${data.data.hall.columns} seat plan · color-coded by course`}
                 </p>
-                <div className="inline-flex items-center gap-1 rounded-[6px] border border-[color:var(--border)] bg-[color:var(--card)] p-1">
+                <div className="inline-flex items-center gap-1 border border-border bg-card p-1">
                   <Button
                     type="button"
-                    size="sm"
+                    size="xs"
                     variant={placedView === "list" ? "default" : "ghost"}
-                    className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.12em]"
                     onClick={() => setPlacedView("list")}
                   >
                     <List className="size-3" strokeWidth={2.25} />
@@ -210,9 +209,8 @@ export default function HallAllocationPage() {
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
+                    size="xs"
                     variant={placedView === "grid" ? "default" : "ghost"}
-                    className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.12em]"
                     onClick={() => setPlacedView("grid")}
                   >
                     <LayoutGrid className="size-3" strokeWidth={2.25} />

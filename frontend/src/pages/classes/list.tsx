@@ -158,12 +158,12 @@ export default function ClassesListPage() {
                       : undefined
                   }
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload data-icon="inline-start" />
                   {uploadClasses.isPending ? "Uploading…" : "Upload CSV"}
                 </Button>
               )}
               <Button onClick={() => { setEditing(null); setOpen(true); }}>
-                <Plus className="mr-2 h-4 w-4" /> New class
+                <Plus data-icon="inline-start" /> New class
               </Button>
             </div>
           )
@@ -408,7 +408,7 @@ function UploadClassesDialog({
             onClick={() => file && targetSlug && onUpload(file, targetSlug)}
             disabled={!file || !targetSlug || locked || isPending}
           >
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload data-icon="inline-start" />
             {isPending ? "Uploading…" : "Upload"}
           </Button>
         </DialogFooter>

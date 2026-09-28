@@ -82,7 +82,7 @@ export default function AuditLogListPage() {
       description="System-wide activity trail — every sign-in and data change, with who, when, and from where."
       toolbar={
         <Button variant="outline" onClick={onExport} disabled={exporting}>
-          <Download className="mr-2 h-4 w-4" />
+          <Download data-icon="inline-start" />
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
       }

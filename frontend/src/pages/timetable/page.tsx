@@ -178,10 +178,8 @@ export default function TimetablePage() {
             <Button
               onClick={() => setGenOpen(true)}
               disabled={blocked}
-              size="lg"
-              className="h-10"
             >
-              <CalendarPlus className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+              <CalendarPlus data-icon="inline-start" strokeWidth={2.25} />
               Generate timetable
             </Button>
           )

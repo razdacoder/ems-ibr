@@ -186,7 +186,7 @@ export default function DirectoryPage() {
               onClick={onDownload}
               disabled={!ready || downloading || preview.isLoading}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download data-icon="inline-start" />
               {downloading
                 ? "Preparing…"
                 : `Download ${DIRECTORY_FORMATS.find((f) => f.value === format)?.label ?? "PDF"}`}

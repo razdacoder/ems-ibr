@@ -1,13 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">
   <style>
-    :root { --lit: #0a0b0a; --dim: #0a0b0a; }
-    @media (prefers-color-scheme: dark) {
-      :root { --lit: #eceae3; --dim: #eceae3; }
-    }
+    .o { fill: #251b28; }
+    @media (prefers-color-scheme: dark) { .o { fill: #faf9fa; } }
   </style>
-  <rect x="9" y="1" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
-  <rect x="25" y="9" width="6" height="6" rx="1.6" fill="#3fe06b" />
-  <rect x="1" y="17" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
-  <rect x="33" y="25" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
-  <rect x="17" y="33" width="6" height="6" rx="1.6" fill="var(--dim)" opacity="0.55" />
+  <path class="o" d="M1 1H13V6H6V18H18V11H23V23H1Z" />
+  <rect x="15" y="1" width="8" height="8" fill="#3fe06b" />
 </svg>

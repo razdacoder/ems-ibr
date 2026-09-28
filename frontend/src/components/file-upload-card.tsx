@@ -80,7 +80,7 @@ export function FileUploadCard({
           onClick={handleSubmit}
           disabled={!file || disabled || isPending}
         >
-          <Upload className="mr-2 h-4 w-4" />
+          <Upload data-icon="inline-start" />
           {isPending ? "Uploading…" : "Upload"}
         </Button>
       </CardFooter>

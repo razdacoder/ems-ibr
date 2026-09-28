@@ -179,7 +179,7 @@ export default function ClassDetailPage() {
               </div>
               {isAdmin && numericId !== undefined && (
                 <Button onClick={() => setOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" /> Add course
+                  <Plus data-icon="inline-start" /> Add course
                 </Button>
               )}
             </CardHeader>
@@ -297,7 +297,7 @@ function ClassStudentsCard({ classId }: { classId: number }) {
         </div>
         {canAdd && (
           <Button onClick={() => setAddOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add student
+            <Plus data-icon="inline-start" /> Add student
           </Button>
         )}
       </CardHeader>

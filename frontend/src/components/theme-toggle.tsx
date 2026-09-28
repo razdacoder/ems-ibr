@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/theme";
-import { cn } from "@/lib/utils";
 
 interface Props {
   /** Compact size variants — match neighbouring controls. */
@@ -17,31 +17,27 @@ export function ThemeToggle({ size = "md", iconOnly = false, className }: Props)
   const label = isDark ? "Light mode" : "Dark mode";
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size={
+        iconOnly
+          ? size === "sm"
+            ? "icon-sm"
+            : "icon"
+          : size === "sm"
+            ? "sm"
+            : "default"
+      }
       onClick={toggle}
       role="switch"
       aria-checked={isDark}
       aria-label={label}
       title={label}
-      className={cn(
-        "inline-flex items-center justify-center rounded-md border border-[color:var(--border)] bg-[color:var(--card)] text-muted-foreground transition-colors hover:border-[color:var(--brand)]/30 hover:bg-[color:var(--brand-soft)] hover:text-[color:var(--brand-strong)]",
-        size === "sm"
-          ? iconOnly
-            ? "size-7"
-            : "h-7 gap-1.5 px-2"
-          : iconOnly
-            ? "size-8"
-            : "h-8 gap-1.5 px-2.5",
-        className,
-      )}
+      className={className}
     >
-      <Icon className="size-3.5" strokeWidth={2} />
-      {!iconOnly && (
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em]">
-          {isDark ? "Light" : "Dark"}
-        </span>
-      )}
-    </button>
+      <Icon data-icon={iconOnly ? undefined : "inline-start"} strokeWidth={2} />
+      {!iconOnly && (isDark ? "Light" : "Dark")}
+    </Button>
   );
 }

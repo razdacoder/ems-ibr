@@ -123,14 +123,14 @@ export default function UsersListPage() {
               onClick={onExport}
               disabled={exporting}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download data-icon="inline-start" />
               {exporting ? "Exporting…" : "Export CSV"}
             </Button>
             <Button variant="outline" onClick={() => setSeedOpen(true)}>
-              <Sparkles className="mr-2 h-4 w-4" /> Seed dept users
+              <Sparkles data-icon="inline-start" /> Seed dept users
             </Button>
             <Button onClick={() => { setEditing(null); setEditOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> New user
+              <Plus data-icon="inline-start" /> New user
             </Button>
           </div>
         }

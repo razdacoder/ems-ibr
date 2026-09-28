@@ -20,11 +20,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 const WEEKDAYS = [
   { value: 0, label: "Mon" },
@@ -244,30 +249,24 @@ export default function ConstraintsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <Label className="mb-2 block">Excluded weekdays</Label>
+            <FieldLabel
+              label="Excluded weekdays"
+              hint="Selected days are skipped during scheduling."
+            />
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => {
                 const checked = form.excluded_weekdays.includes(d.value);
                 return (
-                  <button
+                  <ToggleButton
                     key={d.value}
-                    type="button"
+                    pressed={checked}
                     onClick={() => toggleWeekday(d.value)}
-                    className={cn(
-                      "rounded-md border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors",
-                      checked
-                        ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
-                        : "border-[color:var(--border)] bg-card text-muted-foreground hover:border-[color:var(--brand)]/40",
-                    )}
                   >
                     {d.label}
-                  </button>
+                  </ToggleButton>
                 );
               })}
             </div>
-            <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Selected days are skipped during scheduling.
-            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -300,9 +299,10 @@ export default function ConstraintsPage() {
             />
           </div>
           <div className="space-y-2 max-w-md">
-            <label className="block font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Seat pattern
-            </label>
+            <FieldLabel
+              label="Seat pattern"
+              hint="Drives timetable seat budgeting, distribution packing, and allocation placement. Sequential roughly doubles per-period capacity (and so halves the required exam window) but only spaces same-course students by direct adjacency, not by a full empty cell."
+            />
             <div className="grid grid-cols-2 gap-2">
               {(
                 [
@@ -323,29 +323,23 @@ export default function ConstraintsPage() {
                   <button
                     key={opt.value}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => set("seat_pattern", opt.value)}
-                    className={
-                      "rounded-md border px-3 py-2 text-left transition-colors " +
-                      (active
-                        ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)]/60"
-                        : "border-[color:var(--border)] hover:bg-[color:var(--muted)]")
-                    }
+                    className={cn(
+                      "border px-4 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+                      active
+                        ? "border-primary bg-muted"
+                        : "border-border hover:bg-muted",
+                    )}
                   >
-                    <div className="font-serif text-[0.95rem]">{opt.title}</div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <div className="text-sm font-semibold">{opt.title}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
                       {opt.hint}
                     </div>
                   </button>
                 );
               })}
             </div>
-            <p className="text-[12px] text-muted-foreground">
-              Drives timetable seat budgeting, distribution packing, and
-              allocation placement. Sequential roughly doubles per-period
-              capacity (and so halves the required exam window) but only
-              spaces same-course students by direct adjacency, not by a full
-              empty cell.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -409,24 +403,18 @@ export default function ConstraintsPage() {
                         { length: form.cbe_group_count },
                         (_, i) => i + 1,
                       ).map((g) => (
-                        <button
+                        <ToggleButton
                           key={g}
-                          type="button"
+                          pressed={current === g}
                           onClick={() =>
                             setFacultyGroups((prev) => ({
                               ...prev,
                               [f.slug]: g,
                             }))
                           }
-                          className={cn(
-                            "rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors",
-                            current === g
-                              ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
-                              : "border-[color:var(--border)] bg-card text-muted-foreground hover:border-[color:var(--brand)]/40",
-                          )}
                         >
                           G{g}
-                        </button>
+                        </ToggleButton>
                       ))}
                     </div>
                   </div>
@@ -485,21 +473,15 @@ export default function ConstraintsPage() {
                     </span>
                     <div className="flex gap-1">
                       {(["AM", "PM", ""] as const).map((opt) => (
-                        <button
+                        <ToggleButton
                           key={opt || "auto"}
-                          type="button"
+                          pressed={current === opt}
                           onClick={() =>
                             setPeriodByName((p) => ({ ...p, [name]: opt }))
                           }
-                          className={cn(
-                            "rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors",
-                            current === opt
-                              ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
-                              : "border-[color:var(--border)] bg-card text-muted-foreground hover:border-[color:var(--brand)]/40",
-                          )}
                         >
                           {opt === "" ? "Auto" : opt}
-                        </button>
+                        </ToggleButton>
                       ))}
                     </div>
                   </div>
@@ -579,7 +561,7 @@ function NumberField({
 }) {
   return (
     <div>
-      <Label className="mb-2 block">{label}</Label>
+      <FieldLabel label={label} hint={hint} />
       <Input
         type="number"
         value={value}
@@ -591,11 +573,51 @@ function NumberField({
           if (!Number.isNaN(v)) onChange(v);
         }}
       />
+    </div>
+  );
+}
+
+/** Field label with its description tucked behind an info tooltip. */
+function FieldLabel({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5">
+      <Label>{label}</Label>
       {hint && (
-        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          {hint}
-        </p>
+        <Tooltip>
+          <TooltipTrigger
+            aria-label={`About ${label}`}
+            className="inline-flex size-4 items-center justify-center text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+          >
+            <Info className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-72 leading-relaxed">
+            {hint}
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
+  );
+}
+
+/** A pressable choice chip in the app's Button style. */
+function ToggleButton({
+  pressed,
+  onClick,
+  children,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant={pressed ? "default" : "outline"}
+      aria-pressed={pressed}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   );
 }

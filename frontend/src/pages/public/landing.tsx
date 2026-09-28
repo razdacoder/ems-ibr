@@ -10,8 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Logo } from "@/components/logo";
-import { InstitutionLogo } from "@/components/institution-logo";
+import { BrandLockup, Wordmark } from "@/components/logo";
 import { useReveal as useSharedReveal } from "@/lib/use-reveal";
 
 /* -----------------------------------------------------------
@@ -142,7 +141,7 @@ function SeatGridSketch() {
       <text
         x={pad}
         y={14}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily="Outfit Variable, sans-serif"
         fontSize="7"
         letterSpacing="0.06em"
         fill="var(--muted-foreground)"
@@ -409,11 +408,9 @@ export default function LandingPage() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
           <Link
             to="/"
-            className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
+            className="flex items-center"
           >
-            <Logo size={20} />
-            Ordo
-            <InstitutionLogo size={28} className="ml-1.5" />
+            <BrandLockup />
           </Link>
 
           <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
@@ -440,10 +437,9 @@ export default function LandingPage() {
               render={<Link to="/login" />}
               size="sm"
               variant="brand"
-              className="rounded-md"
             >
               Sign in
-              <ArrowUpRight className="ml-1 size-3.5" strokeWidth={2.25} />
+              <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
             </Button>
           </div>
         </div>
@@ -517,10 +513,9 @@ export default function LandingPage() {
                     render={<Link to="/login" />}
                     size="lg"
                     variant="brand"
-                    className="h-11 rounded-md px-5 text-[14px]"
                   >
                     Open the dashboard
-                    <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
+                    <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
                   </Button>
                   <Link
                     to="/features"
@@ -1266,10 +1261,10 @@ export default function LandingPage() {
               <Button
                 render={<Link to="/login" />}
                 size="lg"
-                className="h-12 rounded-md bg-card px-6 text-[14px] text-foreground hover:bg-background/90"
+                variant="inverse"
               >
                 Sign in to the dashboard
-                <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
+                <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
               </Button>
               <Link
                 to="/features"
@@ -1305,10 +1300,9 @@ export default function LandingPage() {
               <div className="col-span-2 sm:col-span-5">
                 <Link
                   to="/"
-                  className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight text-foreground"
+                  className="inline-flex text-foreground"
                 >
-                  <Logo size={22} />
-                  Ordo
+                  <Wordmark size="lg" />
                 </Link>
                 <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-muted-foreground">
                   Operations OS for examinations. Schedule, distribute, seat,

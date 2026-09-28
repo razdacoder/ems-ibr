@@ -96,7 +96,7 @@ export default function HallsListPage() {
         toolbar={
           isAdmin && (
             <Button onClick={() => { setEditing(null); setOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" /> New hall
+              <Plus data-icon="inline-start" /> New hall
             </Button>
           )
         }

@@ -85,10 +85,8 @@ export default function AllocationPage() {
             <Button
               onClick={onGenerate}
               disabled={generate.isPending || blocked}
-              size="lg"
-              className="h-10"
             >
-              <Sparkles className="mr-1.5 h-4 w-4" strokeWidth={2.25} />
+              <Sparkles data-icon="inline-start" strokeWidth={2.25} />
               {generate.isPending ? "Starting…" : "Generate for all slots"}
             </Button>
           )

@@ -1,37 +1,12 @@
+import { InstitutionLogo } from "@/components/institution-logo";
 import { cn } from "@/lib/utils";
 
 /**
- * Ordo mark — a 5x5 grid with five cells lit: four in the neutral
- * foreground tone, one in Signal green. Reads as "order found inside
- * scattered data" — the brand's whole thesis in one glyph.
+ * Ordo mark — a square "O" with its top-right corner lifted out as a single
+ * Signal-green seat. Reads as the O of Ordo and as a seat being placed: the
+ * product's job in one glyph. Drawn on a 24-unit grid so every edge lands on
+ * a whole pixel at 16/24/32px.
  */
-const GRID_SIZE = 5;
-const CELL = 6;
-const GAP = 2;
-const STEP = CELL + GAP;
-const ORIGIN = 1;
-const VIEWBOX = ORIGIN * 2 + GRID_SIZE * CELL + (GRID_SIZE - 1) * GAP;
-
-/** (row, col) cells lit in the neutral tone. */
-const LIT_CELLS: Array<[number, number]> = [
-  [0, 1],
-  [2, 0],
-  [3, 4],
-  [4, 2],
-];
-/** (row, col) cell lit in Signal green — the mark's focal point. */
-const SIGNAL_CELL: [number, number] = [1, 3];
-
-function cellRect(row: number, col: number) {
-  return {
-    x: ORIGIN + col * STEP,
-    y: ORIGIN + row * STEP,
-    width: CELL,
-    height: CELL,
-    rx: 1.6,
-  };
-}
-
 export function Logo({
   className,
   size = 16,
@@ -39,81 +14,72 @@ export function Logo({
   className?: string;
   size?: number;
 }) {
-  const cells = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => [
-    Math.floor(i / GRID_SIZE),
-    i % GRID_SIZE,
-  ]) as Array<[number, number]>;
-
   return (
     <svg
       aria-hidden
-      viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}
+      viewBox="0 0 24 24"
       width={size}
       height={size}
       className={cn("shrink-0", className)}
+      shapeRendering="crispEdges"
     >
-      {cells.map(([row, col]) => {
-        const isSignal = row === SIGNAL_CELL[0] && col === SIGNAL_CELL[1];
-        const isLit = LIT_CELLS.some(([r, c]) => r === row && c === col);
-        const rect = cellRect(row, col);
-        if (isSignal) {
-          return (
-            <rect key={`${row}-${col}`} {...rect} fill="var(--brand)" />
-          );
-        }
-        if (isLit) {
-          return (
-            <rect
-              key={`${row}-${col}`}
-              {...rect}
-              fill="currentColor"
-              opacity="0.55"
-            />
-          );
-        }
-        return (
-          <rect
-            key={`${row}-${col}`}
-            {...rect}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-            opacity="0.18"
-          />
-        );
-      })}
+      <path
+        d="M1 1H13V6H6V18H18V11H23V23H1Z"
+        fill="currentColor"
+      />
+      <rect x="15" y="1" width="8" height="8" fill="var(--brand)" />
     </svg>
   );
 }
 
+const WORDMARK_SIZES = {
+  sm: { mark: 16, text: "text-[1rem]" },
+  md: { mark: 18, text: "text-[1.125rem]" },
+  lg: { mark: 22, text: "text-[1.375rem]" },
+} as const;
+
 /**
- * Wordmark + mark, the standard header brand-line. Use this anywhere the
- * literal "Ordo" string appears next to the logo.
+ * Mark + "Ordo" set in the heading face. Use this anywhere the literal
+ * "Ordo" string appears next to the logo.
  */
 export function Wordmark({
   className,
   size = "md",
 }: {
   className?: string;
-  size?: "sm" | "md" | "lg";
+  size?: keyof typeof WORDMARK_SIZES;
 }) {
-  const px = size === "lg" ? 22 : size === "sm" ? 14 : 18;
-  const text =
-    size === "lg"
-      ? "text-[1.5rem]"
-      : size === "sm"
-        ? "text-[1.125rem]"
-        : "text-[1.25rem]";
+  const s = WORDMARK_SIZES[size];
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 font-serif tracking-tight",
-        text,
+        "inline-flex items-center gap-2 font-heading font-semibold leading-none tracking-[-0.03em]",
+        s.text,
         className,
       )}
     >
-      <Logo size={px} />
+      <Logo size={s.mark} />
       Ordo
+    </span>
+  );
+}
+
+/**
+ * Ordo wordmark co-branded with the configured institution logo, separated
+ * by a hairline rule. Falls back to the bare wordmark when no institution
+ * logo has been uploaded.
+ */
+export function BrandLockup({
+  className,
+  size = "md",
+}: {
+  className?: string;
+  size?: keyof typeof WORDMARK_SIZES;
+}) {
+  return (
+    <span className={cn("inline-flex items-center gap-3", className)}>
+      <Wordmark size={size} />
+      <InstitutionLogo size={size === "lg" ? 32 : 28} withDivider />
     </span>
   );
 }

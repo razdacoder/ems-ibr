@@ -48,7 +48,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Logo } from "@/components/logo";
+import { Logo, Wordmark } from "@/components/logo";
 import { InstitutionLogo } from "@/components/institution-logo";
 
 interface NavSection {
@@ -175,13 +175,12 @@ function SidebarContent({
           collapsed ? "justify-center px-3" : "gap-2.5 px-6",
         )}
       >
-        <Logo size={collapsed ? 22 : 20} />
-        {!collapsed && (
+        {collapsed ? (
+          <Logo size={22} />
+        ) : (
           <>
-            <span className="font-serif text-[1.25rem] tracking-tight">
-              Ordo
-            </span>
-            <InstitutionLogo size={40} className="ml-auto" />
+            <Wordmark />
+            <InstitutionLogo size={32} className="ml-auto" />
           </>
         )}
       </div>
@@ -287,25 +286,27 @@ function SidebarContent({
             collapsed ? "px-2" : "px-4",
           )}
         >
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={onToggle}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[color:var(--brand-soft)] hover:text-[color:var(--accent-iris-fg)]",
-              collapsed && "justify-center",
+              "w-full text-muted-foreground",
+              collapsed ? "justify-center" : "justify-start",
             )}
           >
             {collapsed ? (
-              <ChevronsRight className="size-3.5" strokeWidth={2} />
+              <ChevronsRight strokeWidth={2} />
             ) : (
               <>
-                <ChevronsLeft className="size-3.5" strokeWidth={2} />
+                <ChevronsLeft data-icon="inline-start" strokeWidth={2} />
                 Collapse
               </>
             )}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -430,14 +431,16 @@ export function DashboardLayout() {
             className="absolute inset-0 bg-foreground/30 backdrop-blur-sm"
           />
           <aside className="relative flex h-full w-72 flex-col border-r border-[color:var(--sidebar-border)] bg-[color:var(--sidebar)]">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon-sm"
               aria-label="Close menu"
               onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-3 rounded-full border border-[color:var(--border)] bg-background p-1.5 text-muted-foreground"
+              className="absolute right-3 top-3.5 bg-background"
             >
-              <X className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
+              <X strokeWidth={2} />
+            </Button>
             <SidebarContent
               sections={sections}
               collapsed={false}
@@ -450,18 +453,16 @@ export function DashboardLayout() {
       {/* Right column: only this area scrolls */}
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--border)] bg-background/80 px-5 backdrop-blur-md lg:hidden">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
-            className="grid size-8 place-items-center rounded-md border border-[color:var(--border)] bg-background"
           >
-            <Menu className="h-4 w-4" strokeWidth={2} />
-          </button>
-          <span className="flex items-center gap-2 font-serif text-[1.125rem] tracking-tight">
-            <Logo size={18} />
-            Ordo
-          </span>
+            <Menu strokeWidth={2} />
+          </Button>
+          <Wordmark size="sm" />
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />
             <Button
@@ -471,7 +472,7 @@ export function DashboardLayout() {
                 void logout();
               }}
             >
-              <LogOut className="mr-1.5 h-4 w-4" strokeWidth={2} />
+              <LogOut data-icon="inline-start" strokeWidth={2} />
               Sign out
             </Button>
           </div>

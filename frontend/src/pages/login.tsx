@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Logo } from "@/components/logo";
+import { Wordmark } from "@/components/logo";
 import { InstitutionLogo } from "@/components/institution-logo";
 
 const schema = z.object({
@@ -75,10 +75,9 @@ export default function LoginPage() {
           <div className="flex items-center justify-between">
             <Link
               to="/"
-              className="flex items-center gap-2 font-serif text-[1.5rem] tracking-tight"
+              className="inline-flex"
             >
-              <Logo size={22} />
-              Ordo
+              <Wordmark size="lg" />
             </Link>
           </div>
 
@@ -159,10 +158,9 @@ export default function LoginPage() {
         <div className="flex items-center justify-between border-b border-[color:var(--border)] px-6 py-5 lg:hidden">
           <Link
             to="/"
-            className="flex items-center gap-2 font-serif text-[1.25rem] tracking-tight"
+            className="inline-flex"
           >
-            <Logo size={18} />
-            Ordo
+            <Wordmark />
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />
@@ -173,7 +171,7 @@ export default function LoginPage() {
           <div className="w-full max-w-[380px]">
             <InstitutionLogo
               size={88}
-              className="animate-fade-up mb-8 block"
+              className="animate-fade-up mb-8 flex"
             />
             <span
               className="animate-fade-up inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
@@ -260,12 +258,12 @@ export default function LoginPage() {
                   type="submit"
                   variant="brand"
                   size="lg"
-                  className="h-11 w-full rounded-md"
+                  className="w-full"
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting ? "Signing in…" : "Sign in"}
                   {!form.formState.isSubmitting && (
-                    <ArrowRight className="ml-1.5 size-4" strokeWidth={2.25} />
+                    <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
                   )}
                 </Button>
               </form>

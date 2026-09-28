@@ -86,7 +86,7 @@ export default function CoursesListPage() {
                 setOpen(true);
               }}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus data-icon="inline-start" />
               New course
             </Button>
           )
