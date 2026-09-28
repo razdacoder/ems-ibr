@@ -886,7 +886,7 @@ def generate_attendance_sheets(request):
     arrangements = (
         SeatArrangement.objects.filter(date=date, period=period, hall_id=hall_id)
         .select_related("student", "course", "cls", "hall")
-        .order_by("course__name", "student__matric_no")
+        .order_by("course__name", "cls_id", "student__matric_no")
     )
 
     if not arrangements.exists():
@@ -897,11 +897,16 @@ def generate_attendance_sheets(request):
 
     hall = arrangements.first().hall
 
-    # Group students by course
+    # One sheet per (course, class). Keying on course alone merged two
+    # classes sitting the same course into one sheet, labelled with only
+    # the first class and their matric runs interleaved.
     courses_data = {}
     for arrangement in arrangements:
         if arrangement.seat_number:  # Only placed students
-            course_key = f"{arrangement.course.name} ({arrangement.course.code})"
+            course_key = (
+                f"{arrangement.course.name} ({arrangement.course.code})",
+                arrangement.cls_id,
+            )
             if course_key not in courses_data:
                 courses_data[course_key] = {
                     "course": arrangement.course,
@@ -1061,7 +1066,7 @@ def generate_attendance_sheets(request):
             doc_buffer.seek(0)
 
             # Add to zip file
-            filename = f"Attendance_{course_data['course'].code}_{hall.name}_{date}_{period}.docx"
+            filename = f"Attendance_{course_data['course'].code}_{hall.name}_{course_data['cls'].full_label}_{date}_{period}.docx"
             zip_file.writestr(filename, doc_buffer.getvalue())
 
     # Prepare response

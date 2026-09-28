@@ -23,9 +23,9 @@ class UploadError(ValueError):
     """Raised for any human-correctable problem with an uploaded file."""
 
 
-def _read_csv(file) -> pd.DataFrame:
+def _read_csv(file, **kwargs) -> pd.DataFrame:
     try:
-        return pd.read_csv(file)
+        return pd.read_csv(file, **kwargs)
     except Exception as exc:  # pragma: no cover - pandas error surface is wide
         raise UploadError(
             f"Could not read file: {exc}. Please confirm it is a valid CSV."
@@ -193,7 +193,9 @@ def upload_class_courses(file, cls: Class) -> dict[str, int]:
 
 
 def upload_class_students(file, cls: Class) -> dict[str, int]:
-    df = _read_csv(file)
+    # Read identifiers as text. Left to inference, one blank cell turns the
+    # column into floats and astype(str) below then stores "2520320002.0".
+    df = _read_csv(file, dtype={"MATRIC NUMBER": str, "PHONE NUMBER": str})
     _check_columns(
         df,
         ["MATRIC NUMBER", "FIRSTNAME", "LASTNAME", "EMAIL", "PHONE NUMBER"],

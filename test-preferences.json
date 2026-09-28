@@ -1,0 +1,9 @@
+{
+  "tool": "django-testcase",
+  "gate": null,
+  "additionalTools": [],
+  "e2eTool": "none",
+  "testDir": "ems/tests",
+  "filePattern": "test_*.py",
+  "packageManager": "pip"
+}

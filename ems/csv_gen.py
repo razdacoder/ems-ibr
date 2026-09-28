@@ -150,7 +150,7 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
         SeatArrangement.objects
         .filter(date=date_obj, period=period, seat_number__isnull=False)
         .select_related('student', 'course', 'cls', 'hall')
-        .order_by('course__name', 'hall__name', 'student__matric_no')
+        .order_by('course__name', 'hall__name', 'cls_id', 'student__matric_no')
     )
 
     if not arrangements_qs.exists():
@@ -164,11 +164,13 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
         response.write(in_memory_zip.getvalue())
         return response
 
-    # Group by course, then by hall
+    # Group by course, then by (hall, class): one sheet per class, so two
+    # classes sitting the same course in one hall are not merged under the
+    # first class's label with their matric runs interleaved.
     grouped = {}
     for arr in arrangements_qs:
         course_id = arr.course_id
-        hall_id = arr.hall_id
+        hall_id = (arr.hall_id, arr.cls_id)
         if course_id not in grouped:
             grouped[course_id] = {
                 'course': arr.course,
@@ -300,7 +302,7 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
                 doc_buffer.seek(0)
 
                 # Path inside zip: course folder + file
-                filename = f"Attendance_{safe_name(course.code)}_{safe_name(hall.name)}_{date_obj}_{period}.docx"
+                filename = f"Attendance_{safe_name(course.code)}_{safe_name(hall.name)}_{safe_name(cls.full_label)}_{date_obj}_{period}.docx"
                 zip_path = f"{course_folder}/{filename}"
                 zip_file.writestr(zip_path, doc_buffer.getvalue())
 

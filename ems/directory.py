@@ -81,20 +81,22 @@ def visa_title(date_obj, period: str) -> str:
 
 # --- Matric ranges --------------------------------------------------------
 
-def _matric_sort_key(matric: str):
-    return (0, int(matric)) if matric.isdigit() else (1, matric)
-
-
 def format_matric_range(matrics: list[str]) -> str:
     """``["2430113585", ..., "2430113616"]`` -> ``"2430113585 - 3616"``.
 
     Shows the full start matric and abbreviates the end to the suffix that
     differs from the start (keeping at least the last 4 characters).
+
+    Plain text order, the same order allocation uses to cut each class into
+    per hall blocks (``order_by('matric_no')``). A numbers first key disagreed
+    with it whenever a class held matrics of different lengths or forms
+    (``245064439``, ``2520320002.0``), so a range could start with a student
+    who actually sat in another hall's block.
     """
     cleaned = [m for m in matrics if m]
     if not cleaned:
         return ""
-    ordered = sorted(set(cleaned), key=_matric_sort_key)
+    ordered = sorted(set(cleaned))
     start, end = ordered[0], ordered[-1]
     if start == end:
         return start
@@ -124,20 +126,23 @@ def hall_summary_rows(date_obj, period: str) -> list[dict]:
         if sa.student and sa.student.matric_no:
             group["matrics"].append(sa.student.matric_no)
 
-    rows = []
+    keyed = []
     for group in groups.values():
         matrics = group["matrics"]
-        rows.append(
-            {
-                "hall": group["hall"].name,
-                # Department code + class name (e.g. "AC ND II").
-                "class_name": group["cls"].full_label,
-                "count": len(matrics),
-                "matric_range": format_matric_range(matrics),
-            }
-        )
-    rows.sort(key=lambda r: (r["class_name"], r["hall"]))
-    return rows
+        row = {
+            "hall": group["hall"].name,
+            # Department code + class name (e.g. "AC ND II").
+            "class_name": group["cls"].full_label,
+            "count": len(matrics),
+            "matric_range": format_matric_range(matrics),
+        }
+        # Within a class, list halls by where their block starts so the
+        # ranges read in ascending order. Blocks are handed out in database
+        # hall name order, which is not the order people read hall names in
+        # ("BJ1" before "BK 1", "Hall 10" before "Hall 2").
+        keyed.append(((row["class_name"], min(matrics, default=""), row["hall"]), row))
+    keyed.sort(key=lambda kr: kr[0])
+    return [row for _, row in keyed]
 
 
 def visa_groups(date_obj, period: str) -> list[dict]:

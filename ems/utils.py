@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import shutil
@@ -849,6 +850,51 @@ def is_course_in_hall(hall, course_code):
     return False
 
 
+def _quarters_can_seat(rows, cols, bites):
+    """True if the allocator's quarter placer would seat every ``bites``
+    entry in a ``rows`` x ``cols`` hall.
+
+    ``bites`` is ``[(course_code, count), ...]``. This replays
+    ``try_quarter_placement`` exactly: courses largest first (course code
+    breaks ties), each into whichever ``(r%2, c%2)`` quarter has the most free
+    cells, and a course must fit one quarter whole. The two must stay in step:
+    anything this accepts is seated by pass 0 with no leftovers, so nothing
+    reaches the adjacency fallback passes or the cross hall reconcile.
+    """
+    free = {
+        (ro, co): ((rows + 1 - ro) // 2) * ((cols + 1 - co) // 2)
+        for ro in (0, 1)
+        for co in (0, 1)
+    }
+    for _course, count in sorted(bites, key=lambda b: (-b[1], b[0])):
+        best = max(free, key=free.get)
+        if count > free[best]:
+            return False
+        free[best] -= count
+    return True
+
+
+def _max_seatable_bite(hall, course_code, limit):
+    """Largest bite (at most ``limit``) of ``course_code`` this hall can still
+    seat without leaving anyone unplaced. Only ever returns a verified size.
+
+    Counts of the same course are summed, because the allocator seats a
+    course as one group in one quarter whichever classes it came from."""
+    existing = {}
+    for c in hall["classes"]:
+        existing[c["course"]] = existing.get(c["course"], 0) + c["student_range"]
+    lo, hi = 0, limit
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        bites = dict(existing)
+        bites[course_code] = bites.get(course_code, 0) + mid
+        if _quarters_can_seat(hall["rows"], hall["columns"], list(bites.items())):
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
 def distribute_classes_to_halls(timetables, halls):
     """Pack timetable rows into halls under allocation-aware caps, in two
     passes.
@@ -879,6 +925,20 @@ def distribute_classes_to_halls(timetables, halls):
     many small classes ends up with each one scattered 1-3 students at a
     time across a dozen different halls, rather than sharing a handful of
     halls together.
+
+    **Balanced load.** When the slot needs fewer seats than the halls offer,
+    both passes first run with every hall's budget scaled to the same share
+    (demand / total capacity). Without this, largest first filling packed
+    the big halls to their limit and left many small halls empty. Any
+    leftover the scaled budgets could not take is then placed against the
+    full budgets.
+
+    **Seatable bites only.** Every bite is also capped by
+    :func:`_max_seatable_bite`, so a hall is never handed a mix of courses
+    the allocator cannot fit into its four adjacency safe quarters. Before
+    this, a hall filled to its whole grid always left students unplaced, and
+    the cross hall reconcile scattered them a few at a time across other
+    halls (broken matric ranges, mixed attendance sheets).
     """
     class_schedules = make_schedules(timetables=timetables)
     # make_schedules already random-shuffles. Stable-sort by size desc to
@@ -886,15 +946,31 @@ def distribute_classes_to_halls(timetables, halls):
     class_schedules.sort(key=lambda s: s["size"], reverse=True)
     halls.sort(key=lambda h: h.get("capacity", 0), reverse=True)
 
+    demand = sum(s["size"] for s in class_schedules)
+    total_capacity = sum(max(h.get("capacity", 0), 0) for h in halls)
+    held_back = {}
+    if 0 < demand < total_capacity:
+        load = demand / total_capacity
+        for hall in halls:
+            share = math.ceil(hall["capacity"] * load)
+            held_back[id(hall)] = hall["capacity"] - share
+            hall["capacity"] = share
+
     def place(hall, schedule, take):
-        hall["classes"].append(
-            {
-                "id": schedule["id"],
-                "class": schedule["class"],
-                "course": schedule["course"],
-                "student_range": take,
-            }
+        existing = next(
+            (c for c in hall["classes"] if c["id"] == schedule["id"]), None
         )
+        if existing:
+            existing["student_range"] += take
+        else:
+            hall["classes"].append(
+                {
+                    "id": schedule["id"],
+                    "class": schedule["class"],
+                    "course": schedule["course"],
+                    "student_range": take,
+                }
+            )
         hall["capacity"] -= take
         schedule["size"] -= take
 
@@ -922,30 +998,57 @@ def distribute_classes_to_halls(timetables, halls):
                 # defer this course's remainder to the tail-consolidation
                 # pass instead of nibbling it away hall by hall.
                 continue
+            if _max_seatable_bite(hall, schedule["course"], take) < take:
+                # The quarters are too full for this bite; defer it too.
+                continue
 
             place(hall, schedule, take)
 
     # --- Pass 2: tail consolidation -----------------------------------
-    tails = [s for s in class_schedules if s["size"] > 0]
-    tails.sort(key=lambda s: s["size"], reverse=True)
+    def consolidate_tails(top_up=False):
+        """``top_up`` lets a course grow its bite in a hall it already sits
+        in. Needed once held back capacity is released: on a light slot a big
+        course may already hold a small bite in every hall."""
+        tails = [s for s in class_schedules if s["size"] > 0]
+        tails.sort(key=lambda s: s["size"], reverse=True)
 
-    for schedule in tails:
-        while schedule["size"] > 0:
-            candidates = [
-                h for h in halls
-                if h["capacity"] > 0
-                and h.get("per_course_slice", 0) > 0
-                and not is_course_in_hall(h, schedule["course"])
-            ]
-            if not candidates:
-                break
-            # Best-fit: the hall with the least spare capacity that can still
-            # take a bite. This finishes off nearly-full halls before
-            # spreading into fresh ones, so different courses' tails
-            # concentrate into the same small set of halls.
-            target = min(candidates, key=lambda h: h["capacity"])
-            take = min(schedule["size"], target["capacity"], target["per_course_slice"])
-            place(target, schedule, take)
+        for schedule in tails:
+            while schedule["size"] > 0:
+                candidates = []
+                for h in halls:
+                    if (
+                        h["capacity"] <= 0
+                        or h.get("per_course_slice", 0) <= 0
+                        or (
+                            not top_up
+                            and is_course_in_hall(h, schedule["course"])
+                        )
+                    ):
+                        continue
+                    limit = min(
+                        schedule["size"], h["capacity"], h["per_course_slice"]
+                    )
+                    take = _max_seatable_bite(h, schedule["course"], limit)
+                    if take > 0:
+                        candidates.append((h, take))
+                if not candidates:
+                    break
+                # Best-fit: the hall with the least spare capacity that can
+                # still take a bite. This finishes off nearly-full halls
+                # before spreading into fresh ones, so different courses'
+                # tails concentrate into the same small set of halls.
+                target, take = min(candidates, key=lambda ht: ht[0]["capacity"])
+                place(target, schedule, take)
+
+    consolidate_tails()
+
+    # Release the capacity balanced loading held back and place whatever the
+    # shared budgets could not absorb.
+    if held_back:
+        for hall in halls:
+            hall["capacity"] += held_back[id(hall)]
+        consolidate_tails()
+        consolidate_tails(top_up=True)
 
     return [hall for hall in halls if hall["classes"]]
 
@@ -2400,15 +2503,24 @@ def reconcile_unplaced(date, period):
 
     reseated = 0
     reseat_writes = []
+    # Hall each (class, course) overflow last went to. Trying it first keeps
+    # a class's overflow together as one block. Ranking by free cells alone
+    # changed the winner after every student, so a class was dealt out a few
+    # students per hall across many halls.
+    last_target: dict[tuple, int] = {}
     for sa in unplaced_qs:
         target_id = None
         target_pos = None
+        group = (sa.cls_id, sa.course_id)
         # Prefer halls with the most empty cells and a quarter that already
         # has this course (extending an existing same-course quarter is
         # always safe) or any quarter the course hasn't entered.
         sorted_halls = sorted(
             hall_state.items(),
-            key=lambda kv: -sum(len(v) for v in kv[1]["quarters"].values()),
+            key=lambda kv: (
+                kv[0] != last_target.get(group),
+                -sum(len(v) for v in kv[1]["quarters"].values()),
+            ),
         )
         for hall_id, state in sorted_halls:
             quarters = state["quarters"]
@@ -2447,6 +2559,7 @@ def reconcile_unplaced(date, period):
                 break
         if target_id is None:
             continue  # genuinely no room anywhere
+        last_target[group] = target_id
         # Persist the move.
         row, col = target_pos
         cols = hall_state[target_id]["cols"]
