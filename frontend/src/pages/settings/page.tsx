@@ -199,8 +199,8 @@ export default function SettingsPage() {
     <div className="space-y-10">
       <PageHeader
         section="Admin · Settings"
-        title="System settings."
-        description="Configure institution branding, the active session and semester, and manage destructive admin actions."
+        title="Settings"
+        description="Set your institution's name and logo, choose the current session and semester, and reset data when you need a fresh start."
       />
 
       <Card>
@@ -553,7 +553,7 @@ export default function SettingsPage() {
             Danger zone
           </p>
           <CardTitle className="font-serif text-[1.5rem] tracking-tight text-[color:var(--accent-red-fg)]">
-            Reset the system.
+            Reset everything
           </CardTitle>
           <CardDescription className="text-[color:var(--accent-red-fg)]/70">
             Wipe all departments, classes, courses, halls, students, timetables

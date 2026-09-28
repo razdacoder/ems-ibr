@@ -130,8 +130,8 @@ export default function ConstraintsPage() {
       <div className="space-y-10">
         <PageHeader
           section="Admin · Constraints"
-          title="Constraints."
-          description="Tune the timetable, distribution, and allocation algorithms."
+          title="Constraints"
+          description="Set the rules Ordo follows when it builds the timetable, splits classes across halls and seats students."
         />
         <Skeleton className="h-72 w-full" />
       </div>
@@ -206,29 +206,28 @@ export default function ConstraintsPage() {
     <div className="space-y-10">
       <PageHeader
         section="Admin · Constraints"
-        title="Constraints."
-        description="Tune algorithm thresholds for timetable, distribution, and allocation. Without saving here once, generation is blocked."
+        title="Constraints"
+        description="Set the rules Ordo follows when it builds the timetable, splits classes across halls and seats students. Save this page at least once before you generate anything."
       />
 
       {initialized ? (
         <Alert>
           <CheckCircle2 className="size-4" />
-          <AlertTitle>Initialized</AlertTitle>
+          <AlertTitle>Rules saved</AlertTitle>
           <AlertDescription>
             Last saved {configuredAt}
             {constraints.data?.configured_by_email
               ? ` by ${constraints.data.configured_by_email}`
               : ""}
-            . Generation is unlocked.
+            . You're ready to generate.
           </AlertDescription>
         </Alert>
       ) : (
         <Alert variant="destructive">
           <AlertTriangle className="size-4" />
-          <AlertTitle>Not initialized</AlertTitle>
+          <AlertTitle>Rules not saved yet</AlertTitle>
           <AlertDescription>
-            Save these constraints once to unlock timetable, distribution, and
-            allocation generation.
+            Save this page once to start generating the timetable, hall distribution and seating.
           </AlertDescription>
         </Alert>
       )}
@@ -244,14 +243,14 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Timetable</CardTitle>
           <CardDescription>
-            Date selection, CBE thresholds, and PBE seat utilization.
+            Which days to skip, how big CBE exams are handled, and how full paper exam halls can get.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
             <FieldLabel
               label="Excluded weekdays"
-              hint="Selected days are skipped during scheduling."
+              hint="No exams are scheduled on the days you select."
             />
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => {
@@ -272,25 +271,25 @@ export default function ConstraintsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <NumberField
               label="CBE auto-split threshold"
-              hint="Courses exceeding this size are split into N faculty-keyed sections (see CBE faculty groups below)."
+              hint="CBE courses with more students than this are split into sections by faculty. Set up the groups further down."
               value={form.cbe_autosplit_threshold}
               onChange={(v) => set("cbe_autosplit_threshold", v)}
             />
             <NumberField
               label="CBE full-day threshold"
-              hint="Courses above this size occupy both AM and PM."
+              hint="CBE courses with more students than this take up both the morning and the afternoon."
               value={form.cbe_fullday_threshold}
               onChange={(v) => set("cbe_fullday_threshold", v)}
             />
             <NumberField
               label="CBE daily cap (per period)"
-              hint="Cap on total CBE students scheduled in one period of one day."
+              hint="The most CBE students that can write in a single morning or afternoon."
               value={form.cbe_daily_cap_per_period}
               onChange={(v) => set("cbe_daily_cap_per_period", v)}
             />
             <NumberField
               label="PBE hall utilization"
-              hint="Fraction of a hall's seats used for PBE (0–1)."
+              hint="How full to fill each hall for paper exams, from 0 to 1. For example, 0.8 uses 80% of the seats."
               step={0.05}
               min={0.01}
               max={1}
@@ -301,7 +300,7 @@ export default function ConstraintsPage() {
           <div className="space-y-2 max-w-md">
             <FieldLabel
               label="Seat pattern"
-              hint="Drives timetable seat budgeting, distribution packing, and allocation placement. Sequential roughly doubles per-period capacity (and so halves the required exam window) but only spaces same-course students by direct adjacency, not by a full empty cell."
+              hint="Checkerboard leaves an empty seat between students, so each hall holds about half its capacity. Sequential fills every seat and only stops students of the same course from sitting right next to each other. It roughly doubles capacity, so the exam period can be shorter."
             />
             <div className="grid grid-cols-2 gap-2">
               {(
@@ -309,12 +308,12 @@ export default function ConstraintsPage() {
                   {
                     value: "checkerboard" as const,
                     title: "Checkerboard",
-                    hint: "Strict spacing · ~50% capacity",
+                    hint: "Empty seat between students, about half capacity",
                   },
                   {
                     value: "sequential" as const,
                     title: "Sequential",
-                    hint: "Full capacity · adjacency-only spacing",
+                    hint: "Every seat used, same course never side by side",
                   },
                 ]
               ).map((opt) => {
@@ -349,17 +348,14 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>CBE faculty groups</CardTitle>
           <CardDescription>
-            When a CBE course exceeds the auto-split threshold, classes are
-            bucketed into <span className="font-mono">N</span> sections by
-            faculty. Pick the group count and assign each faculty to a group.
-            Every faculty must be mapped or generation is blocked.
+            When a CBE course is too big for one sitting, Ordo splits it into sections by faculty. Choose how many groups to use and put each faculty in one. Every faculty needs a group before you can generate.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="max-w-full">
             <NumberField
               label="Number of groups"
-              hint="At least 2. Each large CBE course will produce up to this many sections (G1, G2, …)."
+              hint="At least 2. A large CBE course is split into up to this many sections (G1, G2 and so on)."
               value={form.cbe_group_count}
               onChange={(v) => {
                 set("cbe_group_count", v);
@@ -381,7 +377,7 @@ export default function ConstraintsPage() {
             <Skeleton className="h-40 w-full" />
           ) : (facultiesQ.data?.results ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No faculties yet — add faculties in Admin → Faculties first.
+              No faculties yet. Add them on the Faculties page first.
             </p>
           ) : (
             <div className="rounded-md border border-[color:var(--border)] divide-y divide-[color:var(--border)]/60">
@@ -432,7 +428,7 @@ export default function ConstraintsPage() {
                   (f) => !facultyGroups[f.slug],
                 ).length
               }{" "}
-              faculty unmapped — generation is blocked until all are set.
+              without a group yet. Every faculty needs one before you can generate.
             </p>
           )}
         </CardContent>
@@ -443,9 +439,7 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Class period assignments</CardTitle>
           <CardDescription>
-            Assignment is by class name only — setting "Level 100" to AM applies
-            to every department that has a class called "Level 100". Names left
-            as Auto default to AM.{" "}
+            Choose whether each class writes in the morning or the afternoon. This goes by class name, so setting "Level 100" to AM applies to every department's Level 100. Anything left on Auto goes to the morning.{" "}
             <span className="text-foreground">
               {unassignedCount} unassigned
             </span>{" "}
@@ -457,7 +451,7 @@ export default function ConstraintsPage() {
             <Skeleton className="h-40 w-full" />
           ) : uniqueClassNames.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No classes yet — upload classes first.
+              No classes yet. Upload some classes first.
             </p>
           ) : (
             <div className="max-h-[420px] overflow-y-auto rounded-md border border-[color:var(--border)] divide-y divide-[color:var(--border)]/60">
@@ -497,14 +491,13 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Distribution</CardTitle>
           <CardDescription>
-            How leftover students are merged when distributing classes into
-            halls.
+            What to do with the few students left over when a class is split across halls.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4">
           <NumberField
             label="Remainder merge threshold"
-            hint="If fewer than this many students remain after a split, place them all in the same hall instead of splitting again."
+            hint="If a split would leave fewer students than this, keep them together in one hall instead."
             value={form.remainder_merge_threshold}
             onChange={(v) => set("remainder_merge_threshold", v)}
           />
@@ -516,15 +509,13 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Allocation</CardTitle>
           <CardDescription>
-            Result threshold for the seat-allocation pass. Anti-cheating
-            adjacency is fixed at 8-direction; placement attempts and pattern
-            order are managed internally.
+            When a seating run counts as a success. Students of the same course are never seated next to each other in any direction, and Ordo handles the rest.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <NumberField
             label="Placement success threshold (%)"
-            hint="Reported as a success when this fraction of students is placed. Partial results are still returned below the threshold."
+            hint="A seating run counts as a success when at least this percentage of students get a seat. If it falls short you still get the partial result."
             value={form.placement_success_threshold_pct}
             onChange={(v) => set("placement_success_threshold_pct", v)}
             min={0}

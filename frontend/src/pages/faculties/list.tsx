@@ -23,6 +23,8 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { PageHeader } from "@/components/layout/page-header";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
+import { EMPTY } from "@/lib/format";
 import { FacultyFormDialog } from "./faculty-form-dialog";
 
 export default function FacultiesListPage() {
@@ -60,8 +62,8 @@ export default function FacultiesListPage() {
     <div className="space-y-10">
       <PageHeader
         section="Admin · Faculties"
-        title="Faculties."
-        description="Group departments under faculties. Each faculty may contain many departments."
+        title="Faculties"
+        description="Group your departments into faculties. A faculty can hold as many departments as you need."
         actions={
           <Button
             onClick={() => {
@@ -112,7 +114,7 @@ export default function FacultiesListPage() {
                 <TableHead>Faculty</TableHead>
                 <TableHead>Departments</TableHead>
                 <TableHead className="w-[120px] text-right">Count</TableHead>
-                <TableHead className="w-[200px] text-right">Actions</TableHead>
+                <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -138,7 +140,7 @@ export default function FacultiesListPage() {
                     <TableCell>
                       {f.departments.length === 0 ? (
                         <span className="font-serif italic text-muted-foreground">
-                          —
+                          {EMPTY}
                         </span>
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
@@ -158,9 +160,9 @@ export default function FacultiesListPage() {
                       {f.department_count.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <RowActions>
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="outline"
                           onClick={() => {
                             setEditing(f);
@@ -170,14 +172,14 @@ export default function FacultiesListPage() {
                           Edit
                         </Button>
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="destructive"
                           onClick={() => handleDelete(f)}
                           disabled={remove.isPending}
                         >
                           Delete
                         </Button>
-                      </div>
+                      </RowActions>
                     </TableCell>
                   </TableRow>
                 ))

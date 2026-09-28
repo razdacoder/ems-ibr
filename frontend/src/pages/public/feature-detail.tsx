@@ -1,23 +1,24 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useFeature } from "@/api/public";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLockup } from "@/components/logo";
 import { useReveal } from "@/lib/use-reveal";
+import { AuthButton, useAuthEntry } from "@/components/auth-entry";
 
 function PublicHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-background/70 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-8">
         <Link
           to="/"
           className="flex items-center"
         >
-          <BrandLockup />
+          <BrandLockup size="lg" />
         </Link>
-        <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
+        <nav className="hidden items-center gap-8 text-[14px] text-muted-foreground md:flex">
           <Link
             to="/"
             className="transition-colors hover:text-[color:var(--brand-strong)]"
@@ -32,11 +33,8 @@ function PublicHeader() {
           </Link>
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle size="sm" iconOnly />
-          <Button render={<Link to="/login" />} variant="brand" size="sm">
-            Sign in
-            <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
-          </Button>
+          <ThemeToggle iconOnly />
+          <AuthButton size="default" />
         </div>
       </div>
     </header>
@@ -65,7 +63,7 @@ function Section({
               style={{ backgroundColor: "var(--brand)" }}
             />
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              {num} — {label}
+              {num} · {label}
             </p>
           </div>
           <h2 className="mt-3 font-serif text-[2rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.5rem]">
@@ -85,6 +83,7 @@ function Section({
 }
 
 export default function FeatureDetailPage() {
+  const entry = useAuthEntry();
   useReveal();
   const { slug } = useParams<{ slug: string }>();
   const feature = useFeature(slug);
@@ -384,11 +383,11 @@ export default function FeatureDetailPage() {
                     All modules
                   </Button>
                   <Button
-                    render={<Link to="/login" />}
+                    render={<Link to={entry.to} />}
                     size="lg"
                     variant="inverse"
                   >
-                    Sign in
+                    {entry.signedIn ? "Go to dashboard" : "Sign in"}
                     <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
                   </Button>
                 </div>

@@ -111,8 +111,7 @@ export default function LoginPage() {
               className="animate-fade-up mt-6 max-w-md text-[15px] leading-[1.7] text-muted-foreground"
               style={{ ["--anim-delay" as string]: "240ms" }}
             >
-              Schedule, distribute, seat, and document — every step in one
-              place, with live progress over WebSockets.
+              Schedule exams, assign halls, seat students and print the paperwork, all in one place. You can watch each step happen live.
             </p>
 
             <ul className="mt-10 space-y-3.5">

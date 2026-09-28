@@ -57,6 +57,7 @@ import { canManageData, useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { formatEmail, formatName, formatTitle, orEmpty } from "@/lib/format";
 
 export default function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -114,7 +115,7 @@ export default function ClassDetailPage() {
                 Catalog · Class
               </p>
               <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-                {cls.data.name}.
+                {cls.data.name}
               </h1>
               <p className="mt-2 text-[14.5px] text-muted-foreground">
                 {cls.data.department.name}
@@ -214,7 +215,7 @@ export default function ClassDetailPage() {
                           </span>
                         </TableCell>
                         <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                          {c.name}
+                          {formatTitle(c.name)}
                         </TableCell>
                         <TableCell>
                           <span
@@ -336,17 +337,17 @@ function ClassStudentsCard({ classId }: { classId: number }) {
                     <TableRow key={s.id}>
                       <TableCell>
                         <span className="font-mono text-[12px] tracking-wide">
-                          {s.matric_no}
+                          {orEmpty(s.matric_no)}
                         </span>
                       </TableCell>
                       <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                        {s.first_name} {s.last_name}
+                        {formatName(s.first_name, s.last_name)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {s.email || "—"}
+                        {formatEmail(s.email)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {s.phone || "—"}
+                        {orEmpty(s.phone)}
                       </TableCell>
                     </TableRow>
                   ))

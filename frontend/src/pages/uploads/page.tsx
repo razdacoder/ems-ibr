@@ -53,8 +53,8 @@ export default function UploadsPage() {
     <div className="space-y-10">
       <PageHeader
         section="Admin · Ingestion"
-        title="Bulk uploads."
-        description="Import departments, halls, and the institutional course catalog from CSV files. Class- and student-level uploads happen on the class detail page."
+        title="Bulk uploads"
+        description="Bring in departments, halls and courses from CSV files. To upload a class's students or courses, open that class."
         meta={
           <span
             className={
@@ -73,12 +73,11 @@ export default function UploadsPage() {
       {locked && (
         <Alert className="border-[color:var(--accent-yellow-fg)]/20 bg-[color:var(--accent-yellow)]/40">
           <AlertTitle className="font-serif text-[1.125rem]">
-            Uploads are sealed
+            Uploads are locked
           </AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-3">
             <span>
-              A timetable already exists for this session. Re-enable uploads to
-              ingest new data — the existing timetable will be invalidated.
+              A timetable already exists for this session. If you turn uploads back on to add new data, the current timetable will no longer be valid.
               {!canUnlock &&
                 " A super admin must re-enable uploads before you can continue."}
             </span>

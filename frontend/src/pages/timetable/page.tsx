@@ -72,6 +72,7 @@ import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { cn } from "@/lib/utils";
+import { formatTitle } from "@/lib/format";
 
 const todayIso = () => {
   const d = new Date();
@@ -167,10 +168,10 @@ export default function TimetablePage() {
     <div className="space-y-10">
       <PageHeader
         section="Operations · Timetable"
-        title="Timetable."
+        title="Timetable"
         description={
           isAdmin
-            ? "Browse the generated exam timetable. Generate to (re-)build it."
+            ? "See the exam timetable. Generate it again whenever your data changes."
             : "Browse your department's exam timetable."
         }
         actions={
@@ -315,7 +316,7 @@ export default function TimetablePage() {
                             </span>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {row.course.name}
+                            {formatTitle(row.course.name)}
                           </TableCell>
                         </TableRow>
                       ))
@@ -481,7 +482,7 @@ function GenerateTimetableDialog({
                   {estimate.data.min_exam_days === 1 ? "" : "s"}.{" "}
                   {estimate.data.bottleneck === "seat_throughput" ? (
                     <>
-                      Bottleneck: hall seat throughput — AM demand{" "}
+                      What limits it: hall seats. Morning demand is{" "}
                       {estimate.data.am_seat_demand.toLocaleString()}, PM{" "}
                       {estimate.data.pm_seat_demand.toLocaleString()} vs{" "}
                       {estimate.data.seats_per_period.toLocaleString()} seats
@@ -831,9 +832,9 @@ function TimetableCalendar({
                         {e.seating_rule === "relaxed" && <RelaxedSeatingBadge />}
                         <span
                           className="flex-1 truncate text-muted-foreground"
-                          title={e.course.name}
+                          title={formatTitle(e.course.name)}
                         >
-                          {e.course.name}
+                          {formatTitle(e.course.name)}
                         </span>
                         <span className="font-serif text-[0.9rem]">
                           {e.class.name}

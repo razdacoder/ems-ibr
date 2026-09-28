@@ -3,7 +3,40 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+type SelectLabelItem = { value: unknown; label: React.ReactNode }
+
+/**
+ * Walk the element tree for <SelectItem>s so the trigger can show an item's
+ * label instead of its raw value (e.g. "All departments", not "__all__").
+ */
+function collectItems(node: React.ReactNode, out: SelectLabelItem[]) {
+  React.Children.forEach(node, (child) => {
+    if (!React.isValidElement<{ value?: unknown; children?: React.ReactNode }>(child)) return
+    if (child.type === SelectItem) {
+      out.push({ value: child.props.value, label: child.props.children })
+    } else if (child.props.children) {
+      collectItems(child.props.children, out)
+    }
+  })
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  items,
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const derived = React.useMemo(() => {
+    if (items) return items
+    const out: SelectLabelItem[] = []
+    collectItems(children, out)
+    return out.length ? out : undefined
+  }, [items, children])
+  return (
+    <SelectPrimitive.Root items={derived as typeof items} {...props}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

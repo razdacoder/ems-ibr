@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatEmail, formatName, isBlank } from "@/lib/format";
 
 const TILES: Array<{
   key:
@@ -143,7 +144,9 @@ export default function DashboardPage() {
                 className="italic"
                 style={{ color: "var(--brand-strong)" }}
               >
-                {user?.first_name ?? user?.full_name ?? user?.email}
+                {isBlank(user?.first_name)
+                  ? formatEmail(user?.email)
+                  : formatName(user?.first_name)}
               </span>
               .
             </h1>
@@ -182,7 +185,7 @@ export default function DashboardPage() {
               style={{ backgroundColor: "var(--brand)" }}
             />
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              01 — Statistics
+              01 · Statistics
             </p>
           </div>
           <Link
@@ -251,7 +254,7 @@ export default function DashboardPage() {
               style={{ backgroundColor: "var(--brand)" }}
             />
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              02 — Quick Actions
+              02 · Quick Actions
             </p>
           </div>
         </div>
@@ -308,7 +311,7 @@ export default function DashboardPage() {
                   style={{ backgroundColor: "var(--brand)" }}
                 />
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  03 — Cross-department
+                  03 · Cross-department
                 </p>
               </div>
               <h2 className="mt-2 flex flex-wrap items-center gap-3 font-serif text-[2rem] leading-[1.05] tracking-[-0.015em]">
@@ -330,9 +333,7 @@ export default function DashboardPage() {
             />
           </div>
           <p className="mb-6 max-w-2xl text-[14px] leading-[1.65] text-muted-foreground">
-            Courses appearing across multiple departments — each bar shows how
-            that course's classes are distributed. Hover a segment for the
-            department and class count.
+            Courses taken by more than one department. Each bar shows how the course's classes are spread out. Hover over a segment to see the department and number of classes.
           </p>
 
           {(() => {
@@ -354,7 +355,7 @@ export default function DashboardPage() {
                 <div className="mb-5 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   <span>Course · departments</span>
                   <span className="tabular-nums">
-                    classes 0 — {maxClasses}
+                    classes 0 to {maxClasses}
                   </span>
                 </div>
 

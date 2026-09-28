@@ -24,6 +24,7 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { PageHeader } from "@/components/layout/page-header";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { DepartmentFormDialog } from "./department-form-dialog";
 
 export default function DepartmentsListPage() {
@@ -64,8 +65,8 @@ export default function DepartmentsListPage() {
     <div className="space-y-10">
       <PageHeader
         section="Catalog · Departments"
-        title="Departments."
-        description="Manage academic departments and their codes."
+        title="Departments"
+        description="Your academic departments and their short codes."
         actions={
           isAdmin && (
             <Button
@@ -120,7 +121,7 @@ export default function DepartmentsListPage() {
                 <TableHead className="w-[140px] text-right">Classes</TableHead>
                 <TableHead className="w-[140px] text-right">Students</TableHead>
                 {isAdmin && (
-                  <TableHead className="w-[200px] text-right">Actions</TableHead>
+                  <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -168,9 +169,9 @@ export default function DepartmentsListPage() {
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <RowActions>
                           <Button
-                            size="sm"
+                            size="xs"
                             variant="outline"
                             onClick={() => {
                               setEditing(d);
@@ -180,14 +181,14 @@ export default function DepartmentsListPage() {
                             Edit
                           </Button>
                           <Button
-                            size="sm"
+                            size="xs"
                             variant="destructive"
                             onClick={() => handleDelete(d)}
                             disabled={remove.isPending}
                           >
                             Delete
                           </Button>
-                        </div>
+                        </RowActions>
                       </TableCell>
                     )}
                   </TableRow>

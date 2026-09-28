@@ -32,6 +32,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { EMPTY } from "@/lib/format";
 
 export default function DistributionPage() {
   const { user } = useAuth();
@@ -73,8 +74,8 @@ export default function DistributionPage() {
     <div className="space-y-10">
       <PageHeader
         section="Operations · Distribution"
-        title="Distribution."
-        description="Capacity-aware hall-to-class assignments. Generate once for every exam slot in the timetable; filter below to view a specific slot."
+        title="Distribution"
+        description="Decide which classes sit in which hall, based on how many seats each hall has. Generate once to cover the whole timetable, then pick a slot below to see it."
         actions={
           isAdmin && (
             <Button
@@ -129,7 +130,7 @@ export default function DistributionPage() {
           {[
             { k: "Halls used", v: stats.data.halls_used },
             { k: "Students seated", v: stats.data.students_seated },
-            { k: "Date", v: date ?? "—" },
+            { k: "Date", v: date ?? EMPTY },
             { k: "Period", v: period },
           ].map((m) => (
             <div key={m.k} className="bg-card p-5">

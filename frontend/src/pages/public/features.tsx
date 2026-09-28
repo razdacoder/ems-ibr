@@ -6,18 +6,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLockup } from "@/components/logo";
 import { useReveal } from "@/lib/use-reveal";
+import { AuthButton, useAuthEntry } from "@/components/auth-entry";
 
 function PublicHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-background/70 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-8">
         <Link
           to="/"
           className="flex items-center"
         >
-          <BrandLockup />
+          <BrandLockup size="lg" />
         </Link>
-        <nav className="hidden items-center gap-7 text-[13px] text-muted-foreground md:flex">
+        <nav className="hidden items-center gap-8 text-[14px] text-muted-foreground md:flex">
           <Link
             to="/"
             className="transition-colors hover:text-[color:var(--brand-strong)]"
@@ -33,11 +34,8 @@ function PublicHeader() {
           </Link>
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle size="sm" iconOnly />
-          <Button render={<Link to="/login" />} variant="brand" size="sm">
-            Sign in
-            <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
-          </Button>
+          <ThemeToggle iconOnly />
+          <AuthButton size="default" />
         </div>
       </div>
     </header>
@@ -45,6 +43,7 @@ function PublicHeader() {
 }
 
 function PublicFooter() {
+  const entry = useAuthEntry();
   return (
     <footer className="border-t border-[color:var(--border)] bg-background">
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 py-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex-row sm:items-center sm:px-8">
@@ -63,10 +62,10 @@ function PublicFooter() {
             Modules
           </Link>
           <Link
-            to="/login"
+            to={entry.to}
             className="transition-colors hover:text-[color:var(--brand-strong)]"
           >
-            Sign in
+            {entry.signedIn ? "Dashboard" : "Sign in"}
           </Link>
         </span>
       </div>
@@ -75,6 +74,7 @@ function PublicFooter() {
 }
 
 export default function FeaturesPage() {
+  const entry = useAuthEntry();
   useReveal();
   const features = useFeatures();
   return (
@@ -100,7 +100,7 @@ export default function FeaturesPage() {
                     className="size-1 rounded-full animate-pulse-soft"
                     style={{ backgroundColor: "var(--brand-strong)" }}
                   />
-                  Index — Modules
+                  Index · Modules
                 </span>
                 <h1
                   data-reveal
@@ -125,10 +125,7 @@ export default function FeaturesPage() {
                   style={{ ["--reveal-delay" as string]: "240ms" }}
                   className="text-[15px] leading-[1.7] text-muted-foreground"
                 >
-                  Ordo is a deliberately small surface — five modules, one
-                  pipeline, one source of truth. Each module owns one job and
-                  emits its progress over a typed event stream so the rest of
-                  the system never has to guess.
+                  Ordo keeps things simple: five modules that run in order, all working from the same data. Each one does a single job and reports its progress as it goes, so you always know where things stand.
                 </p>
                 <div
                   data-reveal
@@ -136,7 +133,7 @@ export default function FeaturesPage() {
                   className="mt-6 flex items-center gap-4"
                 >
                   <Button
-                    render={<Link to="/login" />}
+                    render={<Link to={entry.to} />}
                     variant="brand"
                     size="lg"
                   >
@@ -256,13 +253,13 @@ export default function FeaturesPage() {
               </h2>
             </div>
             <Button
-              render={<Link to="/login" />}
+              render={<Link to={entry.to} />}
               size="lg"
               variant="inverse"
               data-reveal
               style={{ ["--reveal-delay" as string]: "120ms" }}
             >
-              Sign in
+              {entry.signedIn ? "Go to dashboard" : "Sign in"}
               <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
             </Button>
           </div>

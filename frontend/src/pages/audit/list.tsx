@@ -23,6 +23,7 @@ import { PaginationFooter } from "@/components/data-table/pagination";
 import { extractErrorEnvelope } from "@/lib/api";
 import { downloadAuthenticatedFile } from "@/lib/download";
 import { toast } from "@/lib/use-toast";
+import { orEmpty } from "@/lib/format";
 
 const STATUS_ALL = "all";
 
@@ -79,7 +80,7 @@ export default function AuditLogListPage() {
   return (
     <ListShell
       title="Audit log"
-      description="System-wide activity trail — every sign-in and data change, with who, when, and from where."
+      description="Every sign-in and change made in Ordo, with who did it, when and from where."
       toolbar={
         <Button variant="outline" onClick={onExport} disabled={exporting}>
           <Download data-icon="inline-start" />
@@ -157,11 +158,11 @@ export default function AuditLogListPage() {
               </TableCell>
               <TableCell>
                 <Badge variant={log.succeeded ? "secondary" : "destructive"}>
-                  {log.status_code ?? "—"}
+                  {orEmpty(log.status_code)}
                 </Badge>
               </TableCell>
               <TableCell className="font-mono text-[12px] text-muted-foreground">
-                {log.ip_address ?? "—"}
+                {orEmpty(log.ip_address)}
               </TableCell>
             </TableRow>
           ))}

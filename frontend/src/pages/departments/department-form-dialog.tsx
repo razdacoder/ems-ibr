@@ -196,7 +196,7 @@ export function DepartmentFormDialog({ open, onOpenChange, initial }: Props) {
                       <SelectItem value={NO_FACULTY}>Unassigned</SelectItem>
                       {faculties.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
-                          {f.slug} — {f.name}
+                          {f.slug} · {f.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

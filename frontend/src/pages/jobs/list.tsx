@@ -30,6 +30,7 @@ import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { JobProgressDialog } from "@/components/job-progress-dialog";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 
 export default function JobsListPage() {
   const { user } = useAuth();
@@ -89,10 +90,10 @@ export default function JobsListPage() {
     <>
       <ListShell
         title="Jobs"
-        description="Background jobs you've triggered (admins see jobs from everyone)."
+        description="Long-running tasks like timetable generation, and how they went. Admins can see everyone's."
         filters={
           <>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? ""); setPage(1); }}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v ?? "__all__"); setPage(1); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -104,7 +105,7 @@ export default function JobsListPage() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v ?? ""); setPage(1); }}>
+            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v ?? "__all__"); setPage(1); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -141,7 +142,7 @@ export default function JobsListPage() {
               <TableHead className="w-[180px]">Progress</TableHead>
               <TableHead className="w-[180px]">Started</TableHead>
               <TableHead>By</TableHead>
-              <TableHead className="w-[280px] text-right">Actions</TableHead>
+              <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -219,9 +220,9 @@ export default function JobsListPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <RowActions>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         onClick={() => {
                           setActiveJob(job);
@@ -232,7 +233,7 @@ export default function JobsListPage() {
                       </Button>
                       {isAdmin && job.status === "failed" && (
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="outline"
                           onClick={() => onRetry(job)}
                           disabled={retry.isPending}
@@ -242,7 +243,7 @@ export default function JobsListPage() {
                       )}
                       {isAdmin && (
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="destructive"
                           onClick={() => onDelete(job)}
                           disabled={
@@ -252,7 +253,7 @@ export default function JobsListPage() {
                           Delete
                         </Button>
                       )}
-                    </div>
+                    </RowActions>
                   </TableCell>
                 </TableRow>
               );

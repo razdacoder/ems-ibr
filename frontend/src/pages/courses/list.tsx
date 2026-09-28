@@ -26,10 +26,12 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { formatTitle } from "@/lib/format";
 import { CourseFormDialog } from "./course-form-dialog";
 
 export default function CoursesListPage() {
@@ -77,7 +79,7 @@ export default function CoursesListPage() {
     <>
       <ListShell
         title="Courses"
-        description="The global catalog of exam-bearing courses."
+        description="Every course that has an exam, across all departments."
         toolbar={
           isAdmin && (
             <Button
@@ -158,24 +160,24 @@ export default function CoursesListPage() {
               <TableHead className="w-[120px]">Code</TableHead>
               <TableHead>Title</TableHead>
               <TableHead className="w-[120px]">Type</TableHead>
-              {isAdmin && <TableHead className="w-[200px]">Actions</TableHead>}
+              {isAdmin && <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.data?.results.map((c) => (
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.code}</TableCell>
-                <TableCell>{c.name}</TableCell>
+                <TableCell>{formatTitle(c.name)}</TableCell>
                 <TableCell>
                   <Badge variant={c.exam_type === "CBE" ? "default" : "secondary"}>
                     {c.exam_type}
                   </Badge>
                 </TableCell>
                 {isAdmin && (
-                  <TableCell>
-                    <div className="flex gap-2">
+                  <TableCell className="text-right">
+                    <RowActions>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         onClick={() => {
                           setEditing(c);
@@ -185,14 +187,14 @@ export default function CoursesListPage() {
                         Edit
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="destructive"
                         onClick={() => onDelete(c)}
                         disabled={remove.isPending}
                       >
                         Delete
                       </Button>
-                    </div>
+                    </RowActions>
                   </TableCell>
                 )}
               </TableRow>

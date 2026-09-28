@@ -51,11 +51,13 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { ROLE_LABELS, useAuth, type UserRole } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { downloadAuthenticatedFile } from "@/lib/download";
 import { toast } from "@/lib/use-toast";
+import { formatEmail, formatName, orEmpty } from "@/lib/format";
 
 export default function UsersListPage() {
   const { user: me } = useAuth();
@@ -115,7 +117,7 @@ export default function UsersListPage() {
     <>
       <ListShell
         title="Users"
-        description="Application users — admins and department staff."
+        description="Everyone who can sign in to Ordo, from admins to department staff."
         toolbar={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -158,45 +160,45 @@ export default function UsersListPage() {
               <TableHead>Name</TableHead>
               <TableHead>Department</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead className="w-[280px]">Actions</TableHead>
+              <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.data?.results.map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.email}</TableCell>
-                <TableCell>{u.full_name}</TableCell>
-                <TableCell>{u.department?.slug ?? "—"}</TableCell>
+                <TableCell className="font-medium">{formatEmail(u.email)}</TableCell>
+                <TableCell>{formatName(u.full_name)}</TableCell>
+                <TableCell>{orEmpty(u.department?.slug)}</TableCell>
                 <TableCell>
                   <Badge variant={u.role ? "default" : "secondary"}>
                     {u.role ? ROLE_LABELS[u.role] : "Department Officer"}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-2">
+                <TableCell className="text-right">
+                  <RowActions>
                     <Button
-                      size="sm"
+                      size="xs"
                       variant="outline"
                       onClick={() => { setEditing(u); setEditOpen(true); }}
                     >
                       Edit
                     </Button>
                     <Button
-                      size="sm"
+                      size="xs"
                       variant="outline"
                       onClick={() => { setPwUser(u); setPwOpen(true); }}
                     >
                       Password
                     </Button>
                     <Button
-                      size="sm"
+                      size="xs"
                       variant="destructive"
                       onClick={() => onDelete(u)}
                       disabled={remove.isPending || u.id === me?.id}
                     >
                       Delete
                     </Button>
-                  </div>
+                  </RowActions>
                 </TableCell>
               </TableRow>
             ))}
@@ -427,7 +429,7 @@ function UserFormDialog({
                       <SelectContent>
                         {departmentOptions.map((d) => (
                           <SelectItem key={d.id} value={String(d.id)}>
-                            {d.slug} — {d.name}
+                            {d.slug} · {d.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -13,7 +13,7 @@ export const DIRECTORY_FORMATS: {
 }[] = [
   { value: "pdf", label: "PDF", hint: "Print-ready, one page per slot" },
   { value: "docx", label: "Word (DOCX)", hint: "Editable, same layout as PDF" },
-  { value: "csv", label: "CSV", hint: "Flat data for Excel — no branding" },
+  { value: "csv", label: "CSV", hint: "Plain data for Excel, without branding" },
 ];
 
 export interface HallRow {

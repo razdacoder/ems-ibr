@@ -35,7 +35,7 @@ export function Logo({
 const WORDMARK_SIZES = {
   sm: { mark: 16, text: "text-[1rem]" },
   md: { mark: 18, text: "text-[1.125rem]" },
-  lg: { mark: 22, text: "text-[1.375rem]" },
+  lg: { mark: 24, text: "text-[1.5rem]" },
 } as const;
 
 /**
@@ -79,7 +79,7 @@ export function BrandLockup({
   return (
     <span className={cn("inline-flex items-center gap-3", className)}>
       <Wordmark size={size} />
-      <InstitutionLogo size={size === "lg" ? 32 : 28} withDivider />
+      <InstitutionLogo size={size === "lg" ? 44 : 30} withDivider />
     </span>
   );
 }

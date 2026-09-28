@@ -83,8 +83,8 @@ export default function DirectoryPage() {
     <div className="space-y-8">
       <PageHeader
         section="Operations · Documents"
-        title="Directory & VISA."
-        description="Preview and export the Hall Directory (hall summary) and VISA per slot, week, or the whole exam — as PDF, Word, or CSV."
+        title="Directory & VISA"
+        description="Preview the hall directory and VISA for one slot, a week or the whole exam period, then download them as PDF, Word or CSV."
       />
 
       <Card>

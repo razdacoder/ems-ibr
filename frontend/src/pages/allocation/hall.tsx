@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { EMPTY, formatName, initials, orEmpty } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function HallAllocationPage() {
@@ -143,7 +144,7 @@ export default function HallAllocationPage() {
                 Allocation · Hall
               </p>
               <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-                {data.data.hall.name}.
+                {data.data.hall.name}
               </h1>
               <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                 {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
@@ -257,7 +258,7 @@ export default function HallAllocationPage() {
                                   <div
                                     key={seatNumber}
                                     className="flex aspect-square flex-col items-center justify-center rounded-[4px] border border-dashed border-[color:var(--border)] bg-[color:var(--muted)]/40 p-1 text-muted-foreground/50"
-                                    title={`Seat #${seatNumber} — empty`}
+                                    title={`Seat #${seatNumber} · empty`}
                                   >
                                     <span className="font-mono text-[10px] tabular-nums">
                                       {seatNumber}
@@ -266,7 +267,7 @@ export default function HallAllocationPage() {
                                 );
                               }
                               const palette = courseColors[placed.course.code];
-                              const initials = `${placed.student?.first_name?.[0] ?? ""}${placed.student?.last_name?.[0] ?? ""}`.toUpperCase();
+                              const seatInitials = initials(placed.student?.first_name, placed.student?.last_name);
                               return (
                                 <div
                                   key={seatNumber}
@@ -276,13 +277,13 @@ export default function HallAllocationPage() {
                                     color: palette?.fg,
                                     borderColor: palette?.ring,
                                   }}
-                                  title={`Seat #${seatNumber} · ${placed.course.code} · ${placed.student?.matric_no ?? "—"} · ${placed.student?.first_name ?? ""} ${placed.student?.last_name ?? ""}`.trim()}
+                                  title={`Seat #${seatNumber} · ${placed.course.code} · ${orEmpty(placed.student?.matric_no)} · ${formatName(placed.student?.first_name, placed.student?.last_name)}`}
                                 >
                                   <span className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] opacity-90">
                                     #{seatNumber}
                                   </span>
                                   <span className="mt-0.5 font-serif text-[15px] font-extrabold leading-none tracking-[-0.01em]">
-                                    {initials || "—"}
+                                    {seatInitials || EMPTY}
                                   </span>
                                   <span className="mt-0.5 font-mono text-[10px] font-bold tabular-nums">
                                     {placed.course.code}
@@ -357,11 +358,11 @@ export default function HallAllocationPage() {
                               </TableCell>
                               <TableCell>
                                 <span className="font-mono text-[12px] tracking-wide">
-                                  {row.student?.matric_no}
+                                  {orEmpty(row.student?.matric_no)}
                                 </span>
                               </TableCell>
                               <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                                {row.student?.first_name} {row.student?.last_name}
+                                {formatName(row.student?.first_name, row.student?.last_name)}
                               </TableCell>
                               <TableCell>
                                 <span className="font-mono text-[12px] tracking-wide">
@@ -418,11 +419,11 @@ export default function HallAllocationPage() {
                           <TableRow key={row.id}>
                             <TableCell>
                               <span className="font-mono text-[12px] tracking-wide">
-                                {row.student?.matric_no}
+                                {orEmpty(row.student?.matric_no)}
                               </span>
                             </TableCell>
                             <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                              {row.student?.first_name} {row.student?.last_name}
+                              {formatName(row.student?.first_name, row.student?.last_name)}
                             </TableCell>
                             <TableCell>
                               <span className="font-mono text-[12px] tracking-wide">

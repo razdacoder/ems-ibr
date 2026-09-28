@@ -8,159 +8,160 @@ share a single source of truth.
 FEATURES_DATA: dict[str, dict] = {
     "timetable-generation": {
         "title": "Timetable Generation",
-        "subtitle": "Automatically create conflict-free exam schedules.",
+        "subtitle": "An exam timetable with no clashes, built in minutes.",
         "overview": (
-            "The timetable generation module is the core of Ordo. It "
-            "automatically builds a comprehensive examination schedule based "
-            "on courses, classes, and available time slots. It ensures that no "
-            "class has conflicting exams, appropriately handles different exam "
-            "types (PBE vs CBE), and intelligently spaces out the schedule."
+            "This is where every exam session starts. Give Ordo your courses, "
+            "classes and exam dates, and it works out when each exam should "
+            "happen. No class ends up with two exams at the same time, CBE and "
+            "PBE exams are kept in their own slots, and exams are spread out so "
+            "students aren't writing back to back."
         ),
         "icon": "calendar-check",
         "capabilities": [
-            "AM/PM period scheduling",
-            "CBE vs PBE exam type handling (exclusive slots for CBE)",
-            "Sunday exclusion & date range validation",
-            "Background processing with real-time progress tracking",
-            "Department-level and institution-wide views",
-            "Export to CSV and comprehensive Excel broadsheet",
+            "Morning and afternoon sittings",
+            "Separate slots for CBE exams",
+            "Skips Sundays and any other days you choose",
+            "Runs in the background while you watch its progress",
+            "A view for each department and one for the whole school",
+            "Download as CSV or as a full Excel broadsheet",
         ],
         "how_it_works": [
-            "Upload all required data (departments, courses, classes, halls).",
-            "Set the start and end dates for the examination period.",
-            "Click 'Generate' and monitor the progress.",
-            "Review and export the generated timetable.",
+            "Upload your departments, courses, classes and halls.",
+            "Pick the first and last day of the exam period.",
+            "Press Generate and watch it work.",
+            "Check the timetable and download it.",
         ],
         "benefits": [
-            "Saves days of manual scheduling work.",
-            "Eliminates human errors and exam conflicts.",
-            "Provides a clear, organized schedule for both staff and students.",
+            "Days of work with spreadsheets become a few minutes.",
+            "No clashes, and no mistakes from copying things by hand.",
+            "Staff and students get one clear timetable to follow.",
         ],
     },
     "hall-distribution": {
         "title": "Hall Distribution",
-        "subtitle": "Intelligently distribute class groups across examination halls.",
+        "subtitle": "Every class sent to a hall that fits it.",
         "overview": (
-            "Once the timetable is set, the Hall Distribution module takes "
-            "over. It determines which classes will sit in which halls for "
-            "each specific date and period."
+            "Once the timetable is ready, Ordo decides which classes sit in "
+            "which halls for every exam. It knows how many seats each hall has, "
+            "so no hall is overfilled, and a class that's too big for one hall "
+            "is split across several."
         ),
         "icon": "layout-grid",
         "capabilities": [
-            "Capacity-aware hall assignment",
-            "Large class splitting across multiple halls",
-            "Utilization statistics & optimization grade",
-            "Distribution CSV export",
-            "Per-date, per-period configuration",
+            "Matches classes to halls by size",
+            "Splits big classes across more than one hall",
+            "Shows how well each hall is being used",
+            "Download the hall list as CSV",
+            "Covers every date and sitting in one go",
         ],
         "how_it_works": [
-            "Select a specific date and period from the generated timetable.",
-            "Click 'Generate Distribution'.",
-            "Review the assigned halls and class groups.",
-            "Check the efficiency statistics to ensure optimal usage.",
+            "Generate the timetable first.",
+            "Press Generate on the Distribution page. It covers every exam at once.",
+            "Pick a date and sitting to see which classes went where.",
+            "Check the usage figures to see how full each hall is.",
         ],
         "benefits": [
-            "Maximizes space utilization.",
-            "Prevents overcrowding in examination halls.",
-            "Provides clear metrics on how well resources are being used.",
+            "Makes the most of the space you have.",
+            "No overcrowded halls.",
+            "You can see at a glance how well your halls are being used.",
         ],
     },
     "seat-allocation": {
         "title": "Seat Allocation",
-        "subtitle": "Assign specific seats with strict anti-cheating constraints.",
+        "subtitle": "A seat for every student, with no one next to a coursemate.",
         "overview": (
-            "The Seat Allocation module is an advanced seating algorithm "
-            "designed to prevent cheating. It assigns specific seat numbers "
-            "to individual students, ensuring that no two students taking the "
-            "same course are seated next to each other in any direction."
+            "Ordo gives every student a numbered seat in their hall. Students "
+            "taking the same course are never placed next to each other, not "
+            "in front, behind, beside or on a diagonal, which makes copying far "
+            "harder."
         ),
         "icon": "grid-3x3",
         "capabilities": [
-            "8-directional adjacency enforcement",
-            "Pattern-based seating (checkerboard, diagonal multi-pass)",
-            "Visual seat grid layout per hall",
-            "Manual seat assignment for unplaced students",
-            "Detailed placed vs unplaced summary",
+            "Keeps coursemates apart in all eight directions",
+            "Checkerboard or full-hall seating, depending on how much room you have",
+            "A seat map for every hall",
+            "Seat anyone who couldn't be placed by hand",
+            "A summary of who has a seat and who doesn't",
         ],
         "how_it_works": [
-            "After distribution, generate seat allocation for a date and period.",
-            "The system processes each hall, applying adjacency constraints.",
-            "Review the visual seat grid for each hall.",
-            "Manually assign seats to any unplaced students if necessary.",
+            "Once halls are assigned, press Generate on the Allocation page.",
+            "Ordo seats each hall, keeping coursemates apart.",
+            "Open any hall to see its seat map.",
+            "If anyone is left without a seat, give them one by hand.",
         ],
         "benefits": [
-            "Significantly reduces the potential for cheating.",
-            "Provides a clear, organized seating plan for invigilators.",
-            "Visual grid makes it easy to understand the hall layout.",
+            "Much less chance of cheating.",
+            "Invigilators get a clear seating plan for every hall.",
+            "The seat map shows the whole hall at a glance.",
         ],
     },
     "reports-exports": {
         "title": "Reports & Exports",
-        "subtitle": "Generate professional documents for exam halls.",
+        "subtitle": "Print-ready documents for every hall.",
         "overview": (
-            "Ordo provides a comprehensive suite of reporting and export "
-            "tools to generate all the necessary documentation for conducting "
-            "examinations."
+            "Everything you need on exam day, ready to print: attendance "
+            "sheets, seating arrangements, the broadsheet and the timetable, "
+            "all carrying your school's name and logo."
         ),
         "icon": "file-text",
         "capabilities": [
-            "DOCX attendance sheets with school branding and signature fields",
-            "Excel broadsheet (department & day-period views)",
-            "CSV timetable export per department",
-            "ZIP packages of seat arrangements per course",
-            "Walk-in rows for late registrations",
+            "Word attendance sheets with your school's branding and space for signatures",
+            "Excel broadsheet, by department or by day and sitting",
+            "Timetable as CSV for each department",
+            "Seating arrangements for each course, bundled in a ZIP",
+            "Extra rows for students who register late",
         ],
         "how_it_works": [],
         "benefits": [
-            "Produces ready-to-print, professional documents.",
-            "Reduces manual paperwork.",
-            "Ensures consistency across all examination records.",
+            "Documents are ready to print as soon as they're downloaded.",
+            "Far less paperwork to prepare by hand.",
+            "Every document matches, because they all come from the same data.",
         ],
     },
     "data-management": {
         "title": "Data Management",
-        "subtitle": "Complete CRUD and bulk CSV upload support for every entity.",
+        "subtitle": "Add, edit and bulk upload everything the exams depend on.",
         "overview": (
-            "A robust data management system allows administrators and exam "
-            "officers to easily input and manage the foundational data "
-            "required for the examination process."
+            "Admins and exam officers keep departments, courses, classes, halls "
+            "and students up to date here, one record at a time or by the "
+            "spreadsheet-full."
         ),
         "icon": "database",
         "capabilities": [
-            "Manual create, edit, delete for all entities",
-            "Bulk CSV upload with strict validation",
-            "ZIP-based multi-file upload support",
-            "Duplicate detection and conflict handling",
-            "Upload lock after timetable generation",
+            "Add, edit and delete any record",
+            "Bulk upload from CSV, with every row checked",
+            "Upload several files at once in a ZIP",
+            "Spots duplicates before they cause problems",
+            "Locks uploads once the timetable is made, so nothing shifts underneath it",
         ],
         "how_it_works": [],
         "benefits": [
-            "Fast and efficient data entry via bulk uploads.",
-            "Maintains data integrity with strict validation rules.",
-            "Clear error reporting helps quickly identify data issues.",
+            "Load a whole semester of data in minutes.",
+            "Bad rows are caught before they get in.",
+            "Clear error messages tell you exactly which row to fix.",
         ],
     },
     "background-jobs": {
         "title": "Background Job Monitor",
-        "subtitle": "Track, retry, and manage all long-running tasks.",
+        "subtitle": "Keep an eye on long-running tasks, and retry any that fail.",
         "overview": (
-            "Ordo uses asynchronous background processing for heavy tasks "
-            "like timetable generation and seat allocation. The Job Monitor "
-            "provides full visibility into these processes."
+            "Big tasks like building the timetable or seating every student run "
+            "in the background, so the app stays quick while they work. The Jobs "
+            "page shows you what's running, what finished and what went wrong."
         ),
         "icon": "list-checks",
         "capabilities": [
-            "Real-time progress tracking",
-            "Filter by status and job type",
-            "Retry failed jobs with one click",
-            "Detailed error messages and tracebacks",
-            "Job history with parameters and result metrics",
+            "Live progress for every task",
+            "Filter by status or type",
+            "Retry a failed task with one click",
+            "The full error when something goes wrong",
+            "A history of every run, with its settings and results",
         ],
         "how_it_works": [],
         "benefits": [
-            "Ensures the system remains responsive during heavy processing.",
-            "Provides transparency into the status of complex operations.",
-            "Easy recovery from failures via the retry mechanism.",
+            "The app stays responsive while heavy work runs.",
+            "You always know how a task is getting on.",
+            "Easy to recover when something fails.",
         ],
     },
 }

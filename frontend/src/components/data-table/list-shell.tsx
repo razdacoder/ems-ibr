@@ -45,7 +45,7 @@ export function ListShell({
             Catalog · {title}
           </p>
           <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-            {title}.
+            {title}
           </h1>
           {description && (
             <p className="mt-3 max-w-2xl text-[14.5px] leading-[1.65] text-muted-foreground">

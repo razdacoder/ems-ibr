@@ -57,8 +57,8 @@ export default function ExportsPage() {
     <div className="space-y-10">
       <PageHeader
         section="Operations · Exports"
-        title="Exports."
-        description="Download CSV, Excel, and Word reports. Slot-scoped exports use the selected date and period."
+        title="Exports"
+        description="Download reports as CSV, Excel or Word. Anything tied to one exam uses the date and period you pick below."
       />
 
       {isAdmin && (
@@ -66,7 +66,7 @@ export default function ExportsPage() {
         <CardHeader>
           <CardTitle className="text-base">Slot</CardTitle>
           <CardDescription>
-            Used by distribution, arrangement, and attendance-sheet exports.
+            Pick the exam date and period for the distribution, arrangement and attendance sheet downloads.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-2">

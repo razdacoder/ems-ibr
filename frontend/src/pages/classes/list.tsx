@@ -51,10 +51,12 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { canManageData, useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { EMPTY } from "@/lib/format";
 import { Link } from "react-router-dom";
 
 export default function ClassesListPage() {
@@ -143,7 +145,7 @@ export default function ClassesListPage() {
     <>
       <ListShell
         title="Classes"
-        description="Class cohorts grouped under each department."
+        description="Each department's classes, with their courses and students."
         toolbar={
           isAdmin && (
             <div className="flex items-center gap-2">
@@ -154,7 +156,7 @@ export default function ClassesListPage() {
                   disabled={uploadClasses.isPending}
                   title={
                     uploadsLocked
-                      ? "Uploads are locked — a timetable already exists."
+                      ? "Uploads are locked because a timetable already exists."
                       : undefined
                   }
                 >
@@ -175,7 +177,7 @@ export default function ClassesListPage() {
           user?.is_staff ? (
             <Select
               value={department}
-              onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
+              onValueChange={(v) => { setDepartment(v ?? "__all__"); setPage(1); }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="All departments" />
@@ -214,7 +216,7 @@ export default function ClassesListPage() {
               <TableHead className="w-[90px]">Active</TableHead>
               <TableHead>Courses</TableHead>
               {isAdmin && (
-                <TableHead className="w-[280px] text-right">Actions</TableHead>
+                <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -270,16 +272,16 @@ export default function ClassesListPage() {
                 </TableCell>
                 {isAdmin && (
                   <TableCell className="text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <RowActions>
                       <Button
                         render={<Link to={`/classes/${c.id}`} />}
-                        size="sm"
+                        size="xs"
                         variant="outline"
                       >
                         Manage
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         onClick={() => {
                           setEditing(c);
@@ -289,14 +291,14 @@ export default function ClassesListPage() {
                         Edit
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="destructive"
                         onClick={() => onDelete(c)}
                         disabled={remove.isPending}
                       >
                         Delete
                       </Button>
-                    </div>
+                    </RowActions>
                   </TableCell>
                 )}
               </TableRow>
@@ -544,14 +546,14 @@ function ClassFormDialog({
                       <SelectContent>
                         {departmentOptions.map((d) => (
                           <SelectItem key={d.id} value={String(d.id)}>
-                            {d.slug} — {d.name}
+                            {d.slug} · {d.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <div className="flex h-9 items-center rounded-md border border-[color:var(--border)] bg-[color:var(--muted)] px-3 font-mono text-[12px] text-muted-foreground">
-                      {userDept ? `${userDept.slug} — ${userDept.name}` : "—"}
+                      {userDept ? `${userDept.slug} · ${userDept.name}` : EMPTY}
                     </div>
                   )}
                   <FormMessage />

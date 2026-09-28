@@ -78,8 +78,8 @@ export default function AllocationPage() {
     <div className="space-y-10">
       <PageHeader
         section="Operations · Allocation"
-        title="Seat allocation."
-        description="Per-hall placement of students with anti-cheating adjacency rules. Generate once for every exam slot in the timetable; filter below to view a specific slot."
+        title="Seat allocation"
+        description="Give every student a seat, hall by hall, keeping students of the same course apart. Generate once to cover the whole timetable, then pick a slot below to see its halls."
         actions={
           isAdmin && (
             <Button
@@ -135,7 +135,7 @@ export default function AllocationPage() {
             {date ? `${date} · ${period}` : "Pick a slot"}
           </CardTitle>
           <CardDescription className="font-mono text-[10px] uppercase tracking-[0.14em]">
-            Click a hall to view per-seat placements
+            Open a hall to see who sits where
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">

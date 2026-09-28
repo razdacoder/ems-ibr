@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -92,7 +93,7 @@ export default function HallsListPage() {
     <>
       <ListShell
         title="Halls"
-        description="Examination venues and their seating dimensions."
+        description="The venues you run exams in, and how their seats are laid out."
         toolbar={
           isAdmin && (
             <Button onClick={() => { setEditing(null); setOpen(true); }}>
@@ -125,7 +126,7 @@ export default function HallsListPage() {
               <TableHead className="text-right">Max students</TableHead>
               <TableHead className="text-right">Min courses</TableHead>
               <TableHead className="text-right">Rows × Cols</TableHead>
-              {isAdmin && <TableHead className="w-[200px]">Actions</TableHead>}
+              {isAdmin && <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -139,24 +140,24 @@ export default function HallsListPage() {
                   {h.rows} × {h.columns}
                 </TableCell>
                 {isAdmin && (
-                  <TableCell>
-                    <div className="flex gap-2">
+                  <TableCell className="text-right">
+                    <RowActions>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         onClick={() => { setEditing(h); setOpen(true); }}
                       >
                         Edit
                       </Button>
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="destructive"
                         onClick={() => onDelete(h)}
                         disabled={remove.isPending}
                       >
                         Delete
                       </Button>
-                    </div>
+                    </RowActions>
                   </TableCell>
                 )}
               </TableRow>

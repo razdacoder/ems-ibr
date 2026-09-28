@@ -48,10 +48,12 @@ import {
 } from "@/components/ui/table";
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
+import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { EMPTY, formatEmail, formatName, initials, orEmpty } from "@/lib/format";
 
 export default function StudentsListPage() {
   const { user } = useAuth();
@@ -98,7 +100,7 @@ export default function StudentsListPage() {
     <>
       <ListShell
         title="Students"
-        description="Enrolled students grouped by department and class."
+        description="Every student, with their department and class."
         toolbar={
           isAdmin && (
             <Button onClick={() => { setEditing(null); setOpen(true); }}>
@@ -114,13 +116,13 @@ export default function StudentsListPage() {
             {user?.is_staff && (
               <Select
                 value={department}
-                onValueChange={(v) => { setDepartment(v ?? ""); setPage(1); }}
+                onValueChange={(v) => { setDepartment(v ?? "__all__"); setPage(1); }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All depts</SelectItem>
+                  <SelectItem value="__all__">All departments</SelectItem>
                   {departments.data?.results.map((d) => (
                     <SelectItem key={d.id} value={d.slug}>
                       {d.slug}
@@ -131,7 +133,7 @@ export default function StudentsListPage() {
             )}
             <Select
               value={classFilter}
-              onValueChange={(v) => { setClassFilter(v ?? ""); setPage(1); }}
+              onValueChange={(v) => { setClassFilter(v ?? "__all__"); setPage(1); }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Class" />
@@ -170,33 +172,31 @@ export default function StudentsListPage() {
               <TableHead>Email</TableHead>
               <TableHead className="w-[180px]">Class</TableHead>
               {isAdmin && (
-                <TableHead className="w-[200px] text-right">Actions</TableHead>
+                <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>
               )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.data?.results.map((s) => {
-              const initials = (
-                (s.first_name?.[0] ?? "") + (s.last_name?.[0] ?? "")
-              ).toUpperCase();
+              const avatar = initials(s.first_name, s.last_name);
               return (
                 <TableRow key={s.id}>
                   <TableCell>
                     <span className="grid size-7 place-items-center rounded-full bg-[color:var(--muted)] font-mono text-[10px] font-medium text-foreground">
-                      {initials || "—"}
+                      {avatar || EMPTY}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-[12px] tracking-wide">
-                      {s.matric_no}
+                      {orEmpty(s.matric_no)}
                     </span>
                   </TableCell>
                   <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                    {s.first_name} {s.last_name}
+                    {formatName(s.first_name, s.last_name)}
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      {s.email}
+                      {formatEmail(s.email)}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -215,9 +215,9 @@ export default function StudentsListPage() {
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <RowActions>
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="outline"
                           onClick={() => {
                             setEditing(s);
@@ -227,14 +227,14 @@ export default function StudentsListPage() {
                           Edit
                         </Button>
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="destructive"
                           onClick={() => onDelete(s)}
                           disabled={remove.isPending}
                         >
                           Delete
                         </Button>
-                      </div>
+                      </RowActions>
                     </TableCell>
                   )}
                 </TableRow>

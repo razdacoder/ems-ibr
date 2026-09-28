@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import {
   Armchair,
   Boxes,
@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Logo, Wordmark } from "@/components/logo";
 import { InstitutionLogo } from "@/components/institution-logo";
+import { formatEmail, formatName, isBlank } from "@/lib/format";
 
 interface NavSection {
   label: string;
@@ -146,6 +147,10 @@ const NAV_SECTIONS: NavSection[] = [
 
 const COLLAPSED_KEY = "ordo:sidebar-collapsed";
 
+/** Brand mark as a home link: no underline, subtle hover, visible focus. */
+const BRAND_LINK =
+  "inline-flex items-center outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/40";
+
 function SidebarContent({
   sections,
   collapsed,
@@ -165,6 +170,9 @@ function SidebarContent({
     const last = user?.last_name?.[0] ?? "";
     return (first + last).toUpperCase() || user?.email?.[0]?.toUpperCase() || "?";
   })();
+  const displayName = isBlank(user?.full_name)
+    ? formatEmail(user?.email)
+    : formatName(user?.full_name);
 
   return (
     <>
@@ -176,10 +184,14 @@ function SidebarContent({
         )}
       >
         {collapsed ? (
-          <Logo size={22} />
+          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+            <Logo size={22} />
+          </Link>
         ) : (
           <>
-            <Wordmark />
+            <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+              <Wordmark />
+            </Link>
             <InstitutionLogo size={32} className="ml-auto" />
           </>
         )}
@@ -323,7 +335,7 @@ function SidebarContent({
               "flex w-full items-center rounded-md text-left transition-colors hover:bg-[color:var(--brand-soft)]/40 focus:outline-none focus:ring-1 focus:ring-[color:var(--brand)]/40",
               collapsed ? "justify-center p-1.5" : "gap-3 p-2",
             )}
-            title={collapsed ? user?.full_name ?? user?.email : "Account menu"}
+            title={collapsed ? displayName : "Account menu"}
           >
             <span
               className="grid size-8 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium"
@@ -339,7 +351,7 @@ function SidebarContent({
             {!collapsed && (
               <span className="flex-1 overflow-hidden">
                 <span className="block truncate text-[13px] font-medium text-foreground">
-                  {user?.full_name ?? user?.email}
+                  {displayName}
                 </span>
                 <span className="block truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   {user?.role
@@ -462,7 +474,9 @@ export function DashboardLayout() {
           >
             <Menu strokeWidth={2} />
           </Button>
-          <Wordmark size="sm" />
+          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+            <Wordmark size="sm" />
+          </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />
             <Button

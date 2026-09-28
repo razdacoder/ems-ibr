@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLockup, Wordmark } from "@/components/logo";
 import { useReveal as useSharedReveal } from "@/lib/use-reveal";
+import { AuthButton, useAuthEntry } from "@/components/auth-entry";
 
 /* -----------------------------------------------------------
  * Ordo — Editorial Landing
@@ -400,20 +401,21 @@ function LiveStatus() {
 }
 
 export default function LandingPage() {
+  const entry = useAuthEntry();
   useReveal();
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground antialiased">
       {/* ============================ HEADER ============================ */}
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/70 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6 sm:px-8">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-8">
           <Link
             to="/"
             className="flex items-center"
           >
-            <BrandLockup />
+            <BrandLockup size="lg" />
           </Link>
 
-          <nav className="hidden items-center gap-8 text-[13px] text-muted-foreground md:flex">
+          <nav className="hidden items-center gap-9 text-[14px] text-muted-foreground md:flex">
             <Link to="/features" className="hover:text-[color:var(--brand-strong)]">
               Modules
             </Link>
@@ -432,15 +434,8 @@ export default function LandingPage() {
             <span className="hidden sm:inline-flex">
               <LiveStatus />
             </span>
-            <ThemeToggle size="sm" iconOnly />
-            <Button
-              render={<Link to="/login" />}
-              size="sm"
-              variant="brand"
-            >
-              Sign in
-              <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
-            </Button>
+            <ThemeToggle iconOnly />
+            <AuthButton size="default" />
           </div>
         </div>
       </header>
@@ -502,15 +497,12 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="mt-8 max-w-2xl text-[1.0625rem] leading-[1.7] text-foreground/85">
-                  Ordo schedules, distributes, seats, and documents every
-                  exam — without spreadsheets and without weekend war rooms. Job
-                  progress streams over WebSockets. Ingestion locks after the
-                  first generation, so reports stay reproducible months later.
+                  Ordo builds the timetable, sends every class to a hall, gives every student a seat and prints the paperwork. No spreadsheets, no weekends lost. You can watch each step happen live, and your data is locked once the timetable is made, so every report still matches months later.
                 </p>
 
                 <div className="mt-10 flex flex-wrap items-center gap-4">
                   <Button
-                    render={<Link to="/login" />}
+                    render={<Link to={entry.to} />}
                     size="lg"
                     variant="brand"
                   >
@@ -573,7 +565,7 @@ export default function LandingPage() {
                     </div>
                     <ol className="space-y-3.5">
                       {[
-                        { name: "Ingest", dur: "—", state: "lock", pct: 100 },
+                        { name: "Ingest", dur: "-", state: "lock", pct: 100 },
                         { name: "Timetable", dur: "14s", state: "ok", pct: 100 },
                         {
                           name: "Distribution",
@@ -718,9 +710,7 @@ export default function LandingPage() {
                   Examinations are a logistics problem disguised as an academic
                   one.{" "}
                   <span className="text-muted-foreground">
-                    A thousand small decisions — which course at which hour, in
-                    which hall, with which student in which seat — compound
-                    into the difference between a quiet week and a war room.
+                    Which course at which hour, in which hall, with which student in which seat. A thousand small choices like these decide whether exam week is calm or chaotic.
                   </span>{" "}
                   Ordo exists so the quiet week is the default.
                 </p>
@@ -742,7 +732,7 @@ export default function LandingPage() {
             <div className="mb-14 flex flex-wrap items-end justify-between gap-6">
               <div data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  02 — Modules
+                  02 · Modules
                 </p>
                 <h2 className="mt-3 max-w-3xl font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] text-foreground sm:text-[3rem]">
                   Every step from upload to attendance sheet.
@@ -975,7 +965,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  03 — Pipeline
+                  03 · Pipeline
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   Five stages,
@@ -1037,15 +1027,13 @@ export default function LandingPage() {
             <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
               <div className="lg:col-span-5" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  04 — Evidence
+                  04 · Evidence
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   The broadsheet, generated.
                 </h2>
                 <p className="mt-5 text-[15px] leading-[1.7] text-foreground/85">
-                  A single document captures every student's allocation across
-                  the session — hall, seat, slot, course code. Reproducible from
-                  the locked source data, exportable to Excel and PDF on demand.
+                  One document shows where every student sits for the whole session: hall, seat, time and course code. It's built from your locked data, so you can regenerate it any time and download it as Excel or PDF.
                 </p>
 
                 <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-6 border-t border-border pt-8">
@@ -1186,7 +1174,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12 lg:col-span-4" data-reveal>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  05 — Questions
+                  05 · Questions
                 </p>
                 <h2 className="mt-3 font-serif text-[2.25rem] leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
                   The five most
@@ -1259,11 +1247,11 @@ export default function LandingPage() {
               style={{ ["--reveal-delay" as string]: "200ms" }}
             >
               <Button
-                render={<Link to="/login" />}
+                render={<Link to={entry.to} />}
                 size="lg"
                 variant="inverse"
               >
-                Sign in to the dashboard
+                {entry.signedIn ? "Go to dashboard" : "Sign in to the dashboard"}
                 <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
               </Button>
               <Link
@@ -1305,8 +1293,7 @@ export default function LandingPage() {
                   <Wordmark size="lg" />
                 </Link>
                 <p className="mt-4 max-w-sm text-[13.5px] leading-[1.65] text-muted-foreground">
-                  Operations OS for examinations. Schedule, distribute, seat,
-                  document — without the spreadsheets.
+                  Exam planning without the spreadsheets. Schedule, assign halls, seat students and print the paperwork, all in one place.
                 </p>
                 <div className="mt-6 flex items-center gap-3">
                   <LiveStatus />
@@ -1344,7 +1331,7 @@ export default function LandingPage() {
                   </li>
                   <li>
                     <Link
-                      to="/login"
+                      to={entry.to}
                       className="hover:text-[color:var(--brand-strong)]"
                     >
                       Dashboard
