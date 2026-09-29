@@ -158,6 +158,18 @@ class LargestFirstTests(TestCase):
         self.assertLessEqual(loads["Room A"], 100)
         self.assertLessEqual(loads["Room B"], 80)
 
+    def test_a_hall_rated_below_its_grid_is_never_filled_past_its_capacity(self):
+        # AH 4 & 5 in production: a 14 x 15 grid (210 cells) rated for 204.
+        hall = make_hall("AH 4 & 5", 14, 15)
+        hall.capacity = 204
+        hall.save()
+        for n in range(12):  # 480 students, far more than the hall holds
+            schedule(listed_class(40), make_course(f"C{n:02}"))
+
+        loads = assigned(run_distribution())
+
+        self.assertLessEqual(loads["AH 4 & 5"], 204)
+
     def test_an_empty_slot_assigns_nothing(self):
         make_hall("Room A", 10, 10)
 

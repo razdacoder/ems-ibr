@@ -520,7 +520,9 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             
             rows = distribution.hall.rows
             cols = distribution.hall.columns
-            hall_capacity = rows * cols
+            # Never seat more than the hall is rated for, even when the
+            # grid has spare cells.
+            hall_capacity = min(rows * cols, distribution.hall.capacity or rows * cols)
             students = []
             
             # Track student IDs used in this specific hall

@@ -48,7 +48,9 @@ def get_halls(pattern: str = "checkerboard"):
         {
             "id": hall.id,
             "name": hall.name,
-            "capacity": hall_effective_capacity(hall.rows, hall.columns, pattern),
+            "capacity": hall_effective_capacity(
+                hall.rows, hall.columns, pattern, hall.capacity
+            ),
         }
         for hall in Hall.objects.all()
     ]
@@ -893,17 +895,27 @@ def record_planned_students(timetables, size_map, result) -> list:
 # Distribution must respect both bounds, otherwise the allocator overflows
 # into the unplaced bucket.
 
-def hall_effective_capacity(rows: int, cols: int, pattern: str = "checkerboard") -> int:
+def hall_effective_capacity(
+    rows: int, cols: int, pattern: str = "checkerboard", capacity: int = 0
+) -> int:
     """Total seats the allocator can fill in this hall under ``pattern``.
 
     * ``checkerboard``: only even-parity cells → ceil(rows*cols / 2).
     * ``sequential``  : all cells → rows * cols.
+
+    ``capacity`` is the hall's stated capacity. The grid can hold more cells
+    than the hall is rated for (AH 4 & 5: 14x15 = 210 cells, capacity 204),
+    so a positive ``capacity`` is a hard ceiling on the result.
     """
     if rows <= 0 or cols <= 0:
         return 0
     if pattern == "sequential":
-        return rows * cols
-    return (rows * cols + 1) // 2  # checkerboard
+        seats = rows * cols
+    else:
+        seats = (rows * cols + 1) // 2  # checkerboard
+    if capacity and capacity > 0:
+        seats = min(seats, capacity)
+    return seats
 
 
 def convert_hall_to_dict(
@@ -920,7 +932,9 @@ def convert_hall_to_dict(
     """
     halls_dict = []
     for hall in halls:
-        effective = hall_effective_capacity(hall.rows, hall.columns, pattern)
+        effective = hall_effective_capacity(
+            hall.rows, hall.columns, pattern, hall.capacity
+        )
         halls_dict.append(
             {
                 "id": hall.id,
