@@ -1,8 +1,10 @@
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timedelta
+from django.db.models import Prefetch
 from django.utils import timezone
 import random
+import time
 import string
 from .models import User
 from .models import (
@@ -13,7 +15,7 @@ from . import seating_rules
 from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
     get_courses, get_halls, split_course, generate, classify_courses,
-    distribute_classes_to_halls, save_to_db, print_seating_arrangement,
+    distribute_classes_to_halls, save_to_db, build_seat_arrangements,
     record_planned_students, slot_student_counts, relaxed_course_code,
 )
 
@@ -67,6 +69,31 @@ def _assert_ready(stage, slots=None):
     if not report['ready']:
         raise NotReady(report)
     return report
+
+
+class _Progress:
+    """Throttled progress reporting for a long task.
+
+    Each report costs about three writes (the BackgroundJob row plus
+    Celery's result row). Reporting per hall made those writes a large
+    share of an allocation's run time on a remote database, so reports
+    closer together than ``min_interval`` seconds are dropped unless forced.
+    """
+
+    def __init__(self, task, job, min_interval=2.0):
+        self.task = task
+        self.job = job
+        self.min_interval = min_interval
+        self._last = None
+
+    def report(self, pct, status, force=False):
+        now = time.monotonic()
+        if not force and self._last is not None and now - self._last < self.min_interval:
+            return
+        self._last = now
+        self.job.progress = pct
+        self.job.save(update_fields=['progress'])
+        self.task.update_state(state='PROGRESS', meta={'progress': pct, 'status': status})
 
 
 def _distribute_slot(date, period, halls_list):
@@ -444,7 +471,8 @@ def generate_allocation_task(self, job_id, user_id, date, period):
     Celery task for seat allocation generation
     """
     job = BackgroundJob.objects.get(job_id=job_id)
-    
+    progress = _Progress(self, job)
+
     try:
         job.status = 'running'
         job.save()
@@ -457,10 +485,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             num_generated = generate_random_students(num_students=200)
             self.update_state(state='PROGRESS', meta={'progress': 5, 'status': f'Generated {num_generated} random students. Loading distributions...'})
         
-        # Update progress: 5%
-        job.progress = 5
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 5, 'status': 'Loading distributions...'})
+        progress.report(5, 'Loading distributions...')
         
         # Get distributions for the date and period. Ordered by hall name so
         # the matric-number blocks are handed out predictably: the
@@ -471,7 +496,12 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         distributions = Distribution.objects.filter(
             date=date, period=period
         ).select_related('hall').prefetch_related(
-            'items__schedule__course', 'items__schedule__class_obj'
+            Prefetch(
+                'items',
+                queryset=DistributionItem.objects.select_related(
+                    'schedule__course', 'schedule__class_obj'
+                ),
+            )
         ).order_by('hall__name', 'id')
         
         if not distributions.exists():
@@ -481,55 +511,62 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         # distribution, before anything is cleared or seated.
         _assert_ready('allocation', [(date, period)])
 
-        # Clear any prior attempt for this slot first, so this call is safe
-        # to retry — a hard timeout can leave a slot half-built (some halls
-        # never touched, or seated but never cross-hall reconciled), and
-        # re-running without clearing would bulk_create on top of those rows
-        # and duplicate every student that was already placed.
-        SeatArrangement.objects.filter(date=date, period=period).delete()
-
-        total_halls = distributions.count()
+        distributions = list(distributions)
+        total_halls = len(distributions)
         job.total_steps = 100  # Use percentage scale
         job.save()
-        
-        # Track allocated student IDs globally across all halls
-        allocated_ids_by_class = {}
-        
+
+        # Every student the slot can draw from, read in one query instead of
+        # one per distribution item. Each class's list is matric ordered, and
+        # a hall takes the next ``no_of_students`` from where the previous
+        # hall stopped, which is the same block the old per item
+        # ``exclude(already allocated).order_by('matric_no')[:n]`` query
+        # returned. On a remote database those per item round trips (~400 a
+        # slot) were most of the task's run time.
+        class_ids = {
+            item.schedule.class_obj_id
+            for distribution in distributions
+            for item in distribution.items.all()
+        }
+        pool_by_class = {}
+        for sid, matric_no, level_id, department_id in (
+            Student.objects.filter(level_id__in=class_ids)
+            .order_by('matric_no', 'id')
+            .values_list('id', 'matric_no', 'level_id', 'department_id')
+        ):
+            pool_by_class.setdefault((level_id, department_id), []).append((sid, matric_no))
+        course_map = {
+            item.schedule.course.code: item.schedule.course
+            for distribution in distributions
+            for item in distribution.items.all()
+        }
+
+        # How far into its class's pool each (class, course) has been handed
+        # out across the halls seen so far.
+        taken_by_class = {}
+
         processed_halls = 0
         total_allocated = 0
         total_unplaced = 0
-        
+        arrangements = []
+
         for distribution in distributions:
             processed_halls += 1
             # Progress from 5% to 85% during hall processing
-            base_progress = 5 + int((processed_halls - 1) / total_halls * 80)
-            
-            # Debug logging
-            print(f"Processing hall {processed_halls}/{total_halls}: {distribution.hall.name}")
-            print(f"Progress: {base_progress}%")
-            
-            self.update_state(
-                state='PROGRESS',
-                meta={
-                    'progress': base_progress,
-                    'status': f'Processing hall {processed_halls}/{total_halls}: {distribution.hall.name}'
-                }
+            progress.report(
+                5 + int((processed_halls - 1) / total_halls * 80),
+                f'Processing hall {processed_halls}/{total_halls}: {distribution.hall.name}',
             )
-            job.progress = base_progress
-            job.save()
-            
+
             rows = distribution.hall.rows
             cols = distribution.hall.columns
             # Never seat more than the hall is rated for, even when the
             # grid has spare cells.
             hall_capacity = min(rows * cols, distribution.hall.capacity or rows * cols)
             students = []
-            
-            # Track student IDs used in this specific hall
-            hall_used_ids_by_class = {}
             # Courses here seated under the relaxed rule (spec 0002).
             relaxed_courses = set()
-            
+
             # Build student list for this hall
             for item in distribution.items.all():
                 course_code = item.schedule.course.code
@@ -537,87 +574,58 @@ def generate_allocation_task(self, job_id, user_id, date, period):
                 if item.schedule.seating_rule == seating_rules.RELAXED:
                     relaxed_courses.add(course_code)
                 class_key = f"{class_obj.id}_{course_code}"
-                
-                # Initialize tracking sets if needed
-                if class_key not in allocated_ids_by_class:
-                    allocated_ids_by_class[class_key] = set()
-                if class_key not in hall_used_ids_by_class:
-                    hall_used_ids_by_class[class_key] = set()
-                
-                # Get IDs to exclude (already allocated in previous halls or current hall)
-                exclude_ids = list(allocated_ids_by_class[class_key] | hall_used_ids_by_class[class_key])
-                
-                # Get real students, excluding already allocated ones
-                real_qs = Student.objects.filter(
-                    level=class_obj,
-                    department=class_obj.department
-                ).exclude(id__in=exclude_ids).order_by('matric_no')
-                real_students = list(real_qs[:item.no_of_students])
-                
-                # Fill remaining with placeholders if needed
-                for i, student in enumerate(real_students):
+                pool = pool_by_class.get((class_obj.id, class_obj.department_id), [])
+                start = taken_by_class.get(class_key, 0)
+                block = pool[start:start + item.no_of_students]
+                taken_by_class[class_key] = start + len(block)
+                for student_id, matric_no in block:
                     students.append({
-                        "student_id": student.id,
-                        "name": student.matric_no,
+                        "student_id": student_id,
+                        "name": matric_no,
                         "course": course_code,
                         "cls_id": class_obj.id
                     })
-                    hall_used_ids_by_class[class_key].add(student.id)
-                    allocated_ids_by_class[class_key].add(student.id)
-            
-            # Update progress: student list built
-            mid_progress = 5 + int((processed_halls - 0.5) / total_halls * 80)
-            self.update_state(
-                state='PROGRESS',
-                meta={
-                    'progress': mid_progress,
-                    'status': f'Allocating {len(students)} students in {distribution.hall.name}...'
-                }
-            )
-            job.progress = mid_progress
-            job.save()
-            
+
             # Check capacity
             if len(students) > hall_capacity:
                 raise ValueError(
                     f"Cannot allocate {len(students)} students to {distribution.hall.name} (capacity: {hall_capacity})"
                 )
-            
+
             # Skip if no students to allocate
             if len(students) == 0:
                 continue
-            
+
             # Perform seat allocation. We always use the full per-course
             # fallback (checkerboard → diagonal → sequential): the first
             # course in a hall takes even-parity cells, the second takes
             # odd-parity, and subsequent courses land randomly under the
             # adjacency check. This gives the highest placement rate
             # regardless of which seat_pattern was used to size the hall.
-            print_seating_arrangement(
+            hall_rows, hall_placed, hall_unplaced = build_seat_arrangements(
                 students, rows, cols,
                 datetime.strptime(date, "%Y-%m-%d").date(),
-                period, distribution.hall.id,
+                period, distribution.hall, course_map,
                 success_threshold_pct=constraints.placement_success_threshold_pct,
                 relaxed_courses=relaxed_courses,
             )
-            
-            # Count results for this hall
-            hall_allocated = SeatArrangement.objects.filter(
-                date=date, period=period, hall=distribution.hall,
-                seat_number__isnull=False
-            ).count()
-            hall_unplaced = SeatArrangement.objects.filter(
-                date=date, period=period, hall=distribution.hall,
-                seat_number__isnull=True
-            ).count()
-            
-            total_allocated += hall_allocated
+            arrangements.extend(hall_rows)
+            total_allocated += hall_placed
             total_unplaced += hall_unplaced
-        
+
+        progress.report(88, 'Saving seat arrangements...')
+        # Clear any prior attempt for this slot and write the new one in a
+        # single transaction, so the slot is never left half-built: a hard
+        # timeout before this point leaves the old arrangement untouched, and
+        # one inside it rolls back. The slot is still cleared first so a
+        # re-run never duplicates students already placed.
+        from django.db import transaction
+        with transaction.atomic():
+            SeatArrangement.objects.filter(date=date, period=period).delete()
+            SeatArrangement.objects.bulk_create(arrangements, batch_size=2000)
+
         # Update progress: 90% - all halls processed
-        job.progress = 90
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Reconciling unplaced students...'})
+        progress.report(90, 'Reconciling unplaced students...', force=True)
 
         # ─── Cross-hall reconciliation ────────────────────────────────
         # Move unplaced students into any other hall that still has empty

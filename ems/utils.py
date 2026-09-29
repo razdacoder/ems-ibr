@@ -111,8 +111,8 @@ def save_to_timetable_db(schedules):
         for cls in schedule["course"]["classes"]:
             timetables.append(
                 TimeTable(
-                    course=Course.objects.get(id=schedule["course"]["id"]),
-                    class_obj=Class.objects.get(id=cls["id"]),
+                    course_id=schedule["course"]["id"],
+                    class_obj_id=cls["id"],
                     date=schedule["date"],
                     period=schedule["period"],
                     seating_rule=course_rule(schedule["course"]),
@@ -265,12 +265,33 @@ def auto_split_large_cbe_courses(
 
 
 # Helper function to check if a class is scheduled on a given date
-def is_class_scheduled(course, date, Schedules):
-    for cls in course["classes"]:
-        for schedule in Schedules:
-            if schedule["date"] == date and cls in schedule["course"]["classes"]:
-                return True
-    return False
+def _class_key(cls):
+    # Hashable stand-in for a class dict: equal keys exactly when the dicts
+    # compare equal, which is what the list membership test used.
+    return tuple(sorted(cls.items()))
+
+
+def scheduled_class_keys(date, Schedules):
+    """Keys of every class already sitting an exam on ``date``."""
+    return {
+        _class_key(cls)
+        for s in Schedules
+        if s["date"] == date
+        for cls in s["course"]["classes"]
+    }
+
+
+def is_class_scheduled(course, date, Schedules, scheduled=None):
+    """True if any of ``course``'s classes already sits an exam on ``date``.
+
+    ``scheduled`` is ``scheduled_class_keys(date, Schedules)``, for callers
+    testing many courses against the same schedule. Without it every test
+    rescanned the whole session's schedules, which dominated timetable
+    generation time.
+    """
+    if scheduled is None:
+        scheduled = scheduled_class_keys(date, Schedules)
+    return any(_class_key(cls) in scheduled for cls in course["classes"])
 
 
 def course_rule(course):
@@ -495,6 +516,7 @@ def filter_courses(
     daily_cap=4500,
 ):
     eligible_courses = []
+    scheduled = scheduled_class_keys(date, schedules)
     for course in courses:
         # CBE courses don't require seats
         if course["exam_type"] == "CBE":
@@ -510,7 +532,7 @@ def filter_courses(
                     eligible_courses.append(course)
             # Small CBE courses check student limit
             else:
-                if not is_class_scheduled(course, date, schedules) and can_schedule_cbe(
+                if not is_class_scheduled(course, date, schedules, scheduled) and can_schedule_cbe(
                     schedules, date, course, max_students=daily_cap
                 ):
                     eligible_courses.append(course)
@@ -519,7 +541,7 @@ def filter_courses(
             seat_required = sum(cls["size"] for cls in course["classes"])
             if (
                 seat_remaining >= seat_required
-                and not is_class_scheduled(course, date, schedules)
+                and not is_class_scheduled(course, date, schedules, scheduled)
                 and not relaxed_blocked(course, date, period, schedules)
             ):
                 eligible_courses.append(course)
@@ -1248,21 +1270,31 @@ def save_to_db(res, date, period):
     from django.db import transaction
 
     with transaction.atomic():
-        for item in res:
-            distribution = Distribution.objects.create(
-                hall_id=item["id"], date=date, period=period
-            )
-            dist_items = DistributionItem.objects.bulk_create(
-                [
+        # Three statements for the whole slot rather than three per hall:
+        # bulk_create returns primary keys on Postgres and SQLite, so the
+        # M2M rows can be linked up without re-reading anything.
+        distributions = Distribution.objects.bulk_create(
+            [Distribution(hall_id=item["id"], date=date, period=period) for item in res]
+        )
+        dist_items = []
+        owners = []
+        for distribution, item in zip(distributions, res):
+            for cls in item["classes"]:
+                dist_items.append(
                     DistributionItem(
                         schedule_id=cls["id"],
                         no_of_students=cls["student_range"],
                     )
-                    for cls in item["classes"]
-                ]
-            )
-            if dist_items:
-                distribution.items.add(*dist_items)
+                )
+                owners.append(distribution)
+        DistributionItem.objects.bulk_create(dist_items)
+        Through = Distribution.items.through
+        Through.objects.bulk_create(
+            [
+                Through(distribution_id=owner.id, distributionitem_id=dist_item.id)
+                for owner, dist_item in zip(owners, dist_items)
+            ]
+        )
 
 
 ###################################
@@ -1878,120 +1910,66 @@ def allocate_students_to_seats(
         return seat_positions, unplaced_students, percentage_placed
 
 
-def print_seating_arrangement(
+def build_seat_arrangements(
     students,
     rows,
     cols,
     date,
     period,
-    hall_id,
+    hall,
+    course_map,
     *,
     adjacency_mode="8-dir",
     success_threshold_pct=60,
     pattern_order=None,
     relaxed_courses=(),
 ):
-    from .models import Student  # Import here to avoid circular imports
+    """Seat one hall and return its unsaved ``SeatArrangement`` rows.
 
-    result = allocate_students_to_seats(
+    Returns ``(arrangements, placed_count, unplaced_count)``. Unplaced
+    students get a row with ``seat_number=None`` for ``reconcile_unplaced``
+    to pick up. Nothing is written here: the caller saves every hall of the
+    slot in one ``bulk_create``, which on a remote database is far cheaper
+    than several inserts per hall. ``course_map`` maps course code to
+    ``Course``; students' ``student_id`` must be real ids, since the
+    allocation task reads them from the database moments before.
+    """
+    seat_positions, unplaced_students, percentage_placed = allocate_students_to_seats(
         students, rows, cols,
         adjacency_mode=adjacency_mode,
         success_threshold_pct=success_threshold_pct,
         pattern_order=pattern_order,
         relaxed_courses=relaxed_courses,
     )
-    if result is None:
-        print("Error: allocate_students_to_seats returned None.")
-        return
+    # First student wins on a repeated matric number, as the linear scan
+    # this lookup replaced did.
+    by_name = {}
+    for s in students:
+        by_name.setdefault(s["name"], s)
 
-    seat_positions, unplaced_students, percentage_placed = result
+    def row(student_name, seat):
+        student = by_name[student_name]
+        return SeatArrangement(
+            date=date,
+            period=period,
+            student_id=student.get("student_id"),
+            seat_number=seat,
+            hall=hall,
+            course=course_map.get(student["course"]),
+            cls_id=student["cls_id"],
+        )
 
-    print(f"Percentage of students placed: {percentage_placed:.2f}%")
-
-    # Prefetch every FK target once instead of per-student SELECTs. hall_id is
-    # constant for this whole call, and course/cls/student are resolved from
-    # in-memory maps each built with a single query. This was a per-row N+1
-    # (~4 SELECTs/student) — the allocation analogue of the distribution bug.
-    from django.db import transaction
-
-    hall_obj = Hall.objects.get(id=hall_id)
-    course_map = {
-        c.code: c
-        for c in Course.objects.filter(code__in={s["course"] for s in students})
-    }
-    valid_student_ids = set(
-        Student.objects.filter(
-            id__in={s["student_id"] for s in students if s.get("student_id")}
-        ).values_list("id", flat=True)
+    # Course by course, matric ordered within each, placed rows first.
+    placed_rows = sorted(
+        seat_positions.items(),
+        key=lambda kv: (by_name[kv[0]]["course"], kv[0]),
     )
-
-    if seat_positions:
-        # Group students by course
-        courses = sorted(set(student["course"] for student in students))
-        course_groups = {course: [] for course in courses}
-        for student_name, seat in seat_positions.items():
-            student_data = next(s for s in students if s["name"] == student_name)
-            course = student_data["course"]
-            cls_id = student_data["cls_id"]
-            student_id = student_data.get("student_id")
-            course_groups[course].append((student_name, seat, cls_id, student_id))
-
-        # Print sorted by course and create SeatArrangement objects
-        print("\nSeating Arrangement:")
-        with transaction.atomic():
-            for course in courses:
-                print(f"\n{course}:")
-                arrangements = []
-                for student_name, seat, cls_id, student_id in sorted(
-                    course_groups[course], key=lambda x: x[0]
-                ):
-                    arrangements.append(
-                        SeatArrangement(
-                            date=date,
-                            period=period,
-                            # NULL the student FK if the id is unknown, matching
-                            # the old try/except DoesNotExist fallback.
-                            student_id=student_id if student_id in valid_student_ids else None,
-                            seat_number=seat,
-                            hall=hall_obj,
-                            course=course_map.get(course),
-                            cls_id=cls_id,
-                        )
-                    )
-                    print(f"{student_name}: {seat}")
-                SeatArrangement.objects.bulk_create(arrangements)
-
-    # Group and sort unplaced students by course
-    unplaced_by_course = {}
-    for student_name in unplaced_students:
-        student_data = next(s for s in students if s["name"] == student_name)
-        course = student_data["course"]
-        cls_id = student_data["cls_id"]
-        student_id = student_data.get("student_id")
-        if course not in unplaced_by_course:
-            unplaced_by_course[course] = []
-        unplaced_by_course[course].append((student_name, cls_id, student_id))
-
-    # Print unplaced students sorted by course and create SeatArrangement objects
-    if unplaced_students:
-        print("\nUnplaced Students:")
-        with transaction.atomic():
-            for course in sorted(unplaced_by_course.keys()):
-                print(f"\n{course}:")
-                arrangements = []
-                for student_name, cls_id, student_id in sorted(unplaced_by_course[course]):
-                    arrangements.append(
-                        SeatArrangement(
-                            date=date,
-                            period=period,
-                            student_id=student_id if student_id in valid_student_ids else None,
-                            hall=hall_obj,
-                            course=course_map.get(course),
-                            cls_id=cls_id,
-                        )
-                    )
-                    print(student_name)
-                SeatArrangement.objects.bulk_create(arrangements)
+    unplaced_rows = sorted(
+        unplaced_students, key=lambda name: (by_name[name]["course"], name)
+    )
+    arrangements = [row(name, seat) for name, seat in placed_rows]
+    arrangements += [row(name, None) for name in unplaced_rows]
+    return arrangements, len(placed_rows), len(unplaced_rows)
 
 
 def is_valid_position(seat_number, course_code, seat_map, rows, cols, rule=STRICT):
@@ -2681,19 +2659,24 @@ def reconcile_unplaced(date, period):
     strict_offsets = seating_rules.neighbours(STRICT)
     relaxed_offsets = seating_rules.neighbours(RELAXED)
 
+    # Every seated row of the slot in one query, grouped by hall, instead of
+    # a query per hall.
+    seated_by_hall: dict[int, list[tuple[int, int]]] = {}
+    for hall_id, seat_number, course_id in SeatArrangement.objects.filter(
+        date=date, period=period, seat_number__isnull=False
+    ).values_list("hall_id", "seat_number", "course_id"):
+        seated_by_hall.setdefault(hall_id, []).append((seat_number, course_id))
+
     # Build per-hall occupancy maps once.
     hall_state: dict[int, dict] = {}
     for hall in halls:
         r, c = hall.rows, hall.columns
         grid = [[None] * c for _ in range(r)]
-        existing = SeatArrangement.objects.filter(
-            date=date, period=period, hall=hall, seat_number__isnull=False
-        ).select_related("course")
-        for sa in existing:
-            seat = sa.seat_number - 1  # 1-based → 0-based
+        for seat_number, course_id in seated_by_hall.get(hall.id, ()):
+            seat = seat_number - 1  # 1-based → 0-based
             row, col = divmod(seat, c)
             if 0 <= row < r and 0 <= col < c:
-                grid[row][col] = sa.course_id
+                grid[row][col] = course_id
         # Free cells grouped by parity quarter.
         quarters: dict[tuple[int, int], list[tuple[int, int]]] = {
             (ro, co): [] for ro in (0, 1) for co in (0, 1)

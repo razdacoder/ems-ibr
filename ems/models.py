@@ -382,6 +382,11 @@ class TimeTable(models.Model):
         max_length=10, choices=RULE_CHOICES, default=STRICT
     )
 
+    class Meta:
+        # Every generation step reads the timetable one (date, period) slot
+        # at a time.
+        indexes = [models.Index(fields=['date', 'period'])]
+
     def __str__(self) -> str:
         return f"{self.class_obj.department.name} | {self.course.code} | {self.date} | {self.period}"
 
@@ -396,6 +401,9 @@ class Distribution(models.Model):
     items = models.ManyToManyField(DistributionItem)
     date = models.CharField(max_length=15, null=True)
     period = models.CharField(max_length=2, null=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['date', 'period'])]
 
 
 class Student(models.Model):
@@ -433,6 +441,13 @@ class SeatArrangement(models.Model):
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     cls = models.ForeignKey(Class, on_delete=models.CASCADE)
+
+    class Meta:
+        # Allocation deletes, counts and re-reads a whole slot at a time.
+        # Without this every such query scanned all of the session's seats
+        # (~160k rows), and the delete-and-reinsert churn of re-runs made
+        # each scan slower still.
+        indexes = [models.Index(fields=['date', 'period', 'hall'])]
 
     def __str__(self) -> str:
         return f"{self.student.matric_no} - {self.seat_number or 'None'} - Course {self.course.code} - Date {self.date} - Period {self.period}"
