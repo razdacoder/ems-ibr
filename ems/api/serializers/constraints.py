@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from ems.halls import normalise_course_limits, normalise_group_order
 from ems.models import GenerationConstraints
 
 VALID_PERIODS = {"AM", "PM"}
@@ -22,6 +23,8 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
             "cbe_group_count",
             "cbe_faculty_groups",
             "pbe_hall_utilization",
+            "hall_course_limits",
+            "hall_group_order",
             "seat_pattern",
             "excluded_weekdays",
             "class_period_overrides",
@@ -64,9 +67,20 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
     def validate_pbe_hall_utilization(self, value):
         if value is None or value <= 0 or value > 1:
             raise serializers.ValidationError(
-                "Utilization must be greater than 0 and at most 1."
+                "The fill cap must be greater than 0% and at most 100%."
             )
         return value
+
+    def validate_hall_course_limits(self, value):
+        try:
+            return normalise_course_limits(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
+    def validate_hall_group_order(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Expected a list of group names.")
+        return normalise_group_order(value)
 
     def validate_seat_pattern(self, value):
         if value not in VALID_SEAT_PATTERNS:

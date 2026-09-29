@@ -6,7 +6,7 @@ from django.test import TestCase
 from ems.models import SeatArrangement
 from ems.utils import reconcile_unplaced
 
-from .helpers import enrol, make_class, make_course, make_hall
+from .helpers import enrol, make_class, make_course, make_hall, no_fill_cap
 
 DATE, PERIOD = "2026-08-17", "AM"
 
@@ -23,6 +23,7 @@ def neighbours(seat, cols):
 
 class ReconcileUnplacedTests(TestCase):
     def setUp(self):
+        no_fill_cap()
         self.course = make_course("ACC 121")
         self.cls = make_class(6)
         self.students = enrol(self.cls, [f"24300000{n:02}" for n in range(6)])

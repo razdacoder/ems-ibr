@@ -3,7 +3,9 @@ import contextlib
 import io
 from itertools import count
 
-from ems.models import Class, Course, Department, Faculty, Hall, Student, TimeTable
+from ems.models import (
+    Class, Course, Department, Faculty, GenerationConstraints, Hall, Student, TimeTable,
+)
 
 _seq = count(1)
 
@@ -44,6 +46,16 @@ def make_hall(name, rows, cols):
     return Hall.objects.create(
         name=name, capacity=rows * cols, max_students=0, min_courses=0,
         rows=rows, columns=cols,
+    )
+
+
+def no_fill_cap(**fields):
+    """Constraints where every seat of a hall may be used: sequential
+    pattern and a 100% fill cap, unless ``fields`` say otherwise. For tests
+    about seat geometry, not caps."""
+    GenerationConstraints.objects.all().delete()
+    return GenerationConstraints.objects.create(
+        **{"seat_pattern": "sequential", "pbe_hall_utilization": 1, **fields}
     )
 
 

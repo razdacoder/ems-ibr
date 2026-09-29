@@ -114,7 +114,14 @@ export default function UploadsPage() {
         />
         <FileUploadCard
           title="Halls"
-          description="CSV columns: EXAM VENUE, CAPACITY, MAX STUDENTS, MIN COURSES, ROWS, COLS"
+          description={
+            'CSV columns: EXAM VENUE, CAPACITY, ROWS, COLS. ' +
+            'For rows of different lengths, give ROW_SEATS instead of ROWS and COLS ' +
+            '(seats per row, front first, quoted: "10,12,12,8") and optionally ALIGN ' +
+            '(left, center or right). Optional GROUP (e.g. BE) says which halls stand ' +
+            'together; left blank it is taken from the name. Optional SEAT_ORDER: rows ' +
+            '(default), rows_rtl, snake, snake_rtl, columns or columns_snake.'
+          }
           disabled={locked}
           isPending={halls.isPending}
           result={hallsResult}

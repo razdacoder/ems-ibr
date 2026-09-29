@@ -16,6 +16,7 @@ from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
     get_courses, get_halls, split_course, generate, classify_courses,
     distribute_classes_to_halls, save_to_db, build_seat_arrangements,
+    hall_fill_cap, in_walk_order,
     record_planned_students, slot_student_counts, relaxed_course_code,
 )
 
@@ -96,7 +97,7 @@ class _Progress:
         self.task.update_state(state='PROGRESS', meta={'progress': pct, 'status': status})
 
 
-def _distribute_slot(date, period, halls_list):
+def _distribute_slot(date, period, halls_list, group_order=None):
     """Distribute one slot, save it, and record what it planned.
 
     Returns ``(result, skipped_inactive, unplaced_by_class)``. The student
@@ -115,6 +116,7 @@ def _distribute_slot(date, period, halls_list):
     result = distribute_classes_to_halls(
         timetables, halls_list, size_map=size_map,
         relaxed_course=relaxed_course_code(timetables),
+        group_order=group_order,
     )
     with transaction.atomic():
         save_to_db(result, str(date), period)
@@ -241,7 +243,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         print(f"[TASK] Loaded {len(courses)} courses and {len(halls)} halls")
 
         # Classify every course once, before the AM/PM split (spec 0002).
-        hall_sizes = list(Hall.objects.values_list('rows', 'columns'))
+        hall_sizes = list(Hall.objects.values_list('rows', 'columns', 'layout'))
         strict_limit = seating_rules.strict_limit(hall_sizes)
         relaxed_limit = seating_rules.relaxed_limit(hall_sizes)
         courses, refused_oversized = classify_courses(
@@ -421,11 +423,14 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             halls,
             safety_factor=float(constraints.pbe_hall_utilization),
             pattern=constraints.seat_pattern,
+            course_limits=constraints.hall_course_limits,
         )
 
         # Distribute classes across halls (bulk placement + tail
         # consolidation), save, and record planned_students.
-        _, skipped, unplaced = _distribute_slot(date, period, halls_list)
+        _, skipped, unplaced = _distribute_slot(
+            date, period, halls_list, constraints.hall_group_order
+        )
 
         job.progress = 70
         job.save()
@@ -487,12 +492,12 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         
         progress.report(5, 'Loading distributions...')
         
-        # Get distributions for the date and period. Ordered by hall name so
-        # the matric-number blocks are handed out predictably: the
-        # alphabetically first hall takes each class's lowest matric numbers,
-        # the next hall continues where it left off. Without an explicit
-        # order the DB is free to return halls in any order, which would move
-        # a class's block between halls from one run to the next.
+        # Get distributions for the date and period. They are seated in
+        # walk order (sorted below), the order distribution filled them in:
+        # the first hall takes each class's lowest matric numbers, the next
+        # hall continues where it left off, so a class's matric run follows
+        # the halls it sits in. Hall name breaks ties so a re-run hands out
+        # the same blocks.
         distributions = Distribution.objects.filter(
             date=date, period=period
         ).select_related('hall').prefetch_related(
@@ -511,7 +516,9 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         # distribution, before anything is cleared or seated.
         _assert_ready('allocation', [(date, period)])
 
-        distributions = list(distributions)
+        distributions = in_walk_order(
+            distributions, constraints, key=lambda d: d.hall
+        )
         total_halls = len(distributions)
         job.total_steps = 100  # Use percentage scale
         job.save()
@@ -560,9 +567,11 @@ def generate_allocation_task(self, job_id, user_id, date, period):
 
             rows = distribution.hall.rows
             cols = distribution.hall.columns
-            # Never seat more than the hall is rated for, even when the
-            # grid has spare cells.
-            hall_capacity = min(rows * cols, distribution.hall.capacity or rows * cols)
+            mask = distribution.hall.layout
+            # The hard fill cap (pbe_hall_utilization of the hall's seats).
+            # Distribution never plans past it; this refuses a plan made
+            # under a higher cap, which must be distributed again.
+            hall_capacity = hall_fill_cap(distribution.hall, constraints)
             students = []
             # Courses here seated under the relaxed rule (spec 0002).
             relaxed_courses = set()
@@ -589,7 +598,10 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             # Check capacity
             if len(students) > hall_capacity:
                 raise ValueError(
-                    f"Cannot allocate {len(students)} students to {distribution.hall.name} (capacity: {hall_capacity})"
+                    f"Cannot allocate {len(students)} students to "
+                    f"{distribution.hall.name}: its fill cap is {hall_capacity} "
+                    f"({float(constraints.pbe_hall_utilization):.0%} of its seats). "
+                    "Run distribution again for this slot."
                 )
 
             # Skip if no students to allocate
@@ -608,6 +620,8 @@ def generate_allocation_task(self, job_id, user_id, date, period):
                 period, distribution.hall, course_map,
                 success_threshold_pct=constraints.placement_success_threshold_pct,
                 relaxed_courses=relaxed_courses,
+                mask=mask,
+                seat_order=distribution.hall.seat_order,
             )
             arrangements.extend(hall_rows)
             total_allocated += hall_placed
@@ -715,8 +729,11 @@ def generate_distribution_all_task(self, job_id, user_id):
                 halls_qs,
                 safety_factor=float(constraints.pbe_hall_utilization),
                 pattern=constraints.seat_pattern,
+                course_limits=constraints.hall_course_limits,
             )
-            result, skipped, unplaced = _distribute_slot(date, period, halls_list)
+            result, skipped, unplaced = _distribute_slot(
+                date, period, halls_list, constraints.hall_group_order
+            )
             skipped_inactive.extend(skipped)
             unplaced_by_class.extend(
                 {'date': str(date), 'period': period, **u} for u in unplaced

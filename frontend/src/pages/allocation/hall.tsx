@@ -28,6 +28,7 @@ import {
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { EMPTY, formatName, initials, orEmpty } from "@/lib/format";
+import { seatNumberGrid } from "@/lib/hall-layout";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function HallAllocationPage() {
@@ -91,6 +92,23 @@ export default function HallAllocationPage() {
     return m;
   }, [data.data?.placed]);
 
+  // Students seated per course, shown in the legend.
+  const countByCourse = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of data.data?.placed ?? []) {
+      counts[p.course.code] = (counts[p.course.code] ?? 0) + 1;
+    }
+    return counts;
+  }, [data.data?.placed]);
+
+  // Seat number per grid cell; null where the hall has no seat.
+  const cells = useMemo(() => {
+    const hall = data.data?.hall;
+    return hall
+      ? seatNumberGrid(hall.rows, hall.columns, hall.layout, hall.seat_order)
+      : [];
+  }, [data.data?.hall]);
+
   const onAssign = async (saId: number) => {
     const seat = seatInputs[saId];
     if (!seat) return;
@@ -148,7 +166,8 @@ export default function HallAllocationPage() {
               </h1>
               <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                 {data.data.date} · {data.data.period} · {data.data.hall.rows} ×{" "}
-                {data.data.hall.columns} grid · cap {data.data.hall.capacity}
+                {data.data.hall.columns} grid · {data.data.hall.seat_count} seats · cap{" "}
+                {data.data.hall.capacity}
               </p>
               {relaxedCodes.size > 0 && (
                 <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -220,7 +239,9 @@ export default function HallAllocationPage() {
                 </div>
               </div>
               {placedView === "grid" ? (
-                <Card>
+                // overflow-visible: the card's usual overflow-hidden would
+                // stop the legend sticking to the page's scroll area.
+                <Card className="overflow-visible">
                   <CardContent className="pt-6">
                     {data.data.placed.length === 0 ? (
                       <p className="py-12 text-center font-serif italic text-muted-foreground">
@@ -228,6 +249,30 @@ export default function HallAllocationPage() {
                       </p>
                     ) : (
                       <div className="space-y-8">
+                        <div className="sticky top-0 z-20 -mx-(--card-spacing) -mt-6 flex flex-wrap items-center gap-2 border-b border-[color:var(--border)] bg-card/95 px-(--card-spacing) py-3 backdrop-blur-sm">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                            Legend
+                          </span>
+                          {Object.entries(courseColors).map(([code, palette]) => (
+                            <span
+                              key={code}
+                              className="inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-0.5 font-mono text-[11px] tabular-nums"
+                              style={{
+                                backgroundColor: palette.bg,
+                                color: palette.fg,
+                                borderColor: palette.ring,
+                              }}
+                            >
+                              <span
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: palette.ring }}
+                              />
+                              {code}
+                              <span className="opacity-80">· {countByCourse[code] ?? 0}</span>
+                              {relaxedCodes.has(code) && <RelaxedSeatingBadge />}
+                            </span>
+                          ))}
+                        </div>
                         <div className="flex items-center justify-center gap-3 border-b border-dashed border-[color:var(--border)] pb-4">
                           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                             ←
@@ -247,11 +292,11 @@ export default function HallAllocationPage() {
                               maxWidth: `${data.data.hall.columns * 80}px`,
                             }}
                           >
-                            {Array.from({
-                              length:
-                                data.data.hall.rows * data.data.hall.columns,
-                            }).map((_, idx) => {
-                              const seatNumber = idx + 1;
+                            {cells.map((seatNumber, idx) => {
+                              if (seatNumber === null) {
+                                // No seat here: short row, aisle or pillar.
+                                return <div key={`gap-${idx}`} aria-hidden />;
+                              }
                               const placed = seatBySeatNumber.get(seatNumber);
                               if (!placed) {
                                 return (
@@ -292,29 +337,6 @@ export default function HallAllocationPage() {
                               );
                             })}
                           </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[color:var(--border)] pt-4">
-                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                            Legend
-                          </span>
-                          {Object.entries(courseColors).map(([code, palette]) => (
-                            <span
-                              key={code}
-                              className="inline-flex items-center gap-1.5 rounded-[4px] border px-2 py-0.5 font-mono text-[11px] tabular-nums"
-                              style={{
-                                backgroundColor: palette.bg,
-                                color: palette.fg,
-                                borderColor: palette.ring,
-                              }}
-                            >
-                              <span
-                                className="size-2 rounded-full"
-                                style={{ backgroundColor: palette.ring }}
-                              />
-                              {code}
-                              {relaxedCodes.has(code) && <RelaxedSeatingBadge />}
-                            </span>
-                          ))}
                         </div>
                       </div>
                     )}
@@ -439,10 +461,7 @@ export default function HallAllocationPage() {
                                   <Input
                                     type="number"
                                     min={1}
-                                    max={
-                                      data.data?.hall.rows *
-                                      data.data?.hall.columns
-                                    }
+                                    max={data.data?.hall.seat_count}
                                     placeholder="Seat #"
                                     value={seatInputs[row.id] ?? ""}
                                     onChange={(e) =>

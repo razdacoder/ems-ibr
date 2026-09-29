@@ -10,7 +10,7 @@ from django.db.models.functions import Coalesce
 
 from .cloudinary_storage import select_logo_storage
 from .identifiers import clean_number_text
-from .seating_rules import RULE_CHOICES, STRICT
+from .seating_rules import DEFAULT_SEAT_ORDER, RULE_CHOICES, SEAT_ORDERS, STRICT
 
 
 class Faculty(models.Model):
@@ -82,6 +82,16 @@ def _default_cbe_faculty_groups():
     return {}
 
 
+def _default_hall_course_limits():
+    from .halls import DEFAULT_COURSE_LIMITS
+
+    return [dict(t) for t in DEFAULT_COURSE_LIMITS]
+
+
+def _default_hall_group_order():
+    return []
+
+
 # Kept only so historical migrations can import them by name.
 def _default_seating_patterns():
     return ["checkerboard", "diagonal", "sequential"]
@@ -104,9 +114,18 @@ class GenerationConstraints(models.Model):
     # faculty-slug → group-number mapping that drives the split.
     cbe_group_count = models.PositiveIntegerField(default=2)
     cbe_faculty_groups = models.JSONField(default=_default_cbe_faculty_groups)
+    # Hard cap on how full any hall may get, as a fraction of its seats for
+    # the seat pattern. Timetable, distribution, allocation, reconcile and
+    # manual assignment all stop at it.
     pbe_hall_utilization = models.DecimalField(
         max_digits=3, decimal_places=2, default=0.90
     )
+    # Most different courses one hall may hold, by hall size (see halls.py):
+    # [{"max_seats": 120, "courses": 4}, ..., {"max_seats": null, ...}].
+    hall_course_limits = models.JSONField(default=_default_hall_course_limits)
+    # Hall groups in the order they stand on the ground, so a course that
+    # outgrows one group spills into its neighbour (see halls.py).
+    hall_group_order = models.JSONField(default=_default_hall_group_order)
     # Seat pattern drives effective hall capacity at every stage (timetable
     # seat-budgeting, distribution packing, allocation placement).
     #   * checkerboard → ~50% of grid, students never within 1 cell of each other
@@ -350,13 +369,41 @@ class Class(models.Model):
 class Hall(models.Model):
     name = models.CharField(max_length=255)
     capacity = models.IntegerField()
+    # Deprecated: nothing reads these. Kept so existing data survives; no
+    # longer exposed by the API, the UI or the hall upload.
     max_students = models.IntegerField(default=0)
     min_courses = models.IntegerField(default=0)
     rows = models.IntegerField()
     columns = models.IntegerField()
+    # Halls that stand together (AUD, BE ...). Filled from the name when
+    # left blank; see halls.py.
+    group = models.CharField(max_length=32, blank=True, default="")
+    # Seat mask for a hall that is not a full rows x columns rectangle: one
+    # string per row, "X" a seat and "." no seat (see seating_rules).
+    # NULL = every cell is a seat.
+    layout = models.JSONField(null=True, blank=True)
+    # How seats are numbered (see seating_rules.SEAT_ORDERS). Changing it
+    # renumbers the hall, so its slots need allocating again.
+    seat_order = models.CharField(
+        max_length=20,
+        choices=[(k, v) for k, v in SEAT_ORDERS.items()],
+        default=DEFAULT_SEAT_ORDER,
+    )
 
     def __str__(self) -> str:
         return str(self.name)
+
+    def save(self, *args, **kwargs):
+        from .halls import group_from_name
+
+        self.group = (self.group or "").strip().upper() or group_from_name(self.name)
+        super().save(*args, **kwargs)
+
+    @property
+    def seat_count(self) -> int:
+        from .seating_rules import layout_of
+
+        return layout_of(self).seat_count
 
 
 PERIOD = (('AM', 'AM'), ('PM', 'PM'))

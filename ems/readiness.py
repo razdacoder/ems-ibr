@@ -170,7 +170,7 @@ def outdated_rules(slots=None) -> list:
         for course_id in codes
     }
 
-    halls = list(Hall.objects.values_list("rows", "columns"))
+    halls = list(Hall.objects.values_list("rows", "columns", "layout"))
     strict = seating_rules.strict_limit(halls)
     relaxed = seating_rules.relaxed_limit(halls)
 

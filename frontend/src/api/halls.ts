@@ -5,25 +5,38 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { Align, SeatOrder } from "@/lib/hall-layout";
 import { toPaginated, type PaginatedResponse } from "./types";
 
 export interface Hall {
   id: number;
   name: string;
+  /** Halls that stand together (AUD, BE ...); filled from the name. */
+  group: string;
   capacity: number;
-  max_students: number;
-  min_courses: number;
   rows: number;
   columns: number;
+  /** Seat mask, "X" seat / "." no seat per row; null = full rectangle. */
+  layout: string[] | null;
+  /** How seats are numbered. */
+  seat_order: SeatOrder;
+  /** Seats in each row, front row first. */
+  row_seats: number[];
+  seat_count: number;
 }
 
 export interface HallInput {
   name: string;
+  /** Blank = filled from the name ("BE 3" → BE). */
+  group?: string;
   capacity: number;
-  max_students: number;
-  min_courses: number;
   rows: number;
   columns: number;
+  layout?: string[] | null;
+  seat_order?: SeatOrder;
+  /** Shorthand for layout: the server builds the mask from these. */
+  row_seats?: number[];
+  align?: Align;
 }
 
 const KEY = ["halls"] as const;

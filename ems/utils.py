@@ -9,6 +9,7 @@ from django.db.models import Prefetch
 from collections import Counter
 
 from . import seating_rules
+from .halls import course_limit, group_from_name, group_ranks, walk_key
 from .identifiers import clean_number_text
 from .seating_rules import (
     RELAXED,
@@ -49,7 +50,7 @@ def get_halls(pattern: str = "checkerboard"):
             "id": hall.id,
             "name": hall.name,
             "capacity": hall_effective_capacity(
-                hall.rows, hall.columns, pattern, hall.capacity
+                hall.rows, hall.columns, pattern, hall.capacity, mask=hall.layout
             ),
         }
         for hall in Hall.objects.all()
@@ -918,44 +919,102 @@ def record_planned_students(timetables, size_map, result) -> list:
 # into the unplaced bucket.
 
 def hall_effective_capacity(
-    rows: int, cols: int, pattern: str = "checkerboard", capacity: int = 0
+    rows: int,
+    cols: int,
+    pattern: str = "checkerboard",
+    capacity: int = 0,
+    mask=None,
 ) -> int:
     """Total seats the allocator can fill in this hall under ``pattern``.
 
-    * ``checkerboard``: only even-parity cells → ceil(rows*cols / 2).
-    * ``sequential``  : all cells → rows * cols.
+    * ``checkerboard``: only even-parity seats → ceil(rows*cols / 2) for a
+      full rectangle.
+    * ``sequential``  : every seat → rows * cols for a full rectangle.
 
-    ``capacity`` is the hall's stated capacity. The grid can hold more cells
-    than the hall is rated for (AH 4 & 5: 14x15 = 210 cells, capacity 204),
-    so a positive ``capacity`` is a hard ceiling on the result.
+    ``mask`` is the hall's seat layout (``None`` = full rectangle); only
+    real seats count. ``capacity`` is the hall's stated capacity. The grid
+    can hold more cells than the hall is rated for (AH 4 & 5: 14x15 = 210
+    cells, capacity 204), so a positive ``capacity`` is a hard ceiling on
+    the result.
     """
     if rows <= 0 or cols <= 0:
         return 0
     if pattern == "sequential":
-        seats = rows * cols
+        seats = seating_rules.hall_layout(
+            rows, cols, seating_rules.mask_key(mask)
+        ).seat_count
     else:
-        seats = (rows * cols + 1) // 2  # checkerboard
+        seats = even_half(rows, cols, mask)  # checkerboard
     if capacity and capacity > 0:
         seats = min(seats, capacity)
     return seats
+
+
+def current_constraints():
+    """The saved ``GenerationConstraints``, or unsaved defaults."""
+    from .models import GenerationConstraints
+
+    return GenerationConstraints.objects.first() or GenerationConstraints()
+
+
+def hall_fill_cap(hall, constraints=None) -> int:
+    """Most students ``hall`` may hold in one slot: its seats for the seat
+    pattern times ``pbe_hall_utilization``. A hard rule: distribution never
+    plans past it, and allocation, reconcile and manual assignment never
+    seat past it."""
+    constraints = constraints or current_constraints()
+    seats = hall_effective_capacity(
+        hall.rows, hall.columns, constraints.seat_pattern, hall.capacity,
+        mask=hall.layout,
+    )
+    return int(seats * float(constraints.pbe_hall_utilization))
+
+
+def in_walk_order(halls, constraints=None, key=lambda hall: hall):
+    """``halls`` (or items whose ``key`` is a ``Hall``) in the order
+    distribution fills them: group by group in ``hall_group_order``, biggest
+    hall first inside a group (see halls.py)."""
+    constraints = constraints or current_constraints()
+    items = list(halls)
+
+    def seats(hall):
+        return hall_effective_capacity(
+            hall.rows, hall.columns, constraints.seat_pattern, hall.capacity,
+            mask=hall.layout,
+        )
+
+    def group(hall):
+        return hall.group or group_from_name(hall.name)
+
+    ranks = group_ranks(
+        ((group(key(i)), seats(key(i))) for i in items), constraints.hall_group_order
+    )
+    return sorted(
+        items,
+        key=lambda i: walk_key(ranks, group(key(i)), seats(key(i)), key(i).name),
+    )
 
 
 def convert_hall_to_dict(
     halls,
     safety_factor: float = 0.90,
     pattern: str = "checkerboard",
+    course_limits=None,
 ):
     """Hall list for distribution.
 
     ``safety_factor`` defaults to 0.9 and is expected to match
-    ``GenerationConstraints.pbe_hall_utilization``. ``pattern`` matches
-    ``GenerationConstraints.seat_pattern``. Together they keep timetable,
-    distribution, and allocation on one capacity model.
+    ``GenerationConstraints.pbe_hall_utilization``, the hard cap on how full
+    a hall may get. ``pattern`` matches ``GenerationConstraints.seat_pattern``.
+    Together they keep timetable, distribution, and allocation on one
+    capacity model. ``course_limits`` is
+    ``GenerationConstraints.hall_course_limits``; ``None`` sets no limit.
     """
     halls_dict = []
     for hall in halls:
+        mask = seating_rules.mask_key(hall.layout)
         effective = hall_effective_capacity(
-            hall.rows, hall.columns, pattern, hall.capacity
+            hall.rows, hall.columns, pattern, hall.capacity, mask=mask
         )
         halls_dict.append(
             {
@@ -963,6 +1022,11 @@ def convert_hall_to_dict(
                 "name": hall.name,
                 "rows": hall.rows,
                 "columns": hall.columns,
+                # Seat mask, or None for a full rectangle. Every quarter
+                # count below is taken over real seats only.
+                "layout": mask,
+                # Seat numbering: which even seats the relaxed course takes.
+                "seat_order": hall.seat_order,
                 # Pattern-aware seat budget; replaces raw hall.capacity for
                 # distribution. Headroom keeps the allocator's randomized
                 # passes from running out of free seats.
@@ -970,12 +1034,18 @@ def convert_hall_to_dict(
                 # The biggest quarter: a course may fill it whole.
                 # _max_seatable_bite checks each bite against the quarters
                 # actually left, so no unseatable mix gets through.
-                "per_course_slice": largest_quarter(hall.rows, hall.columns),
-                # The smallest quarter: a pass 1 bite this big fills a
-                # quarter, so it is worth taking even short of the cap.
-                "min_quarter": hall_per_course_slice(hall.rows, hall.columns),
+                "per_course_slice": largest_quarter(hall.rows, hall.columns, mask),
                 # Cap for the slot's relaxed course, if any (spec 0002).
-                "even_half": even_half(hall.rows, hall.columns),
+                "even_half": even_half(hall.rows, hall.columns, mask),
+                # Walk order and course limit (see halls.py). The limit is
+                # by the hall's seats for the pattern, before the fill cap.
+                "group": hall.group or group_from_name(hall.name),
+                "seats": effective,
+                "course_limit": (
+                    course_limit(effective, course_limits)
+                    if course_limits is not None
+                    else None
+                ),
                 "classes": [],
             }
         )
@@ -1032,18 +1102,11 @@ def make_schedules(timetables, size_map=None):
     return tt
 
 
-def is_course_in_hall(hall, course_code):
-    if len(hall["classes"]) == 0:
-        return False
-    for cls in hall["classes"]:
-        if cls["course"] == course_code:
-            return True
-    return False
-
-
-def _quarters_can_seat(rows, cols, bites, relaxed_course=None):
+def _quarters_can_seat(
+    rows, cols, bites, relaxed_course=None, mask=None, seat_order="rows"
+):
     """True if the allocator's pass 0 would seat every ``bites`` entry in a
-    ``rows`` x ``cols`` hall.
+    ``rows`` x ``cols`` hall with seat layout ``mask`` (``None`` = full).
 
     ``bites`` is ``[(course_code, count), ...]``. This replays pass 0
     exactly. ``relaxed_course`` (the slot's relaxed course code, or ``None``)
@@ -1055,19 +1118,18 @@ def _quarters_can_seat(rows, cols, bites, relaxed_course=None):
     accepts is seated by pass 0 with no leftovers, so nothing reaches the
     adjacency fallback passes or the cross hall reconcile.
     """
-    free = {
-        (ro, co): ((rows + 1 - ro) // 2) * ((cols + 1 - co) // 2)
-        for ro in (0, 1)
-        for co in (0, 1)
-    }
+    # A copy: the layout is cached and shared.
+    free = dict(
+        seating_rules.hall_layout(rows, cols, seating_rules.mask_key(mask)).quarters
+    )
     strict_bites = []
     for course, count in bites:
         if course != relaxed_course:
             strict_bites.append((course, count))
             continue
-        if count > even_half(rows, cols):
+        if count > even_half(rows, cols, mask):
             return False
-        in_q00, in_q11 = relaxed_quarter_usage(rows, cols, count)
+        in_q00, in_q11 = relaxed_quarter_usage(rows, cols, count, mask, seat_order)
         free[(0, 0)] -= in_q00
         free[(1, 1)] -= in_q11
     for _course, count in sorted(strict_bites, key=lambda b: (-b[1], b[0])):
@@ -1094,7 +1156,12 @@ def _max_seatable_bite(hall, course_code, limit, relaxed_course=None):
         bites = dict(existing)
         bites[course_code] = bites.get(course_code, 0) + mid
         if _quarters_can_seat(
-            hall["rows"], hall["columns"], list(bites.items()), relaxed_course
+            hall["rows"],
+            hall["columns"],
+            list(bites.items()),
+            relaxed_course,
+            mask=hall.get("layout"),
+            seat_order=hall.get("seat_order", "rows"),
         ):
             lo = mid
         else:
@@ -1110,59 +1177,79 @@ def course_cap(hall, course_code, relaxed_course=None):
     return hall.get("per_course_slice", 0)
 
 
-def distribute_classes_to_halls(timetables, halls, size_map=None, relaxed_course=None):
-    """Pack timetable rows into halls under allocation-aware caps, in two
-    passes.
+def distribute_classes_to_halls(
+    timetables, halls, size_map=None, relaxed_course=None, group_order=None
+):
+    """Pack timetable rows into halls one hall at a time, in walk order,
+    filling each hall as full as it can be seated before the next opens.
 
     Each hall carries two budgets (set by :func:`convert_hall_to_dict`):
-      * ``capacity``           — total students the hall can absorb under
-                                  checkerboard + 8-dir adjacency, with safety
-                                  headroom (≈ 0.45 × rows × cols).
-      * ``per_course_slice``    — max students of any one course in the hall:
-                                  its biggest quarter (≈ rows × cols / 4).
+      * ``capacity``         — total students the hall can take for the
+                               configured pattern, with safety headroom.
+      * ``per_course_slice`` — most students of one strict course: its
+                               biggest quarter (the ``even_half`` for the
+                               slot's relaxed course, see :func:`course_cap`).
 
-    **Pass 1 — bulk placement.** Halls are visited largest-capacity first;
-    within each hall, courses are tried largest-remaining-size first. A hall
-    only accepts a course here if the bite is either the course's *entire*
-    remaining size, or fills a whole quarter (a genuine "this course
-    needs several big halls" chunk, like a 216-student class taking a
-    63-seat bite). A bite that's smaller than both — capped only by this
-    hall's *own* nearly-exhausted leftover capacity — is skipped rather than
-    taken just because it technically fits.
+    **Walk order, each hall filled before the next.** Halls are visited
+    group by group in ``group_order`` (``GenerationConstraints.
+    hall_group_order``), biggest hall first inside a group (see
+    :mod:`ems.halls`). A hall keeps taking seatable bites, round after round,
+    until no course can add a single student it could seat, never past its
+    ``capacity`` (the hard fill cap). Only then does the next hall open. So
+    every hall but the last one used is filled to the most the seating rule
+    and its course limit allow. The old two pass packer sent tails to
+    whichever hall had the *least* room, which filled small halls while big
+    ones sat at 60-80%.
 
-    **Pass 2 — tail consolidation.** Whatever's left (every course's small
-    leftover remainder) is packed depth-first with best-fit bin-packing:
-    largest remainder first, and each bite goes to whichever eligible hall
-    currently has the *least* spare capacity. That reuses and finishes off
-    the same small set of "overflow" halls across many different courses'
-    tails, instead of each course's leftover independently landing in
-    whichever hall it happens to reach first. Without this pass, a slot with
-    many small classes ends up with each one scattered 1-3 students at a
-    time across a dozen different halls, rather than sharing a handful of
-    halls together.
+    **Courses stay together.** In each hall the courses already started in
+    an earlier hall go first, in the order they started, so a course runs
+    on through consecutive halls of the walk until it is done and spills
+    only into the neighbouring group. New courses then fill what is left,
+    largest first.
 
-    **Largest halls first.** Every hall keeps its full budget, so the big
-    halls fill before smaller ones are opened. On a light slot the spare
-    capacity is left as whole unused small halls, not as gaps spread over
-    every hall.
+    **Course limit.** A hall never holds more different courses than its
+    ``course_limit`` (from ``GenerationConstraints.hall_course_limits``;
+    ``None`` = no limit).
 
-    **Seatable bites only.** Every bite is also capped by
+    **The ceiling is the seating rule, not the packer.** Under the strict
+    rule one course takes at most one of a hall's four quarters, so a slot
+    with only three strict courses can fill no hall past about 75%, however
+    the halls are ordered. Courses are tried largest first, the order the
+    allocator seats them in, so the quarters fill the way they will be sat.
+
+    **Classes stay together.** Each bite of a course first finishes a class
+    an earlier hall started, then takes whole classes that fit, and splits
+    at most one more, which runs on into the next hall used. So a split
+    class keeps its matric block in consecutive halls.
+
+    **Seatable bites only.** Every bite is capped by
     :func:`_max_seatable_bite`, so a hall is never handed a mix of courses
-    the allocator cannot fit into its four adjacency safe quarters. Before
-    this, a hall filled to its whole grid always left students unplaced, and
-    the cross hall reconcile scattered them a few at a time across other
-    halls (broken matric ranges, mixed attendance sheets).
+    the allocator cannot fit into its adjacency safe quarters.
 
     **Relaxed course.** ``relaxed_course`` is the slot's relaxed course code
-    (spec 0002), or ``None``. Its cap per hall is the hall's ``even_half``
-    instead of ``per_course_slice``, in both passes, and the seatability model
-    places it first on the even parity seats.
+    (spec 0002), or ``None``. Its cap per hall is the hall's ``even_half``,
+    and the seatability model places it first on the even parity seats.
     """
     class_schedules = make_schedules(timetables=timetables, size_map=size_map)
-    # make_schedules already random-shuffles. Stable-sort by size desc to
-    # place big courses first while keeping intra-size randomness.
+    # make_schedules already random-shuffles. Stable-sort by size desc so a
+    # course hands out its biggest classes first.
     class_schedules.sort(key=lambda s: s["size"], reverse=True)
-    halls.sort(key=lambda h: h.get("capacity", 0), reverse=True)
+    ranks = group_ranks(
+        ((h.get("group", ""), h.get("seats", h.get("capacity", 0))) for h in halls),
+        group_order,
+    )
+    halls.sort(
+        key=lambda h: walk_key(
+            ranks, h.get("group", ""), h.get("seats", h.get("capacity", 0)), h["name"]
+        )
+    )
+
+    classes_by_course: dict[str, list] = {}
+    for schedule in class_schedules:
+        classes_by_course.setdefault(schedule["course"], []).append(schedule)
+
+    def left(course_code):
+        return sum(s["size"] for s in classes_by_course[course_code])
 
     def place(hall, schedule, take):
         existing = next(
@@ -1182,81 +1269,73 @@ def distribute_classes_to_halls(timetables, halls, size_map=None, relaxed_course
         hall["capacity"] -= take
         schedule["size"] -= take
 
-    # --- Pass 1: bulk placement --------------------------------------
+    started = set()  # ids of classes already split into an earlier hall
+
+    def give(hall, course_code, count):
+        """``count`` students of ``course_code``, splitting as few of its
+        classes as possible: first the rest of a class an earlier hall
+        started, then whole classes that fit (biggest first), and only then
+        the start of one more class, which runs on into the next hall."""
+        waiting = [s for s in classes_by_course[course_code] if s["size"]]
+        order = [s for s in waiting if s["id"] in started]
+        order += [s for s in waiting if s["id"] not in started]
+        for schedule in order:
+            if count == 0:
+                return
+            if schedule["id"] in started or schedule["size"] <= count:
+                take = min(count, schedule["size"])
+                place(hall, schedule, take)
+                count -= take
+        for schedule in order:
+            if count == 0:
+                return
+            if schedule["size"]:
+                take = min(count, schedule["size"])
+                place(hall, schedule, take)
+                started.add(schedule["id"])
+                count -= take
+
+    # Courses in the order they were first placed; they carry on first.
+    course_started: dict[str, int] = {}
+
+    def course_order():
+        started = sorted(
+            (c for c in course_started if left(c)), key=course_started.get
+        )
+        # Largest remaining first; the course code breaks ties so a re-run
+        # hands out the same bites.
+        fresh = sorted(
+            (c for c in classes_by_course if c not in course_started and left(c)),
+            key=lambda code: (-left(code), code),
+        )
+        return started + fresh
+
     for hall in halls:
-        for schedule in class_schedules:
-            if schedule["size"] == 0:
-                continue
-            if is_course_in_hall(hall, schedule["course"]):
-                # Keep slices of the same course in different halls — this is
-                # what lets the allocator spread same-course adjacency risk.
-                continue
-            seats_remaining = hall["capacity"]
-            if seats_remaining <= 0:
-                break
-
-            slice_cap = course_cap(hall, schedule["course"], relaxed_course)
-            take = min(schedule["size"], seats_remaining, slice_cap)
-            if take <= 0:
-                continue
-            # The most the quarters actually left can seat. For a strict
-            # course that may be a smaller quarter than ``slice_cap``.
-            take = _max_seatable_bite(
-                hall, schedule["course"], take, relaxed_course
-            )
-            if take <= 0:
-                continue
-            whole_fit = take == schedule["size"]
-            full_quarter = schedule["size"] > take >= (
-                slice_cap if schedule["course"] == relaxed_course
-                else hall["min_quarter"]
-            )
-            if not (whole_fit or full_quarter):
-                # Only a capacity-limited partial bite is available here —
-                # defer this course's remainder to the tail-consolidation
-                # pass instead of nibbling it away hall by hall.
-                continue
-
-            place(hall, schedule, take)
-
-    # --- Pass 2: tail consolidation -----------------------------------
-    def consolidate_tails(top_up=False):
-        """``top_up`` lets a course grow its bite in a hall it already sits
-        in, for a remainder no fresh hall could take."""
-        tails = [s for s in class_schedules if s["size"] > 0]
-        tails.sort(key=lambda s: s["size"], reverse=True)
-
-        for schedule in tails:
-            while schedule["size"] > 0:
-                candidates = []
-                for h in halls:
-                    cap = course_cap(h, schedule["course"], relaxed_course)
-                    if (
-                        h["capacity"] <= 0
-                        or cap <= 0
-                        or (
-                            not top_up
-                            and is_course_in_hall(h, schedule["course"])
-                        )
-                    ):
-                        continue
-                    limit = min(schedule["size"], h["capacity"], cap)
-                    take = _max_seatable_bite(
-                        h, schedule["course"], limit, relaxed_course
-                    )
-                    if take > 0:
-                        candidates.append((h, take))
-                if not candidates:
+        limit_courses = hall.get("course_limit")
+        progress = True
+        while progress and hall["capacity"] > 0:
+            progress = False
+            for course_code in course_order():
+                if hall["capacity"] <= 0:
                     break
-                # Best-fit: the hall with the least spare capacity that can
-                # still take a bite. This finishes off nearly-full halls
-                # before spreading into fresh ones, so different courses'
-                # tails concentrate into the same small set of halls.
-                target, take = min(candidates, key=lambda ht: ht[0]["capacity"])
-                place(target, schedule, take)
-
-    consolidate_tails()
-    consolidate_tails(top_up=True)
+                in_hall = {c["course"] for c in hall["classes"]}
+                if (
+                    limit_courses is not None
+                    and course_code not in in_hall
+                    and len(in_hall) >= limit_courses
+                ):
+                    continue
+                remaining = left(course_code)
+                limit = min(
+                    remaining,
+                    hall["capacity"],
+                    course_cap(hall, course_code, relaxed_course),
+                )
+                take = _max_seatable_bite(hall, course_code, limit, relaxed_course)
+                if take > 0:
+                    give(hall, course_code, take)
+                    course_started.setdefault(course_code, len(course_started))
+                    progress = True
 
     return [hall for hall in halls if hall["classes"]]
 
@@ -1609,6 +1688,8 @@ def allocate_students_to_seats(
     success_threshold_pct=60,
     pattern_order=None,
     relaxed_courses=(),
+    mask=None,
+    seat_order="rows",
 ):
     """Deterministic seat allocation with a multi-pass approach.
 
@@ -1628,9 +1709,19 @@ def allocate_students_to_seats(
     the relaxed rule (spec 0002; at most one per hall). Pass 0 seats such a
     course first on the even parity seats in seat number order, and for it
     only side, front and back neighbours block, in every pass.
+
+    ``mask`` is the hall's seat layout (``None`` = every cell is a seat).
+    Every pass picks only from real seats, and seat numbers count real
+    seats only. ``seat_order`` is how the hall numbers them; every pass
+    walks seats in that order, so matric numbers follow the numbering.
     """
     if not students:  # Check if students list is empty
         return {}, students, 0  # Return all students as unplaced with 0% placement
+
+    layout = seating_rules.hall_layout(
+        rows, cols, seating_rules.mask_key(mask), seat_order
+    )
+    hall_seats = layout.seats  # seat-number order
 
     if pattern_order is None:
         pattern_order = ["checkerboard", "diagonal", "sequential"]
@@ -1695,23 +1786,19 @@ def allocate_students_to_seats(
             # Try checkerboard pattern (every other seat)
             positions = [
                 (r, c)
-                for r in range(rows)
-                for c in range(cols)
+                for r, c in hall_seats
                 if (r + c) % 2 == 0 and not seats[r][c]
             ]
         elif pattern == "diagonal":
             # Try diagonal pattern
             positions = [
                 (r, c)
-                for r in range(rows)
-                for c in range(cols)
+                for r, c in hall_seats
                 if r % 2 == c % 2 and not seats[r][c]
             ]
         else:
             # Sequential pattern
-            positions = [
-                (r, c) for r in range(rows) for c in range(cols) if not seats[r][c]
-            ]
+            positions = [(r, c) for r, c in hall_seats if not seats[r][c]]
 
         for student in course_students:
             if student_positions[student["name"]] is not None:
@@ -1738,9 +1825,7 @@ def allocate_students_to_seats(
         the old placement rate. `remaining_students` is matric-sorted.
         """
         placed = 0
-        free_cells = [
-            (r, c) for r in range(rows) for c in range(cols) if not seats[r][c]
-        ]
+        free_cells = [(r, c) for r, c in hall_seats if not seats[r][c]]
 
         for student in remaining_students:
             if student_positions[student["name"]] is not None:
@@ -1765,7 +1850,11 @@ def allocate_students_to_seats(
             return 0
         placed_here = 0
         for course_code in sorted(relaxed_courses & course_groups.keys()):
-            cells = [(r, c) for r, c in even_seats(rows, cols) if not seats[r][c]]
+            cells = [
+                (r, c)
+                for r, c in even_seats(rows, cols, mask, seat_order)
+                if not seats[r][c]
+            ]
             for student, (row, col) in zip(course_groups[course_code], cells):
                 seats[row][col] = student["name"]
                 student_positions[student["name"]] = (row, col)
@@ -1792,8 +1881,7 @@ def allocate_students_to_seats(
         quarter_cells = {
             (ro, co): [
                 (r, c)
-                for r in range(rows)
-                for c in range(cols)
+                for r, c in hall_seats
                 if r % 2 == ro and c % 2 == co and not seats[r][c]
             ]
             for ro in (0, 1)
@@ -1873,8 +1961,7 @@ def allocate_students_to_seats(
     # Students that cannot be placed while maintaining constraints will remain unplaced
 
     # Convert positions to sequential seat numbers
-    def index_to_seat(row, col):
-        return row * cols + col + 1
+    index_to_seat = layout.seat_number
 
     seat_positions = {}
     unplaced_students = []
@@ -1923,6 +2010,8 @@ def build_seat_arrangements(
     success_threshold_pct=60,
     pattern_order=None,
     relaxed_courses=(),
+    mask=None,
+    seat_order="rows",
 ):
     """Seat one hall and return its unsaved ``SeatArrangement`` rows.
 
@@ -1940,6 +2029,8 @@ def build_seat_arrangements(
         success_threshold_pct=success_threshold_pct,
         pattern_order=pattern_order,
         relaxed_courses=relaxed_courses,
+        mask=mask,
+        seat_order=seat_order,
     )
     # First student wins on a repeated matric number, as the linear scan
     # this lookup replaced did.
@@ -1972,7 +2063,10 @@ def build_seat_arrangements(
     return arrangements, len(placed_rows), len(unplaced_rows)
 
 
-def is_valid_position(seat_number, course_code, seat_map, rows, cols, rule=STRICT):
+def is_valid_position(
+    seat_number, course_code, seat_map, rows, cols, rule=STRICT, mask=None,
+    seat_order="rows",
+):
     """
     Check if a seat position is valid for manual assignment based on adjacency constraints.
 
@@ -1985,22 +2079,27 @@ def is_valid_position(seat_number, course_code, seat_map, rows, cols, rule=STRIC
         cols (int): Number of columns in the hall
         rule (str): The course's seating rule for the slot (spec 0002):
             8-dir for strict, 4-dir for relaxed
+        mask: The hall's seat layout (``None`` = every cell is a seat)
+        seat_order: How the hall numbers its seats
 
     Returns:
-        bool: True if the position is valid, False otherwise
+        bool: True if the position is valid, False otherwise (including a
+        seat number the hall does not have)
     """
-    # Convert seat number to row, col (0-based)
-    seat_index = seat_number - 1
-    row = seat_index // cols
-    col = seat_index % cols
+    layout = seating_rules.hall_layout(
+        rows, cols, seating_rules.mask_key(mask), seat_order
+    )
+    cell = layout.cell(seat_number)
+    if cell is None:
+        return False
+    row, col = cell
 
     for dr, dc in seating_rules.neighbours(rule):
         adj_row, adj_col = row + dr, col + dc
 
-        # Check if adjacent position is within bounds
-        if 0 <= adj_row < rows and 0 <= adj_col < cols:
-            # Convert back to seat number
-            adj_seat_number = adj_row * cols + adj_col + 1
+        # Only real seats can hold a neighbour
+        if layout.is_seat(adj_row, adj_col):
+            adj_seat_number = layout.seat_number(adj_row, adj_col)
 
             # Check if there's a student in the adjacent seat with the same course
             if adj_seat_number in seat_map and seat_map[adj_seat_number] == course_code:
@@ -2636,6 +2735,10 @@ def reconcile_unplaced(date, period):
     student without breaking the course's seating rule: 8-dir for strict
     courses, 4-dir for the slot's relaxed course (spec 0002).
 
+    A destination never goes past its fill cap (:func:`hall_fill_cap`) or
+    takes a new course past its course limit, and halls in (or nearest to)
+    the groups the course already sits in are tried first.
+
     Returns the number of students reseated.
     """
     from .models import SeatArrangement, Hall
@@ -2653,7 +2756,14 @@ def reconcile_unplaced(date, period):
     if not unplaced_qs.exists():
         return 0
 
-    halls = list(Hall.objects.all())
+    constraints = current_constraints()
+    halls = in_walk_order(Hall.objects.all(), constraints)
+    # Group rank of every hall, for "nearest group" (see halls.py).
+    ranks = group_ranks(
+        ((h.group or group_from_name(h.name), 0) for h in halls),
+        constraints.hall_group_order,
+    )
+    rank_of_hall = {h.id: ranks[h.group or group_from_name(h.name)] for h in halls}
     # The slot's rule, looked up once: only its relaxed course is 4-dir.
     relaxed_course_id = slot_relaxed_course_id(date, period)
     strict_offsets = seating_rules.neighbours(STRICT)
@@ -2671,33 +2781,43 @@ def reconcile_unplaced(date, period):
     hall_state: dict[int, dict] = {}
     for hall in halls:
         r, c = hall.rows, hall.columns
+        layout = seating_rules.layout_of(hall)
         grid = [[None] * c for _ in range(r)]
         for seat_number, course_id in seated_by_hall.get(hall.id, ()):
-            seat = seat_number - 1  # 1-based → 0-based
-            row, col = divmod(seat, c)
-            if 0 <= row < r and 0 <= col < c:
-                grid[row][col] = course_id
-        # Free cells grouped by parity quarter.
+            cell = layout.cell(seat_number)
+            if cell is not None:
+                grid[cell[0]][cell[1]] = course_id
+        # Free seats grouped by parity quarter.
         quarters: dict[tuple[int, int], list[tuple[int, int]]] = {
             (ro, co): [] for ro in (0, 1) for co in (0, 1)
         }
-        for row in range(r):
-            for col in range(c):
-                if grid[row][col] is None:
-                    quarters[(row % 2, col % 2)].append((row, col))
+        for row, col in layout.seats:
+            if grid[row][col] is None:
+                quarters[(row % 2, col % 2)].append((row, col))
         # Per-quarter occupancy of course_ids so we don't seat a student in
         # a quarter that already has same-course students stuck there.
         quarter_courses: dict[tuple[int, int], set[int]] = {
             (ro, co): set() for ro in (0, 1) for co in (0, 1)
         }
-        for row in range(r):
-            for col in range(c):
-                cid = grid[row][col]
-                if cid is not None:
-                    quarter_courses[(row % 2, col % 2)].add(cid)
+        for row, col in layout.seats:
+            cid = grid[row][col]
+            if cid is not None:
+                quarter_courses[(row % 2, col % 2)].add(cid)
+        seated = seated_by_hall.get(hall.id, ())
         hall_state[hall.id] = {
             "rows": r,
             "cols": c,
+            # Seats left under the hard fill cap, and the course limit.
+            "room": hall_fill_cap(hall, constraints) - len(seated),
+            "courses": {course_id for _seat, course_id in seated},
+            "course_limit": course_limit(
+                hall_effective_capacity(
+                    hall.rows, hall.columns, constraints.seat_pattern,
+                    hall.capacity, mask=hall.layout,
+                ),
+                constraints.hall_course_limits,
+            ),
+            "layout": layout,
             "grid": grid,
             "quarters": quarters,
             "quarter_courses": quarter_courses,
@@ -2730,17 +2850,39 @@ def reconcile_unplaced(date, period):
     # changed the winner after every student, so a class was dealt out a few
     # students per hall across many halls.
     last_target: dict[tuple, int] = {}
+    # Group ranks each course already sits in.
+    course_ranks: dict[int, set[int]] = {}
+    for hall_id, state in hall_state.items():
+        for course_id in state["courses"]:
+            course_ranks.setdefault(course_id, set()).add(rank_of_hall[hall_id])
+
+    def distance(hall_id, course_id):
+        """How many groups away ``hall_id`` is from the course's halls."""
+        here = course_ranks.get(course_id)
+        rank = rank_of_hall[hall_id]
+        return min(abs(rank - r) for r in here) if here else 0
+
     for sa in unplaced_qs:
         target_id = None
         target_pos = None
         group = (sa.cls_id, sa.course_id)
-        # Prefer halls with the most empty cells and a quarter that already
-        # has this course (extending an existing same-course quarter is
-        # always safe) or any quarter the course hasn't entered.
+        # The hall this class's overflow last went to first, then the halls
+        # nearest the course's groups, then the emptiest. Within a hall, a
+        # quarter that already has this course (extending an existing
+        # same-course quarter is always safe) or any quarter the course
+        # hasn't entered.
         sorted_halls = sorted(
-            hall_state.items(),
+            (
+                kv for kv in hall_state.items()
+                if kv[1]["room"] > 0
+                and (
+                    sa.course_id in kv[1]["courses"]
+                    or len(kv[1]["courses"]) < kv[1]["course_limit"]
+                )
+            ),
             key=lambda kv: (
                 kv[0] != last_target.get(group),
+                distance(kv[0], sa.course_id),
                 -sum(len(v) for v in kv[1]["quarters"].values()),
             ),
         )
@@ -2782,11 +2924,14 @@ def reconcile_unplaced(date, period):
         if target_id is None:
             continue  # genuinely no room anywhere
         last_target[group] = target_id
+        state = hall_state[target_id]
+        state["room"] -= 1
+        state["courses"].add(sa.course_id)
+        course_ranks.setdefault(sa.course_id, set()).add(rank_of_hall[target_id])
         # Persist the move.
         row, col = target_pos
-        cols = hall_state[target_id]["cols"]
         sa.hall_id = target_id
-        sa.seat_number = row * cols + col + 1
+        sa.seat_number = hall_state[target_id]["layout"].seat_number(row, col)
         reseat_writes.append(sa)
         reseated += 1
 

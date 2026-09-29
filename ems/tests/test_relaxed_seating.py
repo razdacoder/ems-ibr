@@ -28,7 +28,9 @@ from ems.utils import (
     split_course,
 )
 
-from .helpers import enrol, listed_class, make_course, make_department, make_hall, quietly, schedule
+from .helpers import (
+    enrol, listed_class, make_course, make_department, make_hall, no_fill_cap, quietly, schedule,
+)
 from .test_attendance_sheets import read_sheets
 from .test_student_lists import PipelineTestCase, allow_generation, run
 
@@ -408,6 +410,7 @@ class TimetableJobTests(PipelineTestCase):
 
 class ReconcileTests(TestCase):
     def setUp(self):
+        no_fill_cap()
         self.hall = make_hall("Hall A", 2, 2)
         self.course = make_course("GNS 202")
         self.cls = listed_class(0)

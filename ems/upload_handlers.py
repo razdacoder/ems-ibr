@@ -17,6 +17,7 @@ import pandas as pd
 from django.db import transaction
 
 from ems.identifiers import clean_number_text
+from ems.seating_rules import DEFAULT_SEAT_ORDER, SEAT_ORDERS
 from ems.models import Class, Course, Department, Student
 
 
@@ -70,28 +71,70 @@ def upload_departments(file) -> dict[str, int]:
     return {"created": created, "updated": updated}
 
 
+def _blank(value) -> bool:
+    return value is None or pd.isna(value) or not str(value).strip()
+
+
+def _hall_shape(row, name) -> dict:
+    """``rows``, ``columns`` and ``layout`` for one hall upload row. A row
+    with no ROW_SEATS is a full ROWS x COLS rectangle (``layout`` None), so
+    re-uploading a hall without it resets any earlier layout."""
+    from ems import seating_rules
+
+    raw = row.get("ROW_SEATS")
+    if _blank(raw):
+        if _blank(row.get("ROWS")) or _blank(row.get("COLS")):
+            raise UploadError(f"Hall '{name}': give ROWS and COLS, or ROW_SEATS.")
+        return {"rows": int(row["ROWS"]), "columns": int(row["COLS"]), "layout": None}
+    align = "left" if _blank(row.get("ALIGN")) else str(row["ALIGN"])
+    try:
+        counts = [
+            int(float(part)) for part in str(raw).replace(";", ",").split(",") if part.strip()
+        ]
+        rows, cols, mask = seating_rules.mask_from_row_seats(counts, align)
+    except ValueError as exc:
+        raise UploadError(f"Hall '{name}': bad ROW_SEATS '{raw}'. {exc}") from exc
+    return {"rows": rows, "columns": cols, "layout": list(mask) if mask else None}
+
+
 def upload_halls(file) -> dict[str, int]:
     from ems.models import Hall
 
     df = _read_csv(file)
-    _check_columns(
-        df,
-        ["EXAM VENUE", "CAPACITY", "MAX STUDENTS", "MIN COURSES", "ROWS", "COLS"],
-    )
+    # MAX STUDENTS and MIN COURSES are deprecated (see Hall): older files
+    # that still carry them are accepted and the columns ignored.
+    required = ["EXAM VENUE", "CAPACITY"]
+    # ROW_SEATS ("10,12,12,8": seats per row, front row first) describes a
+    # hall whose rows differ in length; ALIGN (left/center/right, default
+    # left) says where the short rows sit. Without it ROWS x COLS is a full
+    # rectangle.
+    if "ROW_SEATS" not in df.columns:
+        required += ["ROWS", "COLS"]
+    _check_columns(df, required)
     _check_no_duplicates(df, "EXAM VENUE", "hall names")
 
     created = updated = 0
     with transaction.atomic():
         for row in df.to_dict("records"):
+            name = str(row["EXAM VENUE"]).strip()
+            group = row.get("GROUP")
+            order = row.get("SEAT_ORDER")
+            if not _blank(order) and str(order).strip().lower() not in SEAT_ORDERS:
+                raise UploadError(
+                    f"Hall '{name}': SEAT_ORDER must be one of "
+                    f"{', '.join(SEAT_ORDERS)} (got '{order}')."
+                )
             defaults = {
+                "seat_order": (
+                    DEFAULT_SEAT_ORDER if _blank(order) else str(order).strip().lower()
+                ),
+                # Blank = filled from the name on save (see Hall.save).
+                "group": "" if _blank(group) else str(group).strip().upper(),
                 "capacity": int(row["CAPACITY"]),
-                "max_students": int(row["MAX STUDENTS"]),
-                "min_courses": int(row["MIN COURSES"]),
-                "rows": int(row["ROWS"]),
-                "columns": int(row["COLS"]),
+                **_hall_shape(row, name),
             }
             hall, was_created = Hall.objects.get_or_create(
-                name=str(row["EXAM VENUE"]).strip(), defaults=defaults
+                name=name, defaults=defaults
             )
             if was_created:
                 created += 1

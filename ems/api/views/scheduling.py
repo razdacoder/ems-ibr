@@ -169,11 +169,13 @@ class TimetableEstimateView(APIView):
         # ─── Seat-throughput (PBE only; CBE is computer-based) ──────────
         # Use allocation-reachable seats for the active pattern so the
         # estimate matches what timetable and distribution will budget.
-        hall_specs = list(Hall.objects.values_list("rows", "columns", "capacity"))
-        hall_sizes = [(rows, cols) for rows, cols, _cap in hall_specs]
+        hall_specs = list(
+            Hall.objects.values_list("rows", "columns", "capacity", "layout")
+        )
+        hall_sizes = [(rows, cols, mask) for rows, cols, _cap, mask in hall_specs]
         total_effective_seats = sum(
-            hall_effective_capacity(rows, cols, pattern, cap)
-            for rows, cols, cap in hall_specs
+            hall_effective_capacity(rows, cols, pattern, cap, mask=mask)
+            for rows, cols, cap, mask in hall_specs
         )
         # Same limits and classify as timetable generation (spec 0002).
         strict_limit = seating_rules.strict_limit(hall_sizes)
@@ -435,6 +437,9 @@ class HallAllocationView(APIView):
                     "name": hall.name,
                     "rows": hall.rows,
                     "columns": hall.columns,
+                    "layout": hall.layout,
+                    "seat_order": hall.seat_order,
+                    "seat_count": hall.seat_count,
                     "capacity": hall.capacity,
                 },
                 "date": date,

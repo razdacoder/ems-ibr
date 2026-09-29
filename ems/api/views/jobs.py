@@ -16,7 +16,12 @@ from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
 from ems.readiness import blocking_message, check as check_readiness
 from ems.seating_rules import RELAXED, STRICT
-from ems.utils import is_valid_position, slot_relaxed_course_id
+from ems.utils import (
+    current_constraints,
+    hall_fill_cap,
+    is_valid_position,
+    slot_relaxed_course_id,
+)
 from ems.models import (
     BackgroundJob,
     Class,
@@ -447,7 +452,7 @@ class ManualSeatAssignmentView(APIView):
             seat = int(seat_number)
         except (TypeError, ValueError):
             raise ValidationError({"detail": "seat_number must be an integer."})
-        max_seats = (sa.hall.rows or 0) * (sa.hall.columns or 0)
+        max_seats = sa.hall.seat_count
         if seat < 1 or (max_seats and seat > max_seats):
             raise ValidationError(
                 {"detail": f"Seat must be between 1 and {max_seats}."}
@@ -465,6 +470,16 @@ class ManualSeatAssignmentView(APIView):
         if seat in seat_map:
             raise Conflict(f"Seat {seat} is already occupied.")
 
+        # The fill cap is a hard rule: no hall holds more than
+        # pbe_hall_utilization of its seats, even by hand.
+        constraints = current_constraints()
+        cap = hall_fill_cap(sa.hall, constraints)
+        if len(seat_map) >= cap:
+            raise Conflict(
+                f"{sa.hall.name} is at its fill cap of {cap} students "
+                f"({float(constraints.pbe_hall_utilization):.0%} of its seats)."
+            )
+
         # Same adjacency rule the allocator applies (spec 0002): 4-dir for
         # the slot's relaxed course, 8-dir for everyone else.
         rule = (
@@ -473,7 +488,9 @@ class ManualSeatAssignmentView(APIView):
             else STRICT
         )
         if not is_valid_position(
-            seat, sa.course_id, seat_map, sa.hall.rows, sa.hall.columns, rule
+            seat, sa.course_id, seat_map, sa.hall.rows, sa.hall.columns, rule,
+            mask=sa.hall.layout,
+            seat_order=sa.hall.seat_order,
         ):
             raise Conflict(
                 f"Seat {seat} is next to a student of the same course "

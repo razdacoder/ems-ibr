@@ -3,10 +3,12 @@ import {
   type ClassPeriodOverrides,
   type FacultyGroupMap,
   type GenerationConstraintsInput,
+  type HallCourseTier,
   useConstraints,
   useUpdateConstraints,
 } from "@/api/constraints";
 import { useFaculties } from "@/api/faculties";
+import { CourseLimitTiers, GroupOrder } from "./hall-rules";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -46,7 +48,10 @@ type FormState = {
   cbe_fullday_threshold: number;
   cbe_daily_cap_per_period: number;
   cbe_group_count: number;
-  pbe_hall_utilization: number;
+  /** The hard fill cap as a whole percentage (the API stores 0-1). */
+  hall_fill_pct: number;
+  hall_course_limits: HallCourseTier[];
+  hall_group_order: string[];
   seat_pattern: "checkerboard" | "sequential";
   excluded_weekdays: number[];
   remainder_merge_threshold: number;
@@ -88,7 +93,9 @@ export default function ConstraintsPage() {
         cbe_fullday_threshold: constraints.data.cbe_fullday_threshold,
         cbe_daily_cap_per_period: constraints.data.cbe_daily_cap_per_period,
         cbe_group_count: constraints.data.cbe_group_count,
-        pbe_hall_utilization: Number(constraints.data.pbe_hall_utilization),
+        hall_fill_pct: Math.round(Number(constraints.data.pbe_hall_utilization) * 100),
+        hall_course_limits: constraints.data.hall_course_limits,
+        hall_group_order: constraints.data.hall_group_order,
         seat_pattern: constraints.data.seat_pattern ?? "checkerboard",
         excluded_weekdays: [...constraints.data.excluded_weekdays],
         remainder_merge_threshold: constraints.data.remainder_merge_threshold,
@@ -175,11 +182,15 @@ export default function ConstraintsPage() {
       }
     }
 
+    if (form.hall_fill_pct < 1 || form.hall_fill_pct > 100) {
+      setTopError("Maximum hall fill must be between 1% and 100%.");
+      return;
+    }
+
+    const { hall_fill_pct, ...rest } = form;
     const payload: GenerationConstraintsInput = {
-      ...form,
-      pbe_hall_utilization: form.pbe_hall_utilization.toFixed(
-        2,
-      ) as unknown as string,
+      ...rest,
+      pbe_hall_utilization: (hall_fill_pct / 100).toFixed(2),
       class_period_overrides,
       cbe_faculty_groups: cleanedFacultyGroups,
     };
@@ -243,7 +254,7 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Timetable</CardTitle>
           <CardDescription>
-            Which days to skip, how big CBE exams are handled, and how full paper exam halls can get.
+            Which days to skip, how big CBE exams are handled, and how paper exam seats are laid out.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -286,15 +297,6 @@ export default function ConstraintsPage() {
               hint="The most CBE students that can write in a single morning or afternoon."
               value={form.cbe_daily_cap_per_period}
               onChange={(v) => set("cbe_daily_cap_per_period", v)}
-            />
-            <NumberField
-              label="PBE hall utilization"
-              hint="How full to fill each hall for paper exams, from 0 to 1. For example, 0.8 uses 80% of the seats."
-              step={0.05}
-              min={0.01}
-              max={1}
-              value={form.pbe_hall_utilization}
-              onChange={(v) => set("pbe_hall_utilization", v)}
             />
           </div>
           <div className="space-y-2 max-w-md">
@@ -339,6 +341,49 @@ export default function ConstraintsPage() {
                 );
               })}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Halls: fill cap, course limits and group order */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Halls</CardTitle>
+          <CardDescription>
+            How full a paper exam hall may get, how many courses it may hold,
+            and which halls stand next to each other.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <div className="max-w-xs">
+            <NumberField
+              label="Maximum hall fill (%)"
+              hint="A hard rule: no hall is ever given more than this share of its seats for the seat pattern, by the timetable, distribution, seating, overflow or a manual seat. Default 90%."
+              min={1}
+              max={100}
+              value={form.hall_fill_pct}
+              onChange={(v) => set("hall_fill_pct", v)}
+            />
+          </div>
+          <div>
+            <FieldLabel
+              label="Most courses per hall"
+              hint="Stops a hall being crowded with many small courses. Distribution never opens a new course in a hall that has reached its limit. Seats are counted for the seat pattern."
+            />
+            <CourseLimitTiers
+              value={form.hall_course_limits}
+              onChange={(v) => set("hall_course_limits", v)}
+            />
+          </div>
+          <div>
+            <FieldLabel
+              label="Hall group order"
+              hint="Put groups that stand next to each other next to each other here. Halls are filled group by group in this order, biggest hall first inside a group, and a course that outgrows its group carries on into the next one. Change a hall's group on the Halls page."
+            />
+            <GroupOrder
+              value={form.hall_group_order}
+              onChange={(v) => set("hall_group_order", v)}
+            />
           </div>
         </CardContent>
       </Card>

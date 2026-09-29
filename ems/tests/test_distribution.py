@@ -175,6 +175,47 @@ class LargestFirstTests(TestCase):
 
         self.assertEqual(run_distribution(), [])
 
+    def test_no_student_sits_in_a_smaller_hall_a_bigger_one_could_seat(self):
+        # Regression: tails went to the hall with the least room left, so
+        # small halls filled while the biggest sat at 60-80% (Oct 2026).
+        for seed in range(12):
+            with self.subTest(seed=seed):
+                rng = random.Random(seed)
+                Hall.objects.all().delete()
+                TimeTable.objects.all().delete()
+                for n in range(rng.randint(3, 6)):
+                    make_hall(f"Hall {n}", rng.choice([6, 8, 10, 14]), rng.choice([8, 10, 12]))
+                for n in range(rng.randint(3, 9)):
+                    course = make_course(f"S{seed}C{n:02}")
+                    for _ in range(rng.randint(1, 3)):
+                        schedule(listed_class(rng.choice([9, 17, 26, 38, 60])), course)
+                random.seed(seed)
+
+                result = run_distribution()  # biggest hall first
+
+                for i, bigger in enumerate(result):
+                    if bigger["capacity"] <= 0:
+                        continue  # its budget is used up
+                    for smaller in result[i + 1:]:
+                        for item in smaller["classes"]:
+                            self.assertEqual(
+                                _max_seatable_bite(bigger, item["course"], 1), 0,
+                                f"{item['course']} went to {smaller['name']} "
+                                f"while {bigger['name']} could still seat it",
+                            )
+
+    def test_three_strict_courses_fill_three_quarters_of_each_hall(self):
+        # One strict course may use only one quarter of a hall, so with
+        # three courses no hall can pass 75%; the halls fill in order.
+        for n in range(3):
+            make_hall(f"Room {n}", 10, 10)  # quarters of 25
+        for code in ("A", "B", "C"):
+            schedule(listed_class(60), make_course(code))
+
+        loads = assigned(run_distribution())
+
+        self.assertEqual(loads, {"Room 0": 75, "Room 1": 75, "Room 2": 30})
+
 
 class SeatableAssignmentTests(TestCase):
     """Whatever distribution gives a hall, the allocator must seat in full.

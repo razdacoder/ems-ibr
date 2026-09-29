@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { SeatOrder } from "@/lib/hall-layout";
 
 export type Period = "AM" | "PM";
 
@@ -158,6 +159,10 @@ export interface HallAllocationData {
     name: string;
     rows: number;
     columns: number;
+    /** Seat mask; null = every cell of the grid is a seat. */
+    layout: string[] | null;
+    seat_order: SeatOrder;
+    seat_count: number;
     capacity: number;
   };
   date: string;
