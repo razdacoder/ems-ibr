@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ordo Design System</title>
+<link rel="icon" href="logo/favicon.svg">
+<link rel="stylesheet" href="tokens/tokens.css">
+<link rel="stylesheet" href="tokens/motion.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { font-family: var(--font-sans); }
+  body { margin: 0; background: var(--background); color: var(--foreground); font-size: 14px; line-height: 1.5; font-feature-settings: "rlig" 1, "calt" 1; transition: background .2s, color .2s; }
+  ::selection { background: color-mix(in oklch, var(--brand) 28%, transparent); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 48px 16px 96px; }
+  .eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .16em; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .18em; background: var(--brand-soft); color: var(--brand-strong); }
+  .chip::before { content: ""; width: 4px; height: 4px; border-radius: 999px; background: currentColor; }
+  h1 { font-weight: 400; font-size: clamp(2.5rem, 5vw, 3rem); line-height: 1.02; letter-spacing: -.02em; margin: 16px 0 0; text-wrap: balance; }
+  .lead { max-width: 42rem; font-size: 14.5px; line-height: 1.65; color: var(--muted-foreground); margin: 12px 0 0; }
+  header.page { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  section { margin-top: 56px; }
+  h2 { font-size: 1.5rem; font-weight: 400; letter-spacing: -.015em; margin: 8px 0 20px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .sw { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
+  .sw div { height: 64px; border-bottom: 1px solid var(--border); }
+  .sw p { margin: 0; padding: 8px 10px; font-size: 12px; }
+  .sw p span { display: block; color: var(--muted-foreground); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 24px; border: 1px solid transparent; border-radius: 0; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: all .15s; }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent); }
+  .b-default { background: var(--primary); color: var(--primary-foreground); } .b-default:hover { background: color-mix(in oklch, var(--primary) 80%, transparent); }
+  .b-brand { background: var(--brand); color: var(--brand-foreground); } .b-brand:hover { background: color-mix(in oklch, var(--brand) 85%, transparent); }
+  .b-outline { background: transparent; color: var(--foreground); border-color: var(--border); } .b-outline:hover { background: var(--muted); }
+  .b-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+  .b-ghost { background: transparent; color: var(--foreground); } .b-ghost:hover { background: var(--muted); }
+  .b-destructive { background: color-mix(in oklch, var(--destructive) 10%, transparent); color: var(--destructive); }
+  .b-sm { height: 36px; padding: 0 16px; } .b-xs { height: 28px; padding: 0 12px; } .b-lg { height: 44px; padding: 0 32px; }
+  .badge { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+  .field { display: grid; gap: 6px; min-width: 220px; flex: 1; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+  .input { height: 40px; border: 0; border-bottom: 1px solid var(--input); background: transparent; color: inherit; font: inherit; padding: 4px 0; outline: none; transition: border-color .15s; }
+  .input:focus { border-bottom-color: var(--ring); }
+  .input::placeholder { color: var(--muted-foreground); }
+  .input.invalid { border-bottom-color: var(--destructive); }
+  .card { background: var(--card); color: var(--card-foreground); box-shadow: 0 1px 2px rgb(0 0 0 / .05), 0 0 0 1px color-mix(in oklch, var(--foreground) 5%, transparent); padding: 32px; display: grid; gap: 8px; }
+  .card-title { font-size: 1.125rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+  .muted { color: var(--muted-foreground); }
+  .alert { position: relative; background: var(--card); border: 1px solid var(--border); padding: 12px 16px; }
+  .alert::after { content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 2px; background: var(--foreground); }
+  .alert.danger { color: var(--destructive); } .alert.danger::after { background: var(--destructive); }
+  .alert b { display: block; font-size: 14px; }
+  .shell { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
+  table { width: 100%; border-collapse: collapse; }
+  th { height: 48px; padding: 0 12px; text-align: left; font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-foreground); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 12px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: color-mix(in oklch, var(--muted) 50%, transparent); }
+  .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; background: color-mix(in oklch, var(--muted) 40%, transparent); color: var(--muted-foreground); }
+  .tabs { display: inline-flex; background: var(--muted); padding: 4px; height: 40px; }
+  .tab { padding: 0 16px; display: grid; place-items: center; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: color-mix(in oklch, var(--foreground) 60%, transparent); }
+  .tab.on { background: var(--background); color: var(--foreground); }
+  .switch { width: 33px; height: 18px; border: 1px solid var(--primary); background: var(--primary); position: relative; }
+  .switch::after { content: ""; position: absolute; width: 14px; height: 14px; top: 1px; right: 1px; background: var(--background); }
+  .tip { display: inline-block; background: var(--foreground); color: var(--background); font-size: 12px; padding: 6px 12px; }
+  .type-row { display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .logos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .logo-tile { display: grid; place-items: center; height: 160px; border-radius: 12px; border: 1px solid var(--border); }
+  .logo-tile img { max-height: 48px; max-width: 70%; }
+  .on-light { background: #ffffff; } .on-dark { background: #0c090c; } .on-signal { background: #3fe06b; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--brand); display: inline-block; }
+  .nav { width: 240px; background: var(--sidebar); border: 1px solid var(--sidebar-border); padding: 16px 8px; display: grid; gap: 4px; }
+  .nav a { position: relative; display: block; padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); text-decoration: none; }
+  .nav a.on { color: var(--foreground); background: var(--sidebar-accent); }
+  .nav a.on::before { content: ""; position: absolute; left: 0; top: 50%; height: 16px; width: 2px; transform: translateY(-50%); background: var(--brand); }
+  .ease { height: 6px; background: var(--muted); position: relative; overflow: hidden; }
+  .ease i { position: absolute; inset: 0 auto 0 0; background: var(--brand); }
+  @media (max-width: 640px) { .type-row { grid-template-columns: 1fr; gap: 4px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div>
+      <span class="chip">Design system</span>
+      <h1>Ordo, in one page.</h1>
+      <p class="lead">Ink on Bone, square controls, small uppercase labels with wide tracking, and one accent: Signal green. Everything on this page is drawn from <code>tokens/tokens.css</code> and <code>tokens/motion.css</code> only.</p>
+    </div>
+    <button class="btn b-outline b-sm" id="theme" type="button">Dark</button>
+  </header>
+
+  <section data-reveal>
+    <p class="eyebrow">01 · Logo</p>
+    <h2>Mark &amp; wordmark</h2>
+    <div class="logos">
+      <div class="logo-tile on-light"><img src="logo/ordo-wordmark.svg" alt="Ordo wordmark"></div>
+      <div class="logo-tile on-dark"><img src="logo/ordo-wordmark-reversed.svg" alt="Ordo wordmark reversed"></div>
+      <div class="logo-tile on-signal"><img src="logo/ordo-wordmark-mono-black.svg" alt="Ordo wordmark mono"></div>
+      <div class="logo-tile on-light"><img src="logo/ordo-mark.svg" alt="Ordo mark"></div>
+      <div class="logo-tile on-dark"><img src="logo/ordo-mark-reversed.svg" alt="Ordo mark reversed"></div>
+      <div class="logo-tile" style="background:var(--muted)"><img src="logo/ordo-mark-auto.svg" alt="Ordo mark, auto theme"></div>
+    </div>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">02 · Color</p>
+    <h2>Palette</h2>
+    <div class="grid" id="swatches"></div>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">03 · Type</p>
+    <h2>Outfit, two registers</h2>
+    <div class="type-row"><span class="eyebrow">Page title · 48/400</span><span style="font-size:3rem;line-height:1.02;letter-spacing:-.02em">Exam timetable</span></div>
+    <div class="type-row"><span class="eyebrow">Stat · 32/400</span><span style="font-size:2rem;letter-spacing:-.01em;font-variant-numeric:tabular-nums">12,480 seats</span></div>
+    <div class="type-row"><span class="eyebrow">Card title · 18/600</span><span class="card-title">Hall capacity</span></div>
+    <div class="type-row"><span class="eyebrow">Lead · 14.5/400</span><span class="lead" style="margin:0">Distribute every class across halls before seating students.</span></div>
+    <div class="type-row"><span class="eyebrow">Body · 14/400</span><span>The quick brown fox seats every student in exactly one hall.</span></div>
+    <div class="type-row"><span class="eyebrow">Button · 12/600</span><span class="label" style="letter-spacing:.1em">Generate timetable</span></div>
+    <div class="type-row"><span class="eyebrow">Eyebrow · 10/400</span><span class="eyebrow">Catalog · Students</span></div>
+    <div class="type-row"><span class="eyebrow">Empty state · 20 italic</span><span class="muted" style="font-size:1.25rem;font-style:italic">No records found.</span></div>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">04 · Controls</p>
+    <h2>Buttons, badges, fields</h2>
+    <div class="row">
+      <button class="btn b-default">Default</button>
+      <button class="btn b-brand">Brand</button>
+      <button class="btn b-outline">Outline</button>
+      <button class="btn b-secondary">Secondary</button>
+      <button class="btn b-ghost">Ghost</button>
+      <button class="btn b-destructive">Delete</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn b-default b-xs">XS 28</button>
+      <button class="btn b-default b-sm">SM 36</button>
+      <button class="btn b-default">Default 40</button>
+      <button class="btn b-default b-lg">LG 44</button>
+    </div>
+    <div class="row" style="margin-top:24px;gap:20px">
+      <span class="badge">Default</span>
+      <span class="badge muted">Secondary</span>
+      <span class="badge" style="color:var(--destructive)">Failed</span>
+      <span class="badge" style="color:var(--brand-strong)">Relaxed seating</span>
+      <span class="chip">Section chip</span>
+      <span class="row" style="gap:6px"><span class="dot animate-pulse-soft"></span><span class="eyebrow">Live</span></span>
+    </div>
+    <div class="row" style="margin-top:28px;gap:32px">
+      <label class="field"><span class="label">Course code</span><input class="input" placeholder="CSC 301"></label>
+      <label class="field"><span class="label">Capacity</span><input class="input invalid" value="-4"><span style="color:var(--destructive);font-size:14px;font-weight:500">Must be positive.</span></label>
+    </div>
+    <div class="row" style="margin-top:28px;gap:24px">
+      <div class="tabs"><span class="tab on">Halls</span><span class="tab">Rules</span><span class="tab">Summary</span></div>
+      <span class="switch" role="img" aria-label="Switch, on"></span>
+      <span class="tip">Tooltip: inverted, square</span>
+    </div>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">05 · Surfaces</p>
+    <h2>Card, alert, list shell</h2>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+      <div class="card"><span class="card-title">Hall rules</span><span class="muted" style="line-height:1.65">Cards sit on a 5% ring with a hairline shadow and 32px padding. The corners are square.</span><div class="row" style="margin-top:12px"><button class="btn b-outline b-sm">Edit</button></div></div>
+      <div style="display:grid;gap:12px;align-content:start">
+        <div class="alert"><b>Heads up</b><span class="muted">Alerts carry a 2px left rule.</span></div>
+        <div class="alert danger"><b>Upload failed</b><span>Row 14: unknown department code.</span></div>
+      </div>
+    </div>
+    <div class="shell" style="margin-top:20px">
+      <table>
+        <thead><tr><th>Hall</th><th>Capacity</th><th>Status</th><th style="width:1px;text-align:right">Actions</th></tr></thead>
+        <tbody>
+          <tr><td>Main Auditorium</td><td>1,200</td><td><span class="badge">Ready</span></td><td style="text-align:right"><button class="btn b-ghost b-xs">Edit</button></td></tr>
+          <tr><td>LT 2</td><td>340</td><td><span class="badge muted">Draft</span></td><td style="text-align:right"><button class="btn b-ghost b-xs">Edit</button></td></tr>
+          <tr><td>Science Hall B</td><td>180</td><td><span class="badge" style="color:var(--destructive)">Over capacity</span></td><td style="text-align:right"><button class="btn b-ghost b-xs">Edit</button></td></tr>
+        </tbody>
+      </table>
+      <div class="foot"><span>Showing 1–3 of 3</span><span class="row"><button class="btn b-outline b-sm" disabled style="opacity:.5">Previous</button><button class="btn b-outline b-sm">Next</button></span></div>
+    </div>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">06 · Navigation</p>
+    <h2>Sidebar</h2>
+    <nav class="nav">
+      <p class="eyebrow" style="margin:0 0 6px;padding:0 12px">● Scheduling</p>
+      <a href="#" class="on">Timetable</a><a href="#">Distribution</a><a href="#">Allocation</a>
+    </nav>
+  </section>
+
+  <section data-reveal>
+    <p class="eyebrow">07 · Motion</p>
+    <h2>Expo-out, everywhere</h2>
+    <div style="display:grid;gap:10px;max-width:480px">
+      <div class="ease"><i data-fill style="--fill-w:100%"></i></div>
+      <div class="ease"><i data-fill style="--fill-w:72%;--reveal-delay:120ms"></i></div>
+      <div class="ease"><i data-fill style="--fill-w:38%;--reveal-delay:240ms"></i></div>
+    </div>
+    <p style="margin-top:20px"><a href="#" class="draw-underline" style="color:inherit;text-decoration:none">Hover for the underline draw</a></p>
+  </section>
+</div>
+<script>
+  // Theme toggle (mirrors the .dark class the app uses).
+  const root = document.documentElement, btn = document.getElementById("theme");
+  const setTheme = (dark) => { root.classList.toggle("dark", dark); btn.textContent = dark ? "Light" : "Dark"; };
+  const forced = new URLSearchParams(location.search).get("theme"); // ?theme=light|dark
+  setTheme(forced ? forced === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+  btn.onclick = () => setTheme(!root.classList.contains("dark"));
+
+  // Swatches read live token values, so they follow the theme.
+  const tokens = ["brand","brand-soft","brand-strong","background","foreground","primary","secondary","muted-foreground","border","ring","destructive","card","chart-1","chart-2","chart-3","chart-4","chart-5","sidebar"];
+  document.getElementById("swatches").innerHTML = tokens.map(t =>
+    `<div class="sw"><div style="background:var(--${t})"></div><p>--${t}<span data-v="${t}"></span></p></div>`).join("");
+  const showValues = () => document.querySelectorAll("[data-v]").forEach(el =>
+    el.textContent = getComputedStyle(root).getPropertyValue("--" + el.dataset.v).trim().replace(/\s+/g, " ").slice(0, 40));
+  showValues(); btn.addEventListener("click", showValues);
+
+  // Reveal-on-scroll (same contract as lib/use-reveal.ts).
+  const els = document.querySelectorAll("[data-reveal],[data-fill]");
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); } }), { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+  els.forEach(el => io.observe(el));
+</script>
+</body>
+</html>

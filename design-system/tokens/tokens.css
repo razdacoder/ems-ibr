@@ -1,0 +1,136 @@
+/*
+ * Ordo design tokens — framework-agnostic.
+ *
+ * Source of truth: frontend/src/index.css. This file is the same palette with
+ * the Tailwind wiring stripped out, so any page (Django template, email,
+ * static HTML) can use it with plain var(--token).
+ *
+ * Dark mode: add `.dark` to <html> (what the app does) or set
+ * data-theme="dark" on it. The app decides which before first paint; see
+ * frontend/index.html for the snippet (stored choice, else OS preference).
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* ── Type ─────────────────────────────────────────────────────────── */
+  --font-sans: "Outfit Variable", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-serif: var(--font-sans); /* legacy class name; same face */
+  --font-mono: var(--font-sans);  /* legacy class name; adds tabular-nums */
+
+  /* ── Shape ────────────────────────────────────────────────────────── */
+  --radius: 0.625rem; /* 10px */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* ── Motion ───────────────────────────────────────────────────────── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 100ms;
+  --duration-ui: 320ms;
+  --duration-reveal: 700ms;
+
+  /* ── Brand ────────────────────────────────────────────────────────── */
+  --brand: #3fe06b;          /* Signal */
+  --brand-foreground: #0a0b0a;
+  --brand-soft: color-mix(in oklch, var(--brand) 14%, var(--background));
+  --brand-strong: #0e4d20;   /* Forest */
+
+  /* ── Surfaces & text (light) ──────────────────────────────────────── */
+  --background: oklch(1 0 0);                    /* Bone   #ffffff */
+  --foreground: oklch(0.145 0.008 326);          /* Ink    #0c090c */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0.008 326);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0.008 326);
+
+  --primary: oklch(0.212 0.019 322.12);          /* Ink 2  #1d161e */
+  --primary-foreground: oklch(0.985 0 0);        /*        #fafafa */
+  --secondary: oklch(0.96 0.003 325.6);          /*        #f3f1f3 */
+  --secondary-foreground: oklch(0.212 0.019 322.12);
+  --muted: oklch(0.96 0.003 325.6);
+  --muted-foreground: oklch(0.542 0.034 322.5);  /* Mute   #79697b */
+  --accent: oklch(0.96 0.003 325.6);
+  --accent-foreground: oklch(0.212 0.019 322.12);
+  --destructive: oklch(0.577 0.245 27.325);      /*        #e7000b */
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(0.922 0.005 325.62);           /*        #e7e4e7 */
+  --input: oklch(0.922 0.005 325.62);
+  --ring: oklch(0.711 0.019 323.02);             /*        #a89ea9 */
+
+  /* Chart ramp — neutral mauve, light → deep. */
+  --chart-1: oklch(0.865 0.012 325.68);
+  --chart-2: oklch(0.542 0.034 322.5);
+  --chart-3: oklch(0.435 0.029 321.78);
+  --chart-4: oklch(0.364 0.029 323.89);
+  --chart-5: oklch(0.263 0.024 320.12);
+
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0.008 326);
+  --sidebar-primary: oklch(0.212 0.019 322.12);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.96 0.003 325.6);
+  --sidebar-accent-foreground: oklch(0.212 0.019 322.12);
+  --sidebar-border: oklch(0.922 0.005 325.62);
+  --sidebar-ring: oklch(0.711 0.019 323.02);
+
+  /* Tones: every status/section accent resolves to the brand pair.
+     Meaning is carried by label and icon, never hue. */
+  --accent-iris: var(--brand-soft);
+  --accent-iris-fg: var(--brand-strong);
+  --accent-amber: var(--brand-soft);
+  --accent-amber-fg: var(--brand-strong);
+  --accent-coral: var(--brand-soft);
+  --accent-coral-fg: var(--brand-strong);
+  --accent-teal: var(--brand-soft);
+  --accent-teal-fg: var(--brand-strong);
+  --accent-lime: var(--brand-soft);
+  --accent-lime-fg: var(--brand-strong);
+  --accent-plum: var(--brand-soft);
+  --accent-plum-fg: var(--brand-strong);
+}
+
+/* ── Dark ───────────────────────────────────────────────────────────── */
+.dark,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --brand: #3fe06b;
+  --brand-foreground: #0a0b0a;
+  --brand-soft: #0e4d20;     /* Forest */
+  --brand-strong: color-mix(in oklch, var(--brand) 75%, white);
+
+  --background: oklch(0.145 0.008 326);          /* Ink    #0c090c */
+  --foreground: oklch(0.985 0 0);                /* Bone   #fafafa */
+  --card: oklch(0.212 0.019 322.12);             /* Panel  #1d161e */
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.212 0.019 322.12);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --primary: oklch(0.922 0.005 325.62);
+  --primary-foreground: oklch(0.212 0.019 322.12);
+  --secondary: oklch(0.263 0.024 320.12);        /*        #2a212c */
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.263 0.024 320.12);
+  --muted-foreground: oklch(0.711 0.019 323.02); /* Mute   #a89ea9 */
+  --accent: oklch(0.263 0.024 320.12);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);      /*        #ff6467 */
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.542 0.034 322.5);
+
+  --sidebar: oklch(0.212 0.019 322.12);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376); /* see foundations/color.md: off-system */
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.263 0.024 320.12);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.542 0.034 322.5);
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">
+  <style>
+    .o { fill: #251b28; }
+    @media (prefers-color-scheme: dark) { .o { fill: #faf9fa; } }
+  </style>
+  <path class="o" d="M1 1H13V6H6V18H18V11H23V23H1Z" />
+  <rect x="15" y="1" width="8" height="8" fill="#3fe06b" />
+</svg>
