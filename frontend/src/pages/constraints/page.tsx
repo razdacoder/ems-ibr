@@ -55,6 +55,7 @@ type FormState = {
   seat_pattern: "checkerboard" | "sequential";
   excluded_weekdays: number[];
   remainder_merge_threshold: number;
+  small_course_threshold: number;
   placement_success_threshold_pct: number;
 };
 
@@ -99,6 +100,7 @@ export default function ConstraintsPage() {
         seat_pattern: constraints.data.seat_pattern ?? "checkerboard",
         excluded_weekdays: [...constraints.data.excluded_weekdays],
         remainder_merge_threshold: constraints.data.remainder_merge_threshold,
+        small_course_threshold: constraints.data.small_course_threshold,
         placement_success_threshold_pct:
           constraints.data.placement_success_threshold_pct,
       });
@@ -536,7 +538,7 @@ export default function ConstraintsPage() {
         <CardHeader>
           <CardTitle>Distribution</CardTitle>
           <CardDescription>
-            What to do with the few students left over when a class is split across halls.
+            What to do with the few students left over when a class is split, or a course is too small to fill a hall.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4">
@@ -545,6 +547,13 @@ export default function ConstraintsPage() {
             hint="If a split would leave fewer students than this, keep them together in one hall instead."
             value={form.remainder_merge_threshold}
             onChange={(v) => set("remainder_merge_threshold", v)}
+          />
+          <NumberField
+            label="Small course threshold"
+            hint="A course with this many students or fewer never gets a hall to itself. It joins a hall already in use, which may hold one course over its limit for it. 0 turns this off."
+            min={0}
+            value={form.small_course_threshold}
+            onChange={(v) => set("small_course_threshold", v)}
           />
         </CardContent>
       </Card>

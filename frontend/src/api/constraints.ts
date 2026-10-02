@@ -26,6 +26,8 @@ export interface GenerationConstraints {
   excluded_weekdays: number[];
   class_period_overrides: ClassPeriodOverrides;
   remainder_merge_threshold: number;
+  /** Courses this small never open a hall; 0 = off. */
+  small_course_threshold: number;
   placement_success_threshold_pct: number;
   configured_at: string | null;
   configured_by: number | null;

@@ -22,13 +22,18 @@ from .test_relaxed_seating import ManualAssignmentTests
 DATE, PERIOD = "2026-08-17", "AM"
 
 
-def distribute(course_limits=None, group_order=None, utilization=1.0):
+def distribute(
+    course_limits=None, group_order=None, utilization=1.0, small_course_threshold=0
+):
     halls = convert_hall_to_dict(
         Hall.objects.all(), safety_factor=utilization, pattern="sequential",
         course_limits=course_limits,
     )
     timetables = list(TimeTable.objects.select_related("course", "class_obj__department"))
-    return distribute_classes_to_halls(timetables, halls, group_order=group_order)
+    return distribute_classes_to_halls(
+        timetables, halls, group_order=group_order,
+        small_course_threshold=small_course_threshold,
+    )
 
 
 def halls_of(result, course):
@@ -102,6 +107,43 @@ class DistributionRuleTests(TestCase):
 
         [big] = result
         self.assertEqual(len({c["course"] for c in big["classes"]}), 3)
+
+    THREE_COURSES = [{"max_seats": None, "courses": 3}]
+
+    def three_courses_and(self, *small):
+        make_hall("Big", 20, 20)  # 400 seats
+        make_hall("Small", 5, 5)
+        for code in ("A", "B", "C"):
+            schedule(listed_class(20), make_course(code))
+        for code, size in small:
+            schedule(listed_class(size), make_course(code))
+
+    def test_a_small_course_joins_a_hall_in_use_instead_of_opening_one(self):
+        self.three_courses_and(("D", 4))
+
+        without = distribute(course_limits=self.THREE_COURSES)
+        self.assertEqual(halls_of(without, "D"), {"Small"})
+
+        [big] = distribute(course_limits=self.THREE_COURSES, small_course_threshold=10)
+        self.assertEqual(big["name"], "Big")
+        self.assertEqual({c["course"] for c in big["classes"]}, {"A", "B", "C", "D"})
+        self.assertEqual(sum(c["student_range"] for c in big["classes"]), 64)
+
+    def test_a_hall_goes_at_most_one_course_over_its_limit(self):
+        self.three_courses_and(("D", 4), ("E", 4))
+
+        result = distribute(course_limits=self.THREE_COURSES, small_course_threshold=10)
+
+        # Big can take one of them, not both, so Small still opens for both.
+        by_name = {h["name"]: {c["course"] for c in h["classes"]} for h in result}
+        self.assertEqual(by_name, {"Big": {"A", "B", "C"}, "Small": {"D", "E"}})
+
+    def test_a_course_over_the_threshold_still_opens_a_hall(self):
+        self.three_courses_and(("D", 15))
+
+        result = distribute(course_limits=self.THREE_COURSES, small_course_threshold=10)
+
+        self.assertEqual(halls_of(result, "D"), {"Small"})
 
     def test_the_fill_cap_is_never_passed(self):
         make_hall("Room", 10, 10)

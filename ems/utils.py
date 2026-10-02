@@ -1177,8 +1177,65 @@ def course_cap(hall, course_code, relaxed_course=None):
     return hall.get("per_course_slice", 0)
 
 
+def _fold_small_hall(hall, hosts, relaxed_course=None):
+    """Move every course in ``hall`` into ``hosts`` so ``hall`` need not
+    open. All or nothing: if one course finds no host, nothing moves.
+
+    Each course moves whole into one host that can seat it (see
+    :func:`_max_seatable_bite`). A host may go one course over its
+    ``course_limit``, never more. Hosts that already hold the course come
+    first, then hosts still under their limit, then the halls nearest the
+    end of the walk, so the small course sits by its neighbours."""
+    snapshot = [(h, h["capacity"], [dict(c) for c in h["classes"]]) for h in hosts]
+    walk_pos = {id(h): i for i, h in enumerate(hosts)}
+    for code in sorted({c["course"] for c in hall["classes"]}):
+        pieces = [c for c in hall["classes"] if c["course"] == code]
+        count = sum(p["student_range"] for p in pieces)
+
+        def rank(host):
+            in_host = {c["course"] for c in host["classes"]}
+            limit = host.get("course_limit")
+            return (
+                code not in in_host,
+                limit is not None and len(in_host) >= limit,
+                -walk_pos[id(host)],
+            )
+
+        for host in sorted(hosts, key=rank):
+            in_host = {c["course"] for c in host["classes"]}
+            limit = host.get("course_limit")
+            if code not in in_host and limit is not None and len(in_host) > limit:
+                continue
+            if count > host["capacity"]:
+                continue
+            if _max_seatable_bite(host, code, count, relaxed_course) < count:
+                continue
+            for piece in pieces:
+                same = next(
+                    (c for c in host["classes"] if c["id"] == piece["id"]), None
+                )
+                if same:
+                    same["student_range"] += piece["student_range"]
+                else:
+                    host["classes"].append(dict(piece))
+            host["capacity"] -= count
+            break
+        else:
+            for host, capacity, classes in snapshot:
+                host["capacity"], host["classes"] = capacity, classes
+            return False
+    hall["capacity"] += sum(c["student_range"] for c in hall["classes"])
+    hall["classes"] = []
+    return True
+
+
 def distribute_classes_to_halls(
-    timetables, halls, size_map=None, relaxed_course=None, group_order=None
+    timetables,
+    halls,
+    size_map=None,
+    relaxed_course=None,
+    group_order=None,
+    small_course_threshold=0,
 ):
     """Pack timetable rows into halls one hall at a time, in walk order,
     filling each hall as full as it can be seated before the next opens.
@@ -1229,6 +1286,14 @@ def distribute_classes_to_halls(
     **Relaxed course.** ``relaxed_course`` is the slot's relaxed course code
     (spec 0002), or ``None``. Its cap per hall is the hall's ``even_half``,
     and the seatability model places it first on the even parity seats.
+
+    **Small courses don't open a hall.** Courses run largest first, so the
+    smallest come last, when the halls with room are often already at their
+    course limit, and a fresh hall opens for a handful of students. A hall
+    holding only courses of at most ``small_course_threshold`` students
+    (``GenerationConstraints.small_course_threshold``; 0 = off) is folded
+    into the halls already used, each of which may go one course over its
+    limit for it (see :func:`_fold_small_hall`).
     """
     class_schedules = make_schedules(timetables=timetables, size_map=size_map)
     # make_schedules already random-shuffles. Stable-sort by size desc so a
@@ -1250,6 +1315,8 @@ def distribute_classes_to_halls(
 
     def left(course_code):
         return sum(s["size"] for s in classes_by_course[course_code])
+
+    course_totals = {code: left(code) for code in classes_by_course}
 
     def place(hall, schedule, take):
         existing = next(
@@ -1337,7 +1404,19 @@ def distribute_classes_to_halls(
                     course_started.setdefault(course_code, len(course_started))
                     progress = True
 
-    return [hall for hall in halls if hall["classes"]]
+    used = [hall for hall in halls if hall["classes"]]
+    if small_course_threshold:
+        def small_only(hall):
+            return all(
+                course_totals[c["course"]] <= small_course_threshold
+                for c in hall["classes"]
+            )
+
+        hosts = [hall for hall in used if not small_only(hall)]
+        for hall in reversed([hall for hall in used if small_only(hall)]):
+            if not _fold_small_hall(hall, hosts, relaxed_course):
+                hosts.append(hall)
+    return [hall for hall in used if hall["classes"]]
 
 
 def save_to_db(res, date, period):

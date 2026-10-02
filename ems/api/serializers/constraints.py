@@ -29,6 +29,7 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
             "excluded_weekdays",
             "class_period_overrides",
             "remainder_merge_threshold",
+            "small_course_threshold",
             "placement_success_threshold_pct",
             "configured_at",
             "configured_by",

@@ -447,7 +447,7 @@ function GenerateTimetableDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Generate timetable</DialogTitle>
           <DialogDescription>
@@ -455,111 +455,126 @@ function GenerateTimetableDialog({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {topError && (
               <Alert variant="destructive">
                 <AlertDescription>{topError}</AlertDescription>
               </Alert>
             )}
-            {estimate.data && estimate.data.class_count > 0 && (
-              <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/40 p-3 text-[12px]">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Recommended window
-                </p>
-                <p className="mt-1 font-serif text-[1.0625rem] leading-snug tracking-[-0.005em]">
-                  {estimate.data.recommended_exam_days} exam day
-                  {estimate.data.recommended_exam_days === 1 ? "" : "s"}
-                  {" · "}
-                  {estimate.data.min_calendar_days} calendar day
-                  {estimate.data.min_calendar_days === 1 ? "" : "s"}
-                  {" ("}
-                  {estimate.data.min_calendar_weeks} week
-                  {estimate.data.min_calendar_weeks === 1 ? "" : "s"}
-                  {")"}
-                </p>
-                <p className="mt-1 text-muted-foreground">
-                  Minimum {estimate.data.min_exam_days} exam day
-                  {estimate.data.min_exam_days === 1 ? "" : "s"}.{" "}
-                  {estimate.data.bottleneck === "seat_throughput" ? (
-                    <>
-                      What limits it: hall seats. Morning demand is{" "}
-                      {estimate.data.am_seat_demand.toLocaleString()}, PM{" "}
-                      {estimate.data.pm_seat_demand.toLocaleString()} vs{" "}
-                      {estimate.data.seats_per_period.toLocaleString()} seats
-                      per period (needs{" "}
-                      {estimate.data.throughput_min_days} days). Per-class
-                      limit only needs {estimate.data.per_class_min_days}.
-                    </>
-                  ) : (
-                    <>
-                      Bottleneck: the busiest class has AM{" "}
-                      {estimate.data.worst_class_am} · PM{" "}
-                      {estimate.data.worst_class_pm} exams across{" "}
-                      {estimate.data.class_count} classes. Choose at least this
-                      many days for maximum efficiency.
-                    </>
-                  )}
-                </p>
-                {(estimate.data.relaxed_count > 0 ||
-                  estimate.data.refused_count > 0) && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    One course can seat{" "}
-                    {estimate.data.strict_limit.toLocaleString()} students a
-                    period, or {estimate.data.relaxed_limit.toLocaleString()}{" "}
-                    with relaxed seating.{" "}
-                    {estimate.data.relaxed_count > 0 &&
-                      `${estimate.data.relaxed_count} course${estimate.data.relaxed_count === 1 ? "" : "s"} will get relaxed seating. `}
-                    {estimate.data.refused_count > 0 &&
-                      `${estimate.data.refused_count} course${estimate.data.refused_count === 1 ? " is" : "s are"} too big even for that and will be refused.`}
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Left: what the data recommends, and warnings about the pick. */}
+              <div className="space-y-3">
+                {estimate.data && estimate.data.class_count > 0 && (
+                  <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--muted)]/40 p-4 text-[13px]">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                      Recommended window
+                    </p>
+                    <p className="mt-1 font-serif text-[1.0625rem] leading-snug tracking-[-0.005em]">
+                      {estimate.data.recommended_exam_days} exam day
+                      {estimate.data.recommended_exam_days === 1 ? "" : "s"}
+                      {" · "}
+                      {estimate.data.min_calendar_days} calendar day
+                      {estimate.data.min_calendar_days === 1 ? "" : "s"}
+                      {" ("}
+                      {estimate.data.min_calendar_weeks} week
+                      {estimate.data.min_calendar_weeks === 1 ? "" : "s"}
+                      {")"}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Minimum {estimate.data.min_exam_days} exam day
+                      {estimate.data.min_exam_days === 1 ? "" : "s"}.{" "}
+                      {estimate.data.bottleneck === "seat_throughput" ? (
+                        <>
+                          What limits it: hall seats. Morning demand is{" "}
+                          {estimate.data.am_seat_demand.toLocaleString()}, PM{" "}
+                          {estimate.data.pm_seat_demand.toLocaleString()} vs{" "}
+                          {estimate.data.seats_per_period.toLocaleString()} seats
+                          per period (needs{" "}
+                          {estimate.data.throughput_min_days} days). Per-class
+                          limit only needs {estimate.data.per_class_min_days}.
+                        </>
+                      ) : (
+                        <>
+                          Bottleneck: the busiest class has AM{" "}
+                          {estimate.data.worst_class_am} · PM{" "}
+                          {estimate.data.worst_class_pm} exams across{" "}
+                          {estimate.data.class_count} classes. Choose at least this
+                          many days for maximum efficiency.
+                        </>
+                      )}
+                    </p>
+                    {(estimate.data.relaxed_count > 0 ||
+                      estimate.data.refused_count > 0) && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        One course can seat{" "}
+                        {estimate.data.strict_limit.toLocaleString()} students a
+                        period, or {estimate.data.relaxed_limit.toLocaleString()}{" "}
+                        with relaxed seating.{" "}
+                        {estimate.data.relaxed_count > 0 &&
+                          `${estimate.data.relaxed_count} course${estimate.data.relaxed_count === 1 ? "" : "s"} will get relaxed seating. `}
+                        {estimate.data.refused_count > 0 &&
+                          `${estimate.data.refused_count} course${estimate.data.refused_count === 1 ? " is" : "s are"} too big even for that and will be refused.`}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {windowTooShort && estimate.data && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      This window has only {validExamDaysInWindow} valid exam day
+                      {validExamDaysInWindow === 1 ? "" : "s"}, but the busiest
+                      class needs {estimate.data.min_exam_days}. Extend the end
+                      date for a clean schedule.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {!estimate.data && !windowTooShort && (
+                  <p className="text-[13px] text-muted-foreground">
+                    {estimate.isLoading
+                      ? "Working out the recommended window…"
+                      : "No recommendation yet."}
                   </p>
                 )}
               </div>
-            )}
-            <FormField
-              control={form.control}
-              name="start_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Start date</FormLabel>
-                  <FormControl>
-                    <Input type="date" min={minStart} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="end_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>End date</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      min={form.watch("start_date") || minStart}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {spanLabel && (
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                Window: {spanLabel}
-              </p>
-            )}
-            {windowTooShort && estimate.data && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  This window has only {validExamDaysInWindow} valid exam day
-                  {validExamDaysInWindow === 1 ? "" : "s"}, but the busiest
-                  class needs {estimate.data.min_exam_days}. Extend the end
-                  date for a clean schedule.
-                </AlertDescription>
-              </Alert>
-            )}
+              {/* Right: the window being picked. */}
+              <div className="space-y-3">
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start date</FormLabel>
+                      <FormControl>
+                        <Input type="date" min={minStart} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          min={form.watch("start_date") || minStart}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {spanLabel && (
+                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Window: {spanLabel}
+                  </p>
+                )}
+              </div>
+            </div>
             <DialogFooter>
               <Button
                 type="button"

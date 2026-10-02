@@ -141,6 +141,10 @@ class GenerationConstraints(models.Model):
     class_period_overrides = models.JSONField(default=_default_class_period_overrides)
 
     remainder_merge_threshold = models.PositiveIntegerField(default=5)
+    # A course of at most this many students in a slot never opens a hall
+    # of its own: distribution folds it into a hall already in use, which
+    # may go one course over its course limit for it. 0 turns this off.
+    small_course_threshold = models.PositiveIntegerField(default=10)
 
     placement_success_threshold_pct = models.PositiveIntegerField(default=60)
 

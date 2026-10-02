@@ -97,7 +97,9 @@ class _Progress:
         self.task.update_state(state='PROGRESS', meta={'progress': pct, 'status': status})
 
 
-def _distribute_slot(date, period, halls_list, group_order=None):
+def _distribute_slot(
+    date, period, halls_list, group_order=None, small_course_threshold=0
+):
     """Distribute one slot, save it, and record what it planned.
 
     Returns ``(result, skipped_inactive, unplaced_by_class)``. The student
@@ -117,6 +119,7 @@ def _distribute_slot(date, period, halls_list, group_order=None):
         timetables, halls_list, size_map=size_map,
         relaxed_course=relaxed_course_code(timetables),
         group_order=group_order,
+        small_course_threshold=small_course_threshold,
     )
     with transaction.atomic():
         save_to_db(result, str(date), period)
@@ -429,7 +432,8 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         # Distribute classes across halls (bulk placement + tail
         # consolidation), save, and record planned_students.
         _, skipped, unplaced = _distribute_slot(
-            date, period, halls_list, constraints.hall_group_order
+            date, period, halls_list, constraints.hall_group_order,
+            constraints.small_course_threshold,
         )
 
         job.progress = 70
@@ -732,7 +736,8 @@ def generate_distribution_all_task(self, job_id, user_id):
                 course_limits=constraints.hall_course_limits,
             )
             result, skipped, unplaced = _distribute_slot(
-                date, period, halls_list, constraints.hall_group_order
+                date, period, halls_list, constraints.hall_group_order,
+                constraints.small_course_threshold,
             )
             skipped_inactive.extend(skipped)
             unplaced_by_class.extend(
