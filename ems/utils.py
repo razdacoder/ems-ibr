@@ -53,7 +53,7 @@ def get_halls(pattern: str = "checkerboard"):
                 hall.rows, hall.columns, pattern, hall.capacity, mask=hall.layout
             ),
         }
-        for hall in Hall.objects.all()
+        for hall in Hall.objects.open()
     ]
 
 
@@ -2757,7 +2757,8 @@ def reconcile_unplaced(date, period):
         return 0
 
     constraints = current_constraints()
-    halls = in_walk_order(Hall.objects.all(), constraints)
+    # Closed halls take no overflow either.
+    halls = in_walk_order(Hall.objects.open(), constraints)
     # Group rank of every hall, for "nearest group" (see halls.py).
     ranks = group_ranks(
         ((h.group or group_from_name(h.name), 0) for h in halls),

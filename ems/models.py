@@ -366,6 +366,13 @@ class Class(models.Model):
         return f"{self.name} - {self.department.name}"
 
 
+class HallQuerySet(models.QuerySet):
+    def open(self):
+        """Halls generation may use. A closed hall keeps its data and any
+        seats already given out, but no new run plans into it."""
+        return self.filter(is_open=True)
+
+
 class Hall(models.Model):
     name = models.CharField(max_length=255)
     capacity = models.IntegerField()
@@ -389,6 +396,11 @@ class Hall(models.Model):
         choices=[(k, v) for k, v in SEAT_ORDERS.items()],
         default=DEFAULT_SEAT_ORDER,
     )
+    # Closed = left out of timetable, distribution and allocation (repairs,
+    # booked for something else). Switching it back on needs no other change.
+    is_open = models.BooleanField(default=True)
+
+    objects = HallQuerySet.as_manager()
 
     def __str__(self) -> str:
         return str(self.name)

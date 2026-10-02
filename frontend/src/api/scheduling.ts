@@ -247,6 +247,12 @@ export interface Readiness {
     current_rule: SeatingRule | "refused";
     students: number;
   }>;
+  closed_halls: Array<{
+    date: string;
+    period: Period;
+    hall_id: number;
+    hall: string;
+  }>;
 }
 
 /** What would stop a stage's generate run. No slot = every slot (the

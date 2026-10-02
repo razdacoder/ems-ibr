@@ -1296,7 +1296,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         )
 
     # Validation 3: Check if any halls exist in the system
-    if not Hall.objects.exists():
+    if not Hall.objects.open().exists():
         return render(
             request,
             template_name="dashboard/partials/alert-error.html",

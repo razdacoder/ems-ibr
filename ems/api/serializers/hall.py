@@ -43,6 +43,7 @@ class HallSerializer(serializers.ModelSerializer):
             "row_seats",
             "align",
             "seat_count",
+            "is_open",
         ]
         read_only_fields = ["id"]
 

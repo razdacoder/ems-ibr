@@ -170,7 +170,7 @@ def outdated_rules(slots=None) -> list:
         for course_id in codes
     }
 
-    halls = list(Hall.objects.values_list("rows", "columns", "layout"))
+    halls = list(Hall.objects.open().values_list("rows", "columns", "layout"))
     strict = seating_rules.strict_limit(halls)
     relaxed = seating_rules.relaxed_limit(halls)
 
@@ -194,10 +194,30 @@ def outdated_rules(slots=None) -> list:
     return outdated
 
 
+def closed_halls(slots=None) -> list:
+    """Halls a slot's distribution planned into that are now closed.
+    Allocation would seat students there, so the slot needs distributing
+    again. ``slots=None`` = every distributed slot."""
+    if slots is None:
+        slots = distribution_slots()
+    if not slots:
+        return []
+    return [
+        {"date": str(date), "period": period, "hall_id": hall_id, "hall": name}
+        for date, period, hall_id, name in Distribution.objects.filter(
+            _slot_q(slots), hall__is_open=False
+        )
+        .values_list("date", "period", "hall_id", "hall__name")
+        .distinct()
+        .order_by("date", "period", "hall__name")
+    ]
+
+
 def check(stage: str, slots=None) -> dict:
     """Full readiness report for ``stage``. ``ready`` is false when any class
-    is empty, any row is stale, or (distribution) any course's seating rule
-    is out of date; ``skipped_inactive`` alone never blocks."""
+    is empty, any row is stale, (distribution) any course's seating rule is
+    out of date, or (allocation) the distribution uses a closed hall;
+    ``skipped_inactive`` alone never blocks."""
     if stage not in STAGES:
         raise ValueError(f"Unknown stage '{stage}'.")
     report = {
@@ -206,6 +226,7 @@ def check(stage: str, slots=None) -> dict:
         "stale": [],
         "skipped_inactive": [],
         "outdated_rules": [],
+        "closed_halls": [],
     }
     if stage in ("timetable", "distribution"):
         report["empty_classes"] = empty_classes(stage, slots)
@@ -214,10 +235,12 @@ def check(stage: str, slots=None) -> dict:
         report["outdated_rules"] = outdated_rules(slots)
     if stage == "allocation":
         report["stale"] = stale_rows(slots)
+        report["closed_halls"] = closed_halls(slots)
     report["ready"] = (
         not report["empty_classes"]
         and not report["stale"]
         and not report["outdated_rules"]
+        and not report["closed_halls"]
     )
     return report
 
@@ -257,6 +280,13 @@ def blocking_message(report: dict) -> str:
             f"Timetable seating rule outdated for {_sample(codes)}, "
             "regenerate the timetable."
         )
+    if report.get("closed_halls"):
+        names = sorted({h["hall"] for h in report["closed_halls"]})
+        slots = sorted({f"{h['date']} {h['period']}" for h in report["closed_halls"]})
+        parts.append(
+            f"Distribution uses closed halls: {_sample(names)}. Regenerate the "
+            f"distribution for {_sample(slots)}, or open the halls again."
+        )
     parts.append(
         f"See the readiness check (GET /api/readiness/?stage={report['stage']})."
     )
@@ -271,4 +301,5 @@ def failed_result(report: dict) -> dict:
         "empty_classes": report["empty_classes"],
         "stale": report["stale"],
         "outdated_rules": report.get("outdated_rules", []),
+        "closed_halls": report.get("closed_halls", []),
     }

@@ -277,7 +277,7 @@ class GenerateTimetableView(_BaseGenerateView):
         for resource_qs, message in (
             (Course.objects.exists(), "Cannot generate: no courses in the system."),
             (Class.objects.exists(), "Cannot generate: no classes in the system."),
-            (Hall.objects.exists(), "Cannot generate: no halls in the system."),
+            (Hall.objects.open().exists(), "Cannot generate: no open halls in the system."),
         ):
             if not resource_qs:
                 raise ValidationError({"detail": message})

@@ -243,7 +243,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         print(f"[TASK] Loaded {len(courses)} courses and {len(halls)} halls")
 
         # Classify every course once, before the AM/PM split (spec 0002).
-        hall_sizes = list(Hall.objects.values_list('rows', 'columns', 'layout'))
+        hall_sizes = list(Hall.objects.open().values_list('rows', 'columns', 'layout'))
         strict_limit = seating_rules.strict_limit(hall_sizes)
         relaxed_limit = seating_rules.relaxed_limit(hall_sizes)
         courses, refused_oversized = classify_courses(
@@ -395,7 +395,7 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         self.update_state(state='PROGRESS', meta={'progress': 10, 'status': 'Loading halls and timetables...'})
         
         # Load data
-        halls = Hall.objects.all()
+        halls = Hall.objects.open()
         timetables = TimeTable.objects.filter(date=date, period=period).select_related(
             'course', 'class_obj', 'class_obj__department'
         )
@@ -711,7 +711,7 @@ def generate_distribution_all_task(self, job_id, user_id):
         # Halls don't change between slots — read + convert them once instead
         # of re-querying every iteration. distribute_classes_to_halls mutates
         # its hall dicts in place, so rebuild a fresh copy per slot below.
-        halls_qs = list(Hall.objects.all())
+        halls_qs = list(Hall.objects.open())
         skipped_inactive = []
         unplaced_by_class = []
         for i, (date, period) in enumerate(slots):

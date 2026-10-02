@@ -9,6 +9,7 @@ import {
   useCreateHall,
   useDeleteHall,
   useHalls,
+  useSetHallOpen,
   useUpdateHall,
 } from "@/api/halls";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
@@ -196,7 +198,26 @@ export default function HallsListPage() {
 
   const list = useHalls({ page, query: query || undefined });
   const remove = useDeleteHall();
+  const setHallOpen = useSetHallOpen();
   const confirm = useConfirm();
+
+  const onToggleOpen = async (h: Hall, is_open: boolean) => {
+    try {
+      await setHallOpen.mutateAsync({ id: h.id, is_open });
+      toast({
+        title: is_open ? "Hall opened" : "Hall closed",
+        description: is_open
+          ? `${h.name} is used in every generate run again.`
+          : `${h.name} is left out of the timetable, distribution and allocation.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Could not change the hall",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
 
   const onDelete = async (h: Hall) => {
     const ok = await confirm({
@@ -255,12 +276,16 @@ export default function HallsListPage() {
               <TableHead className="text-right">Capacity</TableHead>
               <TableHead className="text-right">Rows × Cols</TableHead>
               <TableHead className="text-right">Seats</TableHead>
+              <TableHead className="w-[90px]">Open</TableHead>
               {isAdmin && <TableHead className={ACTIONS_HEAD_CLASS}>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {list.data?.results.map((h) => (
-              <TableRow key={h.id}>
+              <TableRow
+                key={h.id}
+                className={h.is_open ? undefined : "text-muted-foreground"}
+              >
                 <TableCell className="font-medium">{h.name}</TableCell>
                 <TableCell className="font-mono text-xs">{h.group}</TableCell>
                 <TableCell className="text-right">{h.capacity}</TableCell>
@@ -271,6 +296,20 @@ export default function HallsListPage() {
                   {h.seat_count}
                   {h.layout && (
                     <span className="ml-1.5 text-xs text-muted-foreground">shaped</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {isAdmin ? (
+                    <Switch
+                      checked={h.is_open}
+                      onCheckedChange={(v) => onToggleOpen(h, v)}
+                      disabled={setHallOpen.isPending}
+                      aria-label={`${h.name} is open for exams`}
+                    />
+                  ) : (
+                    <span className="font-mono text-[11px]">
+                      {h.is_open ? "Yes" : "Closed"}
+                    </span>
                   )}
                 </TableCell>
                 {isAdmin && (

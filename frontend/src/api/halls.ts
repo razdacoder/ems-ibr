@@ -23,6 +23,8 @@ export interface Hall {
   /** Seats in each row, front row first. */
   row_seats: number[];
   seat_count: number;
+  /** Closed halls are left out of every generate run. */
+  is_open: boolean;
 }
 
 export interface HallInput {
@@ -80,6 +82,22 @@ export function useUpdateHall(id: number) {
       return res.data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/** Open or close a hall. Refreshes the readiness checks too, since closing
+ * a hall a distribution uses blocks allocating that slot. */
+export function useSetHallOpen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, is_open }: { id: number; is_open: boolean }) => {
+      const res = await api.patch<Hall>(`/halls/${id}/`, { is_open });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["readiness"] });
+    },
   });
 }
 

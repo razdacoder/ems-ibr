@@ -13,11 +13,13 @@ export function ReadinessPanel({ report }: { report: Readiness | undefined }) {
   if (!report) return null;
   const { empty_classes, stale, skipped_inactive } = report;
   const outdated_rules = report.outdated_rules ?? [];
+  const closed_halls = report.closed_halls ?? [];
   if (
     !empty_classes.length &&
     !stale.length &&
     !skipped_inactive.length &&
-    !outdated_rules.length
+    !outdated_rules.length &&
+    !closed_halls.length
   ) {
     return null;
   }
@@ -101,6 +103,42 @@ export function ReadinessPanel({ report }: { report: Readiness | undefined }) {
               {outdated_rules.length > SHOW && (
                 <li className="font-mono text-[11px] text-muted-foreground">
                   and {outdated_rules.length - SHOW} more
+                </li>
+              )}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {closed_halls.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle>
+            Distribution uses closed{" "}
+            {new Set(closed_halls.map((h) => h.hall_id)).size === 1 ? "hall" : "halls"}
+          </AlertTitle>
+          <AlertDescription>
+            <p>
+              Clear and regenerate the distribution for{" "}
+              {[...new Set(closed_halls.map((h) => `${h.date} ${h.period}`))].join(", ")}{" "}
+              so no students are seated there, or{" "}
+              <Link to="/halls" className="font-medium text-foreground">
+                open the halls again
+              </Link>
+              .
+            </p>
+            <ul className="mt-2 space-y-1">
+              {closed_halls.slice(0, SHOW).map((h) => (
+                <li
+                  key={`${h.date}-${h.period}-${h.hall_id}`}
+                  className="font-mono text-[11px] text-muted-foreground"
+                >
+                  {h.date} {h.period} · {h.hall}
+                </li>
+              ))}
+              {closed_halls.length > SHOW && (
+                <li className="font-mono text-[11px] text-muted-foreground">
+                  and {closed_halls.length - SHOW} more
                 </li>
               )}
             </ul>

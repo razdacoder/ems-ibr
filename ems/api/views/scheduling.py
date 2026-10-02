@@ -170,7 +170,7 @@ class TimetableEstimateView(APIView):
         # Use allocation-reachable seats for the active pattern so the
         # estimate matches what timetable and distribution will budget.
         hall_specs = list(
-            Hall.objects.values_list("rows", "columns", "capacity", "layout")
+            Hall.objects.open().values_list("rows", "columns", "capacity", "layout")
         )
         hall_sizes = [(rows, cols, mask) for rows, cols, _cap, mask in hall_specs]
         total_effective_seats = sum(

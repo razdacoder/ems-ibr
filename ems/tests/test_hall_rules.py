@@ -10,8 +10,11 @@ from ems.halls import (
     group_ranks,
     normalise_course_limits,
 )
-from ems.models import Hall, SeatArrangement, TimeTable
-from ems.utils import convert_hall_to_dict, distribute_classes_to_halls, reconcile_unplaced
+from ems import readiness
+from ems.models import Distribution, Hall, SeatArrangement, TimeTable
+from ems.utils import (
+    convert_hall_to_dict, distribute_classes_to_halls, get_halls, reconcile_unplaced,
+)
 
 from .helpers import enrol, listed_class, make_class, make_course, make_hall, no_fill_cap, schedule
 from .test_relaxed_seating import ManualAssignmentTests
@@ -202,3 +205,62 @@ class ManualFillCapTests(ManualAssignmentTests):
 
         self.assertEqual(response.status_code, 409)
         self.assertIn("fill cap", response.data["detail"])
+
+
+class ClosedHallTests(TestCase):
+    """A closed hall is left out of every generate run (Hall.is_open)."""
+
+    def test_get_halls_leaves_closed_halls_out(self):
+        make_hall("Open", 3, 3)
+        Hall.objects.filter(pk=make_hall("Shut", 3, 3).pk).update(is_open=False)
+
+        self.assertEqual([h["name"] for h in get_halls()], ["Open"])
+
+    def test_distribution_never_plans_into_a_closed_hall(self):
+        make_hall("Open", 10, 10)
+        shut = make_hall("Shut", 10, 10)
+        shut.is_open = False
+        shut.save()
+        schedule(listed_class(30), make_course("A"))
+
+        halls = convert_hall_to_dict(Hall.objects.open(), pattern="sequential")
+        timetables = list(TimeTable.objects.select_related("course", "class_obj__department"))
+        result = distribute_classes_to_halls(timetables, halls)
+
+        self.assertEqual(halls_of(result, "A"), {"Open"})
+
+    def test_reconcile_moves_no_one_into_a_closed_hall(self):
+        no_fill_cap()
+        cls = make_class(2)
+        home = make_hall("AA 1", 1, 1)  # full
+        shut = make_hall("BB 1", 3, 3)
+        shut.is_open = False
+        shut.save()
+        course = make_course("A")
+        first, second = enrol(cls, ["M0", "M1"])
+        SeatArrangement.objects.create(
+            date=DATE, period=PERIOD, student=first, seat_number=1,
+            hall=home, course=course, cls=cls,
+        )
+        SeatArrangement.objects.create(
+            date=DATE, period=PERIOD, student=second, seat_number=None,
+            hall=home, course=course, cls=cls,
+        )
+
+        self.assertEqual(reconcile_unplaced(DATE, PERIOD), 0)
+
+    def test_allocation_is_blocked_when_the_distribution_uses_a_closed_hall(self):
+        hall = make_hall("Shut", 3, 3)
+        Distribution.objects.create(hall=hall, date=DATE, period=PERIOD)
+        self.assertTrue(readiness.check("allocation", [(DATE, PERIOD)])["ready"])
+
+        hall.is_open = False
+        hall.save()
+        report = readiness.check("allocation", [(DATE, PERIOD)])
+
+        self.assertFalse(report["ready"])
+        self.assertEqual(
+            report["closed_halls"],
+            [{"date": DATE, "period": PERIOD, "hall_id": hall.id, "hall": "Shut"}],
+        )
+        self.assertIn("Shut", readiness.blocking_message(report))
