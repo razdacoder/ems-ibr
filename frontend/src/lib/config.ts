@@ -11,3 +11,8 @@ export function useOrigins() {
 export function useInitialBranding() {
   return root.useLoaderData().branding;
 }
+
+/** Whether this host is a school, the console, or neither. */
+export function useHostKind() {
+  return root.useLoaderData().host;
+}

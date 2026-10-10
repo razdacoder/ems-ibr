@@ -1,8 +1,8 @@
-# Dashboard (TanStack Start on Node via Nitro). Point the apex domain at
-# this service. Runtime env: API_URL (Django as this server reaches it) and
-# optionally PUBLIC_API_URL (default: api. of the request host) and SITE_URL
-# (the marketing site, linked from the login page). See
-# src/lib/origins.server.ts.
+# Dashboard (TanStack Start on Node via Nitro), behind Traefik for every
+# <slug>.<base> and admin.<base> (deploy/traefik/dynamic.yml). Runtime env:
+# API_URL (Django as this server reaches it), PLATFORM_BASE_DOMAIN, and
+# optionally SITE_URL (the marketing site) and PUBLIC_API_URL (default: the
+# request's own origin). See src/lib/origins.server.ts.
 
 # pnpm 11 needs Node >= 22.13; corepack installs the version pinned in
 # package.json's "packageManager".

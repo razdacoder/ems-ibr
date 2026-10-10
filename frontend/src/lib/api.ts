@@ -19,8 +19,9 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Django runs on its own origin (api.<domain>). The server works it out per
-// request and the root route hands it over here before any page renders.
+// Django answers on the page's own origin (Traefik routes /api and /ws to it).
+// The server works it out per request and the root route hands it over here
+// before any page renders.
 let apiOrigin = "";
 
 export function setApiOrigin(origin: string) {

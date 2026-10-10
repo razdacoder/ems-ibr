@@ -8,7 +8,10 @@ import {
   useAuth,
   type AuthUser,
 } from "@/lib/auth";
+import { useHostKind } from "@/lib/config";
+import type { HostKind } from "@/lib/origins.server";
 import { Skeleton } from "@/components/ui/skeleton";
+import NotFoundPage from "@/pages/not-found";
 
 /*
  * Redirects fire once, from an effect. TanStack's <Navigate> re-navigates
@@ -33,6 +36,21 @@ export function RedirectHome() {
     navigate({ to: "/", replace: true });
   }, [navigate]);
   return null;
+}
+
+/**
+ * Render children only on the right kind of host: school pages on a school,
+ * console pages on admin.<base>. Anywhere else is the not found page.
+ */
+export function RequireHost({
+  kind,
+  children,
+}: {
+  kind: HostKind;
+  children: ReactNode;
+}) {
+  if (useHostKind() !== kind) return <NotFoundPage />;
+  return <>{children}</>;
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {

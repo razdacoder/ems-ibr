@@ -18,6 +18,7 @@ from django.db import connection
 from django_tenants.utils import get_public_schema_name
 
 from ems.models import AuditLog, User
+from tenancy.audit import client_ip
 
 # Trailing path segments that name a custom action rather than an object id.
 _ACTION_VERBS = {
@@ -81,13 +82,6 @@ _EXPORT_LABELS = {
 }
 
 _FILENAME_RE = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", re.IGNORECASE)
-
-
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR") or None
 
 
 def _segments(path):
@@ -303,7 +297,7 @@ class AuditLogMiddleware:
             object_type=(object_type or "")[:100],
             object_id=(str(object_id) if object_id else "")[:64],
             status_code=status_code,
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
             metadata=metadata or {},
         )

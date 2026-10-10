@@ -348,3 +348,28 @@ class SchoolTestCaseTests(SchoolTestCase):
         )
         self.client.force_authenticate(user)
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+
+
+class BehindTheProxyTests(SchoolTestCase):
+    def test_the_client_ip_is_the_hop_our_proxy_added(self):
+        from django.test import RequestFactory
+
+        from tenancy.audit import client_ip
+
+        factory = RequestFactory()
+        forged = factory.get("/", HTTP_X_FORWARDED_FOR="6.6.6.6, 203.0.113.9")
+        self.assertEqual(client_ip(forged), "203.0.113.9")
+        self.assertEqual(client_ip(factory.get("/", REMOTE_ADDR="10.0.0.2")), "10.0.0.2")
+
+    def test_absolute_urls_follow_the_forwarded_proto(self):
+        request = SchoolClient(HTTP_X_FORWARDED_PROTO="https").get("/api/system/branding/")
+        self.assertTrue(request.wsgi_request.is_secure())
+
+    def test_a_forwarded_host_never_picks_the_school(self):
+        # covers: AC-18
+        call_command("ensure_public_domains", stdout=StringIO())
+        response = SchoolClient(HTTP_X_FORWARDED_HOST="api.localhost").get(
+            "/api/public/features/"
+        )
+        # Still the test school's urlconf, where public/ is kept for old links.
+        self.assertEqual(response.wsgi_request.tenant.schema_name, "school_test")

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireHost } from "@/components/route-guards";
 import { str } from "@/lib/search";
 import LoginPage from "@/pages/login";
 
@@ -9,5 +10,10 @@ export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: str(search.redirect),
   }),
-  component: LoginPage,
+  // A school's sign in; the console gets its own.
+  component: () => (
+    <RequireHost kind="school">
+      <LoginPage />
+    </RequireHost>
+  ),
 });

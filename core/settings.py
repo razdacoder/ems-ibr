@@ -34,6 +34,10 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[f".{PLATFORM_BASE_DOMAIN}"])
 if DEBUG or env.bool("ORDO_TESTING", default=False):
     ALLOWED_HOSTS.append(".localhost")
 
+# Django only ever sits behind Traefik (or the dashboard server's own calls),
+# which says whether the browser used https. Absolute URLs (the logo) follow.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # CSRF Configuration for production
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
@@ -43,7 +47,7 @@ CSRF_TRUSTED_ORIGINS = env.list(
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = False  # Railway handles SSL
+    SECURE_SSL_REDIRECT = False  # Traefik (VPS) or Render terminates TLS
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
