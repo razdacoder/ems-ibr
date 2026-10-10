@@ -3,13 +3,11 @@ from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timedelta
 from django.db.models import Prefetch
 from django.utils import timezone
-import random
 import time
-import string
 from .models import User
 from .models import (
     BackgroundJob, Class, Course, Distribution, GenerationConstraints,
-    Hall, TimeTable, SeatArrangement, DistributionItem, Student, Department
+    Hall, TimeTable, SeatArrangement, DistributionItem, Student
 )
 from . import seating_rules
 from .readiness import NotReady, check as check_readiness, failed_result
@@ -125,73 +123,6 @@ def _distribute_slot(
         save_to_db(result, str(date), period)
         unplaced = record_planned_students(timetables, size_map, result)
     return result, skipped_inactive([(date, period)]), unplaced
-
-
-def generate_random_students(num_students=100):
-    """
-    Generate random students if database is empty.
-    Creates departments, classes, and students.
-    """
-    # Check if students already exist
-    if Student.objects.exists():
-        return
-    
-    # Get or create departments
-    departments = list(Department.objects.all())
-    if not departments:
-        dept_names = [
-            ("Computer Science", "CSC"),
-            ("Mathematics", "MAT"),
-            ("Physics", "PHY"),
-            ("Chemistry", "CHM"),
-            ("Biology", "BIO")
-        ]
-        departments = [
-            Department.objects.create(name=name, slug=slug)
-            for name, slug in dept_names
-        ]
-    
-    # Get or create classes
-    classes = list(Class.objects.all())
-    if not classes:
-        for dept in departments:
-            for level in [100, 200, 300, 400]:
-                classes.append(
-                    Class.objects.create(
-                        name=f"{level} Level",
-                        department=dept,
-                        size=random.randint(50, 150)
-                    )
-                )
-    
-    # Generate random students
-    first_names = ["John", "Jane", "Mike", "Sarah", "David", "Emma", "James", "Olivia", "Robert", "Sophia"]
-    last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"]
-    
-    students_created = 0
-    for i in range(num_students):
-        # Generate unique matric number
-        year = random.randint(20, 24)
-        matric_no = f"{year}{random.randint(1000, 9999)}{random.randint(100, 999)}"
-        
-        # Check if matric_no already exists
-        while Student.objects.filter(matric_no=matric_no).exists():
-            matric_no = f"{year}{random.randint(1000, 9999)}{random.randint(100, 999)}"
-        
-        class_obj = random.choice(classes)
-        
-        Student.objects.create(
-            first_name=random.choice(first_names),
-            last_name=random.choice(last_names),
-            matric_no=matric_no,
-            email=f"student{i}@example.com",
-            department=class_obj.department,
-            level=class_obj,
-            phone=f"080{random.randint(10000000, 99999999)}"
-        )
-        students_created += 1
-    
-    return students_created
 
 
 @shared_task(bind=True)
@@ -314,12 +245,15 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         job.save()
         self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Finalizing...'})
         
-        # Mark as generated in settings
+        # Mark as generated in settings. A new timetable is a draft: it
+        # needs publishing before department officers see it.
         from .models import SystemSettings
+        from . import publication
         settings = SystemSettings.objects.first()
         if settings:
             settings.has_timetable = True
             settings.save()
+        publication.clear(settings)
         
         # Complete job
         job.status = 'success'
@@ -488,12 +422,6 @@ def generate_allocation_task(self, job_id, user_id, date, period):
 
         constraints = _load_constraints()
 
-        # Check if students exist, if not generate random ones
-        if not Student.objects.exists():
-            self.update_state(state='PROGRESS', meta={'progress': 2, 'status': 'No students found, generating random students...'})
-            num_generated = generate_random_students(num_students=200)
-            self.update_state(state='PROGRESS', meta={'progress': 5, 'status': f'Generated {num_generated} random students. Loading distributions...'})
-        
         progress.report(5, 'Loading distributions...')
         
         # Get distributions for the date and period. They are seated in

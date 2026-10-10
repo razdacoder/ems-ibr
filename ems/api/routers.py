@@ -7,6 +7,7 @@ from ems.api.views.department import DepartmentViewSet
 from ems.api.views.faculty import FacultyViewSet
 from ems.api.views.hall import HallViewSet
 from ems.api.views.jobs import JobViewSet
+from ems.api.views.notification import NotificationViewSet
 from ems.api.views.student import StudentViewSet
 from ems.api.views.user import UserViewSet
 
@@ -20,3 +21,4 @@ router.register(r"students", StudentViewSet, basename="student")
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"jobs", JobViewSet, basename="job")
 router.register(r"audit-logs", AuditLogViewSet, basename="audit-log")
+router.register(r"notifications", NotificationViewSet, basename="notification")

@@ -71,6 +71,8 @@ def empty_classes(stage: str, slots=None) -> list:
 
     ``timetable``: every active class linked to a course (no slot yet).
     ``distribution``: active classes timetabled in ``slots`` (all if None).
+    ``allocation``: active classes anywhere in the timetable, whatever
+    ``slots`` asks for: no slot is seated while any class has no list.
     """
     if stage == "timetable":
         classes = Class.objects.active().filter(courses__isnull=False).distinct()
@@ -78,6 +80,8 @@ def empty_classes(stage: str, slots=None) -> list:
         for cid, code in classes.values_list("id", "courses__code"):
             courses_by_class[cid].add(code)
     else:
+        if stage == "allocation":
+            slots = None
         courses_by_class = defaultdict(set)
         for row in _rows(slots).filter(class_obj__is_active=True):
             courses_by_class[row.class_obj_id].add(row.course.code)
@@ -215,7 +219,8 @@ def closed_halls(slots=None) -> list:
 
 def check(stage: str, slots=None) -> dict:
     """Full readiness report for ``stage``. ``ready`` is false when any class
-    is empty, any row is stale, (distribution) any course's seating rule is
+    is empty (for allocation: any class in the whole timetable), any row is
+    stale, (distribution) any course's seating rule is
     out of date, or (allocation) the distribution uses a closed hall;
     ``skipped_inactive`` alone never blocks."""
     if stage not in STAGES:
@@ -228,8 +233,7 @@ def check(stage: str, slots=None) -> dict:
         "outdated_rules": [],
         "closed_halls": [],
     }
-    if stage in ("timetable", "distribution"):
-        report["empty_classes"] = empty_classes(stage, slots)
+    report["empty_classes"] = empty_classes(stage, slots)
     if stage == "distribution":
         report["skipped_inactive"] = skipped_inactive(slots)
         report["outdated_rules"] = outdated_rules(slots)

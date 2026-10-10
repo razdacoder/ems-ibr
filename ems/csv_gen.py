@@ -11,6 +11,7 @@ from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
+from . import publication
 from .branding import add_document_branding
 from .models import Distribution, TimeTable, SeatArrangement, SystemSettings
 from .seating_rules import RELAXED_SHEET_LINE
@@ -18,6 +19,12 @@ from .utils import slot_relaxed_course_id
 
 
 def export_department_timetable(request: HttpRequest) -> HttpResponse:
+    if not publication.visible_to(request.user):
+        return HttpResponse(
+            "The timetable has not been published yet.",
+            status=403,
+            content_type="text/plain",
+        )
     department = getattr(request.user, "department", None)
     if request.user.is_staff:
         filename = "All-Departments-Timetable.csv"

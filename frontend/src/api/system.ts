@@ -14,6 +14,9 @@ export interface SystemSettings {
   contact_phone: string;
   logo_url: string | null;
   brand_color: string;
+  /** Null while the timetable is a draft. */
+  timetable_published_at: string | null;
+  timetable_published_by: string | null;
 }
 
 /** Writable system-configuration fields. `logo` is a file picked in the form. */

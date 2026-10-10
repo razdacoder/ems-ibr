@@ -318,6 +318,53 @@ class AllocationStalenessTests(PipelineTestCase):
         self.assertEqual(job.status, "failed")
         self.assertFalse(SeatArrangement.objects.exists())
 
+    def test_refuses_any_slot_while_a_timetabled_class_has_no_students(self):
+        # The empty class sits on another day: the requested slot is fine,
+        # but no seat is given out until every class has its list.
+        empty = make_class(30, make_department("wft"), name="HND I")
+        schedule(empty, make_course("GNS 103"), "2026-08-19", PERIOD)
+        allow_generation()
+
+        response = self.allocate()
+        job = run(tasks.generate_allocation_task, DATE, PERIOD)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("WFT HND I", response.data["detail"])
+        self.assertEqual(job.status, "failed")
+        self.assertEqual(
+            [c["label"] for c in job.result_data["empty_classes"]], ["WFT HND I"]
+        )
+        self.assertFalse(SeatArrangement.objects.exists())
+
+    def test_never_invents_students_when_none_exist(self):
+        Student.objects.all().delete()
+
+        job = run(tasks.generate_allocation_task, DATE, PERIOD)
+
+        self.assertEqual(job.status, "failed")
+        self.assertFalse(Student.objects.exists())
+        self.assertFalse(SeatArrangement.objects.exists())
+
+    def test_allocate_all_refuses_while_a_class_has_no_students(self):
+        Student.objects.filter(level=self.cls).delete()
+
+        response = self.post("/api/allocation/generate-all/")
+        job = run(tasks.generate_allocation_all_task)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("AC ND I", response.data["detail"])
+        self.assertEqual(job.status, "failed")
+        self.assertFalse(SeatArrangement.objects.exists())
+
+    def test_an_inactive_empty_class_does_not_block_allocation(self):
+        empty = make_class(30, make_department("wft"), name="HND I")
+        empty.is_active = False
+        empty.save()
+        schedule(empty, make_course("GNS 103"), "2026-08-19", PERIOD)
+        allow_generation()
+
+        self.assertEqual(self.allocate().status_code, 202)
+
     def test_a_row_never_distributed_counts_as_stale(self):
         TimeTable.objects.update(planned_students=None)
 

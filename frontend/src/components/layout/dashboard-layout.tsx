@@ -41,6 +41,8 @@ import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
+import { useNotificationStream } from "@/api/notifications";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -290,6 +292,16 @@ function SidebarContent({
         })}
       </nav>
 
+      {/* Notifications */}
+      <div
+        className={cn(
+          "shrink-0 border-t border-[color:var(--sidebar-border)] py-2",
+          collapsed ? "flex justify-center px-2" : "px-4",
+        )}
+      >
+        <NotificationBell label={!collapsed} side="right" />
+      </div>
+
       {/* Collapse toggle */}
       {onToggle && (
         <div
@@ -398,6 +410,7 @@ function SidebarContent({
 
 export function DashboardLayout() {
   const { user, logout } = useAuth();
+  useNotificationStream();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -478,6 +491,7 @@ export function DashboardLayout() {
             <Wordmark size="sm" />
           </Link>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <ThemeToggle size="sm" iconOnly />
             <Button
               variant="ghost"

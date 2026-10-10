@@ -45,6 +45,11 @@ from ems.api.views.exports import (
     DistributionExportView,
     TimetableExportView,
 )
+from ems.api.views.publication import (
+    PublishTimetableView,
+    TimetablePublicationView,
+    UnpublishTimetableView,
+)
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
 from ems.api.views.public import FeatureDetailView, FeaturesIndexView
 
@@ -112,6 +117,21 @@ scheduling_patterns = [
         "timetable/generate/",
         GenerateTimetableView.as_view(),
         name="api-generate-timetable",
+    ),
+    path(
+        "timetable/publication/",
+        TimetablePublicationView.as_view(),
+        name="api-timetable-publication",
+    ),
+    path(
+        "timetable/publish/",
+        PublishTimetableView.as_view(),
+        name="api-publish-timetable",
+    ),
+    path(
+        "timetable/unpublish/",
+        UnpublishTimetableView.as_view(),
+        name="api-unpublish-timetable",
     ),
     path("distribution/", DistributionListView.as_view(), name="api-distribution"),
     path(

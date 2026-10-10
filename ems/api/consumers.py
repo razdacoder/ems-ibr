@@ -65,3 +65,39 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
                 "result": job.result_data if job.status == "success" else None,
             },
         }
+
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    """Pushes the signed-in user's new notifications as they are sent.
+
+    URL: ``/ws/notifications/?token=<api token>``. Sends
+    ``{"type": "unread", "count": n}`` on connect, then
+    ``{"type": "notification", "notification": {...}}`` per new one.
+    Closes 4401 when the connection is unauthenticated.
+    """
+
+    async def connect(self):
+        user = self.scope.get("user")
+        if user is None or not user.is_authenticated:
+            await self.close(code=4401)
+            return
+        from ems.notifications import user_group
+
+        self.group_name = user_group(user.pk)
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+        await self.send_json({"type": "unread", "count": await self._unread(user)})
+
+    async def disconnect(self, code):
+        group = getattr(self, "group_name", None)
+        if group:
+            await self.channel_layer.group_discard(group, self.channel_name)
+
+    async def notification_new(self, event):
+        await self.send_json({"type": "notification", "notification": event["data"]})
+
+    @database_sync_to_async
+    def _unread(self, user):
+        from ems.notifications import unread_count
+
+        return unread_count(user)

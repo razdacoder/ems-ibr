@@ -1,6 +1,7 @@
 import environ
 from pathlib import Path
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -263,3 +264,12 @@ CHANNEL_LAYERS = {
         "CONFIG": {"hosts": [_CHANNEL_REDIS]},
     },
 }
+
+# The test suite runs without Redis (CI has none), so job-progress and
+# notification pushes go through an in-process layer there. A fast hasher
+# keeps the many test users cheap.
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+    }
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

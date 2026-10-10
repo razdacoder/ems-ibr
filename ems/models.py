@@ -66,6 +66,22 @@ class SystemSettings(models.Model):
     # Primary brand colour as a hex string (e.g. "#7C3AED"); blank = default theme.
     brand_color = models.CharField(max_length=9, blank=True, default="")
 
+    # Publication is separate from generation: department officers see the
+    # timetable only once a super admin publishes it, and publishing is what
+    # notifies them. NULL = draft. A new timetable or a reset clears it.
+    timetable_published_at = models.DateTimeField(null=True, blank=True)
+    timetable_published_by = models.ForeignKey(
+        "User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    @property
+    def timetable_published(self) -> bool:
+        return self.timetable_published_at is not None
+
     def __str__(self):
         return str(f"{self.session} ' - ' {self.semester}")
 
@@ -609,3 +625,35 @@ class BackgroundJob(models.Model):
         if self.total_steps == 0:
             return 0
         return min(100, int((self.progress / self.total_steps) * 100))
+
+
+class Notification(models.Model):
+    """One message to one user. Written by ``ems.notifications.notify``,
+    which also pushes it over the user's WebSocket group."""
+
+    class Kind(models.TextChoices):
+        TIMETABLE_PUBLISHED = "timetable_published", "Timetable published"
+        TIMETABLE_WITHDRAWN = "timetable_withdrawn", "Timetable withdrawn"
+        GENERAL = "general", "General"
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
+    kind = models.CharField(max_length=40, choices=Kind.choices, default=Kind.GENERAL)
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True, default="")
+    # In-app route the notification opens, e.g. "/timetable".
+    link = models.CharField(max_length=255, blank=True, default="")
+    data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["recipient", "-created_at"]),
+            models.Index(fields=["recipient", "read_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.recipient_id}: {self.title}"

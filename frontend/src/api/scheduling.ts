@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { SeatOrder } from "@/lib/hall-layout";
 
@@ -30,6 +30,8 @@ export function useTimetable(
     queryFn: async () => {
       const res = await api.get<{
         generated: boolean;
+        /** False = a draft, which department officers get no rows of. */
+        published: boolean;
         results: TimetableEntry[];
       }>("/timetable/", { params });
       return res.data;
@@ -44,6 +46,78 @@ export function useTimetableDates() {
     queryFn: async () => {
       const res = await api.get<{ dates: string[] }>("/timetable/dates/");
       return res.data;
+    },
+  });
+}
+
+export interface PublicationDepartment {
+  id: number;
+  name: string;
+  slug: string;
+  papers: number;
+  first_date: string;
+  last_date: string;
+  /** Active users a publish would notify in this department. */
+  users: number;
+}
+
+export interface TimetablePublication {
+  generated: boolean;
+  published: boolean;
+  published_at: string | null;
+  published_by: string | null;
+  /** Super admins only: the publish dialog's recipient picker. */
+  departments?: PublicationDepartment[];
+}
+
+export interface PublishInput {
+  /** Omit for every department in the timetable; [] for none. */
+  department_ids?: number[];
+  user_ids?: number[];
+  notify?: boolean;
+}
+
+export type PublishResult = TimetablePublication & {
+  already_published: boolean;
+  notified: { departments: number; users: number };
+};
+
+export function useTimetablePublication() {
+  return useQuery({
+    queryKey: ["timetable", "publication"],
+    queryFn: async () => {
+      const res = await api.get<TimetablePublication>("/timetable/publication/");
+      return res.data;
+    },
+  });
+}
+
+export function usePublishTimetable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: PublishInput) => {
+      const res = await api.post<PublishResult>("/timetable/publish/", data);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timetable"] });
+      qc.invalidateQueries({ queryKey: ["system", "settings"] });
+    },
+  });
+}
+
+export function useUnpublishTimetable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { notify?: boolean } = {}) => {
+      const res = await api.post<
+        TimetablePublication & { notified: { users: number } }
+      >("/timetable/unpublish/", data);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["timetable"] });
+      qc.invalidateQueries({ queryKey: ["system", "settings"] });
     },
   });
 }

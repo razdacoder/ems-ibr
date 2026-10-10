@@ -13,6 +13,7 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
         write_only=True, required=False, allow_null=True
     )
     logo_url = serializers.SerializerMethodField()
+    timetable_published_by = serializers.SerializerMethodField()
 
     class Meta:
         model = SystemSettings
@@ -30,8 +31,10 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
             "logo",
             "logo_url",
             "brand_color",
+            "timetable_published_at",
+            "timetable_published_by",
         ]
-        read_only_fields = ["id", "has_timetable"]
+        read_only_fields = ["id", "has_timetable", "timetable_published_at"]
 
     def validate_brand_color(self, value):
         v = (value or "").strip()
@@ -40,6 +43,10 @@ class SystemSettingsSerializer(serializers.ModelSerializer):
                 "Enter a hex colour like #7C3AED."
             )
         return v
+
+    def get_timetable_published_by(self, obj):
+        by = obj.timetable_published_by
+        return by.email if by else None
 
     def get_logo_url(self, obj):
         if not obj.logo:

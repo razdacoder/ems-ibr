@@ -68,6 +68,7 @@ import { JobProgressDialog } from "@/components/job-progress-dialog";
 import { ReadinessPanel } from "@/components/readiness-panel";
 import { RelaxedSeatingBadge } from "@/components/relaxed-seating-badge";
 import { PageHeader } from "@/components/layout/page-header";
+import { PublicationPanel } from "./publication";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
@@ -163,6 +164,9 @@ export default function TimetablePage() {
   const [progressOpen, setProgressOpen] = useState(false);
   const readiness = useReadiness("timetable", undefined, isAdmin);
   const blocked = readiness.data?.ready === false;
+  // A draft timetable sends department officers no rows: say why.
+  const awaitingPublication =
+    !user?.is_staff && !!list.data?.generated && !list.data.published;
 
   return (
     <div className="space-y-10">
@@ -188,8 +192,14 @@ export default function TimetablePage() {
       />
 
       {isAdmin && <ReadinessPanel report={readiness.data} />}
+      {isAdmin && <PublicationPanel />}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3",
+          awaitingPublication && "hidden",
+        )}
+      >
         <Tabs
           value={view}
           onValueChange={(v) => setView(v as "list" | "calendar")}
@@ -207,7 +217,19 @@ export default function TimetablePage() {
         </Tabs>
       </div>
 
-      {view === "list" ? (
+      {awaitingPublication ? (
+        <Card>
+          <CardContent className="py-14 text-center">
+            <p className="font-serif text-[1.35rem] tracking-tight">
+              Not published yet
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-[13.5px] text-muted-foreground">
+              The exam committee is still finalising the timetable. You will
+              get a notification as soon as it is published.
+            </p>
+          </CardContent>
+        </Card>
+      ) : view === "list" ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">

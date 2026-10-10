@@ -26,7 +26,13 @@ _ACTION_VERBS = {
     "manual-assign": "Manually assigned seat",
     "reset": "Reset system",
     "enable-bulk-upload": "Enabled bulk upload",
+    "publish": "Published",
+    "unpublish": "Withdrew",
 }
+
+# A user's own inbox housekeeping (marking notifications read) is not
+# system activity.
+_UNAUDITED_RESOURCES = frozenset({"notifications"})
 
 # Map URL resource segment -> singular human label.
 _RESOURCE_LABELS = {
@@ -253,6 +259,8 @@ class AuditLogMiddleware:
 
         # --- Generic mutations: only for authenticated, state-changing calls ---
         if method not in _AUDITED_METHODS or not authed:
+            return
+        if segments and segments[0] in _UNAUDITED_RESOURCES:
             return
 
         action, object_type, object_id = _describe(request, segments)

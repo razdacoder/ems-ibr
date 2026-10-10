@@ -6,6 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ems import publication
 from ems.api.permissions import IsSuperAdmin
 from ems.api.serializers.system import SystemSettingsSerializer
 from ems.models import (
@@ -237,6 +238,8 @@ class ResetSystemView(APIView):
                 settings = _get_or_create_settings()
                 settings.has_timetable = False
                 settings.save(update_fields=["has_timetable"])
+                # The timetable is gone, so nothing is published.
+                publication.clear(settings)
 
         return Response({"detail": message})
 

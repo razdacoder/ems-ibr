@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ems import readiness
+from ems import publication, readiness
 from ems.api.permissions import IsSuperAdmin
 from ems.models import (
     Class,
@@ -67,6 +67,10 @@ class TimetableListView(APIView):
         date = request.query_params.get("date")
         period = request.query_params.get("period")
         qs = TimeTable.objects.all().select_related("course", "class_obj__department")
+        published = publication.is_published()
+        if not (request.user.is_staff or published):
+            # A draft: department officers see nothing until it is published.
+            qs = qs.none()
         if date:
             qs = qs.filter(date=date)
         if period:
@@ -92,7 +96,13 @@ class TimetableListView(APIView):
             }
             for t in qs.order_by("date", "period", "class_obj__department__name", "class_obj__name")
         ]
-        return Response({"generated": TimeTable.objects.exists(), "results": rows})
+        return Response(
+            {
+                "generated": TimeTable.objects.exists(),
+                "published": published,
+                "results": rows,
+            }
+        )
 
 
 class TimetableDatesView(APIView):
@@ -100,6 +110,8 @@ class TimetableDatesView(APIView):
 
     def get(self, request):
         qs = TimeTable.objects.all()
+        if not publication.visible_to(request.user):
+            qs = qs.none()
         if not request.user.is_staff and request.user.department_id:
             qs = qs.filter(class_obj__department_id=request.user.department_id)
         dates = list(
@@ -265,6 +277,8 @@ class DistributionListView(APIView):
         date = request.query_params.get("date")
         period = request.query_params.get("period")
         qs = Distribution.objects.all().select_related("hall")
+        if not publication.visible_to(request.user):
+            qs = qs.none()
         if date:
             qs = qs.filter(date=date)
         if period:
@@ -343,6 +357,8 @@ class AllocationListView(APIView):
         date = request.query_params.get("date")
         period = request.query_params.get("period")
         qs = SeatArrangement.objects.all()
+        if not publication.visible_to(request.user):
+            qs = qs.none()
         if date:
             qs = qs.filter(date=date)
         if period:
@@ -394,6 +410,8 @@ class HallAllocationView(APIView):
         qs = SeatArrangement.objects.filter(
             date=date, period=period, hall_id=hall_id
         ).select_related("student", "course", "cls", "cls__department")
+        if not publication.visible_to(request.user):
+            qs = qs.none()
         if not request.user.is_staff and request.user.department_id:
             qs = qs.filter(cls__department_id=request.user.department_id)
 
