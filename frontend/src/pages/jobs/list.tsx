@@ -6,6 +6,7 @@ import {
   useDeleteJob,
   useJobs,
   useRetryJob,
+  jobWarnings,
 } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,7 +148,9 @@ export default function JobsListPage() {
           </TableHeader>
           <TableBody>
             {list.data?.results.map((job) => {
-              const tone = statusTone(job.status);
+              const warned =
+                job.status === "success" && jobWarnings(job.result_data).length > 0;
+              const tone = statusTone(warned ? "warnings" : job.status);
               return (
                 <TableRow key={job.job_id}>
                   <TableCell>
@@ -187,7 +190,7 @@ export default function JobsListPage() {
                       className="rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
                       style={{ backgroundColor: tone.bg, color: tone.fg }}
                     >
-                      {job.status}
+                      {warned ? "warnings" : job.status}
                     </span>
                   </TableCell>
                   <TableCell>

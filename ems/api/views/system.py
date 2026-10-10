@@ -9,17 +9,14 @@ from rest_framework.views import APIView
 from ems import publication
 from ems.api.permissions import IsSuperAdmin
 from ems.api.serializers.system import SystemSettingsSerializer
+from ems.utils import reset_allocation, reset_distribution, reset_timetable
 from ems.models import (
     Class,
     Course,
     Department,
-    Distribution,
-    DistributionItem,
     Hall,
-    SeatArrangement,
     Student,
     SystemSettings,
-    TimeTable,
 )
 
 
@@ -169,27 +166,9 @@ class DashboardStatsView(APIView):
         )
 
 
-def _reset_allocation() -> None:
-    """Clear seat allocations only."""
-    SeatArrangement.objects.all().delete()
-
-
-def _reset_distribution() -> None:
-    """Clear distribution. Allocation depends on it, so clear that too."""
-    _reset_allocation()
-    Distribution.objects.all().delete()
-    DistributionItem.objects.all().delete()
-
-
-def _reset_timetable() -> None:
-    """Clear the timetable. Distribution (and allocation) depend on it."""
-    _reset_distribution()
-    TimeTable.objects.all().delete()
-
-
 def _reset_all() -> None:
     """Wipe everything, including departments, halls, courses and students."""
-    _reset_timetable()
+    reset_timetable()
     Hall.objects.all().delete()
     Course.objects.all().delete()
     Class.objects.all().delete()
@@ -199,14 +178,14 @@ def _reset_all() -> None:
 
 # scope -> (handler, whether it should unlock uploads, message)
 _RESET_SCOPES = {
-    "allocation": (_reset_allocation, False, "Seat allocations cleared."),
+    "allocation": (reset_allocation, False, "Seat allocations cleared."),
     "distribution": (
-        _reset_distribution,
+        reset_distribution,
         False,
         "Distribution and seat allocations cleared.",
     ),
     "timetable": (
-        _reset_timetable,
+        reset_timetable,
         True,
         "Timetable, distribution and seat allocations cleared.",
     ),

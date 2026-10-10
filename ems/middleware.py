@@ -22,6 +22,7 @@ _ACTION_VERBS = {
     "seed-departments": "Seeded department users",
     "generate": "Generated",
     "generate-all": "Generated (all slots)",
+    "clear": "Cleared",
     "retry": "Retried",
     "manual-assign": "Manually assigned seat",
     "reset": "Reset system",
@@ -146,7 +147,7 @@ def _describe(request, segments):
         if len(segments) >= 3 and segments[-2].isdigit():
             object_id = segments[-2]
         suffix = f" for {label} #{object_id}" if object_id else f" {label}"
-        if last in ("generate", "generate-all"):
+        if last in ("generate", "generate-all", "clear"):
             return (f"{verb} {label}", label, object_id)
         if last in (
             "reset",

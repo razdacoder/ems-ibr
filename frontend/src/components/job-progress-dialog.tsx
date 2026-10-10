@@ -9,8 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useJobProgress } from "@/api/jobs";
+import { jobWarnings, useJobProgress } from "@/api/jobs";
+
+const SHOW = 12;
 
 interface Props {
   jobId: string | null;
@@ -37,6 +40,7 @@ export function JobProgressDialog({
   const status = event?.status ?? "pending";
   const progress = event?.progress ?? 0;
   const isTerminal = status === "success" || status === "failed";
+  const warnings = status === "success" ? jobWarnings(event?.result) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,7 +55,9 @@ export function JobProgressDialog({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Badge variant={statusVariant(status)}>{status}</Badge>
+            <Badge variant={statusVariant(status)}>
+              {warnings.length ? "success with warnings" : status}
+            </Badge>
             <span className="text-sm text-muted-foreground">{progress}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -69,13 +75,32 @@ export function JobProgressDialog({
           )}
           {status === "success" && (
             <Alert>
-              <AlertTitle>Job completed</AlertTitle>
+              <AlertTitle>
+                {warnings.length ? "Job completed with warnings" : "Job completed"}
+              </AlertTitle>
               <AlertDescription>
                 {(event?.result as { message?: string } | null)?.message ??
                   "Generation completed."}
               </AlertDescription>
             </Alert>
           )}
+          {warnings.map((w) => (
+            <Alert key={w.title} variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>{w.title}</AlertTitle>
+              <AlertDescription>
+                <p>{w.hint}</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  {w.items.slice(0, SHOW).map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                  {w.items.length > SHOW && (
+                    <li>and {w.items.length - SHOW} more</li>
+                  )}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          ))}
         </div>
 
         <DialogFooter>

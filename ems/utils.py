@@ -122,6 +122,58 @@ def save_to_timetable_db(schedules):
     TimeTable.objects.bulk_create(timetables)
 
 
+def reset_allocation():
+    """Clear seat allocations only."""
+    SeatArrangement.objects.all().delete()
+
+
+def reset_distribution():
+    """Clear distribution. Allocation depends on it, so clear that too."""
+    reset_allocation()
+    Distribution.objects.all().delete()
+    DistributionItem.objects.all().delete()
+
+
+def reset_timetable():
+    """Clear the timetable and everything planned from it. Deleting a
+    timetable row only cascades to its DistributionItems: the Distribution
+    rows and the SeatArrangements must go explicitly, or a new timetable
+    inherits empty distributions and the old seating."""
+    reset_distribution()
+    TimeTable.objects.all().delete()
+
+
+def slot_is_distributed(date, period):
+    """True if distribution planned at least one class into a hall for the
+    slot. A Distribution row with no items (its timetable rows were
+    deleted) is a leftover, not a plan."""
+    return DistributionItem.objects.filter(
+        distribution__date=str(date), distribution__period=period
+    ).exists()
+
+
+def clear_slot_allocation(date, period):
+    """Clear one slot's seat allocation."""
+    SeatArrangement.objects.filter(date=str(date), period=period).delete()
+
+
+def clear_slot_distribution(date, period):
+    """Clear one slot's distribution, its allocation (planned from it) and
+    the ``planned_students`` it recorded, so the slot reads as never
+    distributed."""
+    from django.db.models import Q
+
+    clear_slot_allocation(date, period)
+    DistributionItem.objects.filter(
+        Q(distribution__date=str(date), distribution__period=period)
+        | Q(schedule__date=str(date), schedule__period=period)
+    ).delete()
+    Distribution.objects.filter(date=str(date), period=period).delete()
+    TimeTable.objects.filter(date=str(date), period=period).update(
+        planned_students=None
+    )
+
+
 def classify_courses(courses, strict_limit, relaxed_limit):
     """Give every course its seating rule once, before the AM/PM split
     (spec 0002). Returns ``(kept, refused_oversized)``.
@@ -265,6 +317,59 @@ def auto_split_large_cbe_courses(
     return new_courses
 
 
+def refuse_oversized_cbe(courses, autosplit_threshold):
+    """Set aside CBE courses (or auto-split sections) still above
+    ``autosplit_threshold``: a full day seats at most that many, so
+    ``generate`` could never place them. Returns ``(kept, refused)``."""
+    kept, refused = [], []
+    for course in courses:
+        students = sum(cls["size"] for cls in course["classes"])
+        if course["exam_type"] == "CBE" and students > autosplit_threshold:
+            refused.append(
+                {"code": course["code"], "students": students, "limit": autosplit_threshold}
+            )
+        else:
+            kept.append(course)
+    return kept, refused
+
+
+def cbe_sections(
+    courses,
+    *,
+    autosplit_threshold=9000,
+    group_count=2,
+    faculty_groups=None,
+):
+    """The CBE papers ``generate`` schedules from ``courses`` (``get_courses``
+    shape): auto-split, then oversized ones set aside. ``(kept, refused)``."""
+    return refuse_oversized_cbe(
+        auto_split_large_cbe_courses(
+            [c for c in courses if c["exam_type"] == "CBE"],
+            autosplit_threshold=autosplit_threshold,
+            group_count=group_count,
+            faculty_groups=faculty_groups,
+        ),
+        autosplit_threshold,
+    )
+
+
+def cbe_min_days(cbe, *, fullday_threshold=4500, daily_cap=4500):
+    """Fewest exam days the CBE papers ``cbe`` (from ``cbe_sections``) need,
+    by the rules ``generate`` schedules them under: a paper above
+    ``fullday_threshold`` takes a day of its own, and the smaller ones share
+    the rest at ``daily_cap`` students a day. A lower bound: it ignores
+    which classes clash."""
+    full_days = small_students = 0
+    for course in cbe:
+        students = sum(cls["size"] for cls in course["classes"])
+        if students > fullday_threshold:
+            full_days += 1
+        else:
+            small_students += students
+    small_days = -(-small_students // daily_cap) if daily_cap else 0
+    return full_days + small_days
+
+
 # Helper function to check if a class is scheduled on a given date
 def _class_key(cls):
     # Hashable stand-in for a class dict: equal keys exactly when the dicts
@@ -351,7 +456,10 @@ def can_schedule_full_day_cbe(
     fullday_threshold=4500,
     autosplit_threshold=9000,
 ):
-    """Check if a large CBE course can be scheduled (only checks class conflicts)"""
+    """True if a large CBE course can take ``date`` as a full day: none of
+    its classes sits an exam that day, and no other CBE does either. A full
+    day course fills the CBE centre's capacity in both periods, so two on one
+    day (or one beside smaller CBE papers) would overrun it."""
     if course["exam_type"] != "CBE":
         return False
 
@@ -365,11 +473,10 @@ def can_schedule_full_day_cbe(
     if course_students > autosplit_threshold:
         return False
 
-    # Only check if any class in this course is already scheduled
     if is_class_scheduled(course, date, schedules):
         return False
 
-    return True
+    return not has_cbe_on_date(schedules, date)
 
 
 # Check if a CBE course can be scheduled within the daily student limit
@@ -451,7 +558,7 @@ def can_continue(
                     fullday_threshold=fullday_threshold,
                     autosplit_threshold=autosplit_threshold,
                 ):
-                    reasons.append("cannot get full day (classes conflict)")
+                    reasons.append("cannot get a full day (another CBE sits that day)")
             else:
                 # Small CBE course logic
                 if is_class_scheduled(course, date, Schedules):
@@ -599,6 +706,36 @@ def get_next_course(
     return None
 
 
+def _give_back_misfits(date, period, schedules, pool, fit_check):
+    """Run ``fit_check`` on the paper courses booked for one period and move
+    any that would not get hall space for every student back to ``pool``,
+    for a later date. Repeats until the rest fit: removing a course frees
+    room, but the packer may then place the others differently. Returns how
+    many courses went back."""
+    if fit_check is None:
+        return 0
+    moved = 0
+    while True:
+        booked = [
+            s for s in schedules
+            if s["date"] == date and s["period"] == period
+            and s["course"]["exam_type"] != "CBE"
+        ]
+        misfits = fit_check([s["course"] for s in booked])
+        if not misfits:
+            return moved
+        ids = {id(c) for c in misfits}
+        for s in booked:
+            if id(s["course"]) in ids:
+                schedules.remove(s)
+                pool.append(s["course"])
+                moved += 1
+                print(
+                    f"[FIT] {s['course']['code']} ({period}) moved off {date}: "
+                    "distribution could not seat all its students"
+                )
+
+
 # Function to generate the timetable and save it to the DB
 def generate(
     dates,
@@ -612,9 +749,28 @@ def generate(
     pbe_utilization=0.9,
     cbe_group_count=2,
     cbe_faculty_groups=None,
+    save=True,
+    on_date_planned=None,
+    fit_check=None,
 ):
+    """Plan the timetable for ``dates`` and return a summary.
+
+    ``save=False`` leaves the database alone and returns the plan as
+    ``summary["schedules"]``, for a caller that must replace the old
+    timetable and save the new one in a single transaction.
+
+    ``on_date_planned(done, total)`` is called after each date is planned,
+    for progress reporting.
+
+    ``fit_check(courses)`` returns the paper courses of one period that
+    distribution could not seat in full (:func:`courses_short_of_halls`).
+    They go back to the pool for a later date, so no planned slot leaves a
+    class without a hall.
+    """
     # Initialize schedules list
     Schedules = []
+    # Paper courses a fit check sent back to the pool for a later date.
+    rebooked = 0
 
     # Auto-split large CBE courses into N faculty-keyed sections
     courses_AM = auto_split_large_cbe_courses(
@@ -629,6 +785,11 @@ def generate(
         group_count=cbe_group_count,
         faculty_groups=cbe_faculty_groups,
     )
+    # A CBE paper still too big for a full day after the split can never be
+    # placed: report it as refused instead of skipping it date after date.
+    courses_AM, refused_cbe = refuse_oversized_cbe(courses_AM, autosplit_threshold)
+    courses_PM, refused_cbe_pm = refuse_oversized_cbe(courses_PM, autosplit_threshold)
+    refused_cbe += refused_cbe_pm
 
     # Track initial course counts
     initial_am_count = len(courses_AM)
@@ -641,7 +802,7 @@ def generate(
     print(f"{'='*60}\n")
 
     # Loop through the dates
-    for Date in dates:
+    for date_index, Date in enumerate(dates, start=1):
         print(f"\n[DATE] Processing: {Date}")
         print(f"[INFO] Remaining courses - AM: {len(courses_AM)}, PM: {len(courses_PM)}")
 
@@ -740,6 +901,8 @@ def generate(
                     print(f"[SKIP] {Course['code']} (AM) - needs {Seat_Required} seats, only {Total_Seats_AM} available")
                     courses_AM.remove(Course)
 
+        rebooked += _give_back_misfits(Date, "AM", Schedules, courses_AM, fit_check)
+
         #  Schedule PM Courses
         PM_scheduling = True
         pm_scheduled_count = 0
@@ -787,10 +950,15 @@ def generate(
                     print(f"[SKIP] {Course['code']} (PM) - needs {Seat_Required} seats, only {Total_Seats_PM} available")
                     courses_PM.remove(Course)
         
+        rebooked += _give_back_misfits(Date, "PM", Schedules, courses_PM, fit_check)
+
         # Log CBE summary for this date
         daily_cbe_count = get_cbe_student_count(Schedules, Date)
         if daily_cbe_count > 0:
             print(f"[CBE SUMMARY] {Date}: {daily_cbe_count} CBE students scheduled")
+
+        if on_date_planned:
+            on_date_planned(date_index, len(dates))
     
     # Final summary
     print(f"\n{'='*60}")
@@ -816,11 +984,10 @@ def generate(
     
     print(f"\n{'='*60}\n")
     
-    # Bulk upload schedules to timetable Db
-    save_to_timetable_db(Schedules)
-    
-    # Return summary for task result
-    return {
+    if save:
+        save_to_timetable_db(Schedules)
+
+    summary = {
         'total_scheduled': len(Schedules),
         'am_scheduled': scheduled_am,
         'pm_scheduled': scheduled_pm,
@@ -839,6 +1006,11 @@ def generate(
             if course_rule(s['course']) == RELAXED
         ],
     }
+    summary['refused_cbe'] = refused_cbe
+    summary['rebooked_after_fit_check'] = rebooked
+    if not save:
+        summary['schedules'] = Schedules
+    return summary
 
 
 ################################################################################################################################################################
@@ -1066,6 +1238,50 @@ def relaxed_course_code(timetables):
     return next(iter(codes), None)
 
 
+def courses_short_of_halls(courses, halls, group_order=None, small_course_threshold=0):
+    """Paper ``courses`` (``get_courses`` shape) that distribution could not
+    give hall space for every student, if they all sat one slot in
+    ``halls`` (from :func:`convert_hall_to_dict`, used up by this call).
+
+    Timetable generation calls this after planning each period. Counting
+    seats is not enough: course limits, the one-quarter-per-course rule and
+    keeping classes in blocks stop the packer from filling halls to the
+    last seat, so a period booked to its seat total can leave classes
+    without a hall. Runs the real packer on stand-in rows, never saved.
+    """
+    from types import SimpleNamespace
+
+    rows, owner, size_map = [], {}, {}
+    for index, course in enumerate(courses):
+        if course["exam_type"] == "CBE":
+            continue
+        for cls in course["classes"]:
+            row = SimpleNamespace(
+                id=-(len(rows) + 1),
+                course=SimpleNamespace(code=course["code"], exam_type=course["exam_type"]),
+                class_obj=SimpleNamespace(name=cls["name"], is_active=True),
+                class_obj_id=cls["id"],
+                seating_rule=course_rule(course),
+            )
+            rows.append(row)
+            owner[row.id] = index
+            size_map[cls["id"]] = cls["size"]
+    if not rows:
+        return []
+    result = distribute_classes_to_halls(
+        rows, halls, size_map=size_map, relaxed_course=relaxed_course_code(rows),
+        group_order=group_order, small_course_threshold=small_course_threshold,
+    )
+    given = Counter()
+    for hall in result:
+        for item in hall["classes"]:
+            given[item["id"]] += item["student_range"]
+    short = sorted({
+        owner[row.id] for row in rows if given[row.id] < size_map[row.class_obj_id]
+    })
+    return [courses[i] for i in short]
+
+
 def slot_relaxed_course_id(date, period):
     """Id of the slot's relaxed course, or ``None``, in one query. Reconcile,
     manual assignment and the attendance exports read the rule through this
@@ -1089,7 +1305,11 @@ def make_schedules(timetables, size_map=None):
     rows = planned_rows(timetables)
     if size_map is None:
         size_map = slot_student_counts(rows)
-    tt = [
+    # A fixed order (the packer then sorts by size): the timetable's fit
+    # check and the real distribution must plan a slot the same way, which
+    # a random shuffle broke for classes of equal size.
+    rows = sorted(rows, key=lambda t: (t.course.code, t.class_obj_id))
+    return [
         {
             "id": timetable.id,
             "class": timetable.class_obj.name,
@@ -1098,8 +1318,6 @@ def make_schedules(timetables, size_map=None):
         }
         for timetable in rows
     ]
-    random.shuffle(tt)
-    return tt
 
 
 def _quarters_can_seat(
@@ -1296,8 +1514,8 @@ def distribute_classes_to_halls(
     limit for it (see :func:`_fold_small_hall`).
     """
     class_schedules = make_schedules(timetables=timetables, size_map=size_map)
-    # make_schedules already random-shuffles. Stable-sort by size desc so a
-    # course hands out its biggest classes first.
+    # Stable-sort by size desc so a course hands out its biggest classes
+    # first; make_schedules' fixed order breaks ties.
     class_schedules.sort(key=lambda s: s["size"], reverse=True)
     ranks = group_ranks(
         ((h.get("group", ""), h.get("seats", h.get("capacity", 0))) for h in halls),

@@ -4,6 +4,7 @@ import {
   useDistribution,
   useDistributionStatistics,
   useReadiness,
+  useClearDistributionSlot,
 } from "@/api/scheduling";
 import { useTimetableDates } from "@/api/scheduling";
 import { useGenerateDistributionAll } from "@/api/jobs";
@@ -32,6 +33,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { useConfirm } from "@/lib/confirm";
 import { EMPTY } from "@/lib/format";
 
 export default function DistributionPage() {
@@ -54,6 +56,30 @@ export default function DistributionPage() {
   const blocked = readiness.data?.ready === false;
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const confirm = useConfirm();
+  const clearSlot = useClearDistributionSlot();
+  const slotHasData = !!list.data?.results.length;
+
+  const onClearSlot = async () => {
+    if (!date) return;
+    const ok = await confirm({
+      title: `Clear distribution for ${date} ${period}?`,
+      description: "Its halls and any seats allocated from them are removed. Generate for all slots afterwards to distribute it again.",
+      confirmLabel: "Clear slot",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await clearSlot.mutateAsync({ date, period });
+      toast({ title: "Slot cleared" });
+    } catch (err) {
+      toast({
+        title: "Could not clear",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
 
   const onGenerate = async () => {
     try {
@@ -123,6 +149,16 @@ export default function DistributionPage() {
             <SelectItem value="PM">PM</SelectItem>
           </SelectContent>
         </Select>
+        {isAdmin && slotHasData && (
+          <Button
+            variant="outline"
+            className="ml-auto"
+            onClick={onClearSlot}
+            disabled={clearSlot.isPending}
+          >
+            {clearSlot.isPending ? "Clearing…" : "Clear this slot"}
+          </Button>
+        )}
       </div>
 
       {stats.data && (

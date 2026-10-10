@@ -515,16 +515,36 @@ function GenerateTimetableDialog({
                           {estimate.data.throughput_min_days} days). Per-class
                           limit only needs {estimate.data.per_class_min_days}.
                         </>
+                      ) : estimate.data.bottleneck === "cbe_capacity" ? (
+                        <>
+                          What limits it: the CBE centre. Each large CBE course
+                          takes a day of its own and smaller ones share days up
+                          to the daily cap (needs {estimate.data.cbe_min_days}{" "}
+                          days). Per-class limit only needs{" "}
+                          {estimate.data.per_class_min_days}.
+                        </>
                       ) : (
                         <>
                           Bottleneck: the busiest class has AM{" "}
                           {estimate.data.worst_class_am} · PM{" "}
-                          {estimate.data.worst_class_pm} exams across{" "}
-                          {estimate.data.class_count} classes. Choose at least this
-                          many days for maximum efficiency.
+                          {estimate.data.worst_class_pm} exams, and a class sits
+                          one exam a day, across {estimate.data.class_count}{" "}
+                          classes. Choose at least this many days for maximum
+                          efficiency.
                         </>
                       )}
                     </p>
+                    {estimate.data.cbe_refused.length > 0 && (
+                      <p className="mt-2 text-xs text-destructive">
+                        Too big for one CBE day ({estimate.data.cbe_refused[0].limit.toLocaleString()}{" "}
+                        students) and will be refused:{" "}
+                        {estimate.data.cbe_refused
+                          .map((r) => `${r.code} (${r.students.toLocaleString()})`)
+                          .join(", ")}
+                        . Put its classes' faculties in different CBE groups so
+                        it splits.
+                      </p>
+                    )}
                     {(estimate.data.relaxed_count > 0 ||
                       estimate.data.refused_count > 0) && (
                       <p className="mt-2 text-xs text-muted-foreground">

@@ -16,6 +16,9 @@ from .utils import (
     distribute_classes_to_halls, save_to_db, build_seat_arrangements,
     hall_fill_cap, in_walk_order,
     record_planned_students, slot_student_counts, relaxed_course_code,
+    reset_timetable, save_to_timetable_db,
+    clear_slot_distribution, slot_is_distributed,
+    convert_hall_to_dict, courses_short_of_halls,
 )
 
 
@@ -50,6 +53,57 @@ def _allocation_is_complete(date, period):
     )
     seated_halls = set(sa.values_list('hall_id', flat=True))
     return dist_halls <= seated_halls
+
+
+def _warning(title, items, hint):
+    """One entry of a job's ``result_data['warnings']``: something the run
+    finished without doing, which the job dialog lists for the officer."""
+    return {'title': title, 'items': items, 'hint': hint}
+
+
+def _plural(n, one, many):
+    return f"{n} {one if n == 1 else many}"
+
+
+def _unplaced_by_class_warning(unplaced):
+    """Classes distribution found halls for only part of."""
+    if not unplaced:
+        return []
+    return [_warning(
+        f"{_plural(len(unplaced), 'class', 'classes')} did not get seats for "
+        "every student",
+        [
+            f"{u['date'] + ' ' + u['period'] + ' · ' if 'date' in u else ''}"
+            f"{u['label']} ({u['course']}): planned {u['planned']}, "
+            f"got {u['assigned']}"
+            for u in unplaced
+        ],
+        "Open more halls or raise the hall fill cap, then clear and "
+        "regenerate the distribution.",
+    )]
+
+
+def _unplaced_students_warning(date, period):
+    """Students allocation and the cross hall reconcile left without a seat,
+    counted by hall."""
+    from django.db.models import Count
+    per_hall = list(
+        SeatArrangement.objects.filter(
+            date=date, period=period, seat_number__isnull=True
+        )
+        .values_list('hall__name')
+        .annotate(n=Count('id'))
+        .order_by('hall__name')
+    )
+    total = sum(n for _, n in per_hall)
+    if not total:
+        return []
+    return [_warning(
+        f"{_plural(total, 'student has', 'students have')} no seat on "
+        f"{date} {period}",
+        [f"{name}: {n}" for name, n in per_hall],
+        "Assign them by hand from the hall's allocation page.",
+    )]
 
 
 def _fail_not_ready(job, report):
@@ -119,7 +173,10 @@ def _distribute_slot(
         group_order=group_order,
         small_course_threshold=small_course_threshold,
     )
+    # Replace, never add to, what the slot has: leftover rows, or a second
+    # job for the same slot, must not leave two plans for one slot.
     with transaction.atomic():
+        clear_slot_distribution(date, period)
         save_to_db(result, str(date), period)
         unplaced = record_planned_students(timetables, size_map, result)
     return result, skipped_inactive([(date, period)]), unplaced
@@ -131,11 +188,13 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
     Celery task for timetable generation
     """
     job = BackgroundJob.objects.get(job_id=job_id)
-    
+    progress = _Progress(self, job)
+
     try:
         job.status = 'running'
+        job.total_steps = 100  # progress is a percentage
         job.save()
-        
+
         print(f"\n[TASK] Starting timetable generation task {job_id}")
         print(f"[TASK] Date range: {start_date_str} to {end_date_str}")
         print(f"[TASK] Requested by user: {user_id}")
@@ -161,15 +220,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
 
         print(f"[TASK] Generated {len(dates)} valid dates (excluded weekdays: {sorted(excluded_days)})")
         
-        total_steps = len(dates) * 2  # Rough estimate
-        job.total_steps = total_steps
-        job.save()
-        
-        # Update progress: 10%
-        job.progress = int(total_steps * 0.1)
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 10, 'status': 'Loading courses and halls...'})
-        
+        progress.report(5, 'Loading courses and halls...', force=True)
+
         # Get courses and halls
         courses = get_courses()
         halls = get_halls(pattern=constraints.seat_pattern)
@@ -189,11 +241,6 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             f"{[r['code'] for r in refused_oversized]}"
         )
         
-        # Update progress: 20%
-        job.progress = int(total_steps * 0.2)
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 20, 'status': 'Splitting courses...'})
-        
         # Split courses into AM and PM periods using admin-configured map
         AM_courses, PM_courses = split_course(
             courses, class_period_overrides=constraints.class_period_overrides
@@ -201,29 +248,36 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
         
         print(f"[TASK] Split courses - AM: {len(AM_courses)}, PM: {len(PM_courses)}")
         
-        # Update progress: 30%
-        job.progress = int(total_steps * 0.3)
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 30, 'status': 'Generating timetable...'})
-        
-        # Generate timetable with incremental progress
-        total_dates = len(dates)
-        for idx, date in enumerate(dates):
-            # Process one date at a time for granular progress
-            progress_start = 30 + int((idx / total_dates) * 60)  # 30-90%
-            job.progress = int(total_steps * progress_start / 100)
-            job.save()
-            self.update_state(
-                state='PROGRESS',
-                meta={'progress': progress_start, 'status': f'Generating timetable for date {idx+1}/{total_dates}...'}
+        progress.report(10, 'Planning the timetable...', force=True)
+
+        # Each planned period is checked with the real distribution packer,
+        # on the halls and settings distribution will use, so no slot is
+        # booked fuller than distribution can seat.
+        open_halls = list(Hall.objects.open())
+
+        def fit_check(period_courses):
+            halls_now = convert_hall_to_dict(
+                open_halls,
+                safety_factor=float(constraints.pbe_hall_utilization),
+                pattern=constraints.seat_pattern,
+                course_limits=constraints.hall_course_limits,
             )
-        
-        # Actually generate (the utils function handles the DB writes)
-        # Delete existing timetables first
-        TimeTable.objects.all().delete()
-        print(f"[TASK] Deleted existing timetables, starting generation...")
-        
-        # Capture the summary returned by generate(), threading admin constraints
+            return courses_short_of_halls(
+                period_courses, halls_now,
+                group_order=constraints.hall_group_order,
+                small_course_threshold=constraints.small_course_threshold,
+            )
+
+        def planned_date(done, total):
+            # Planning the dates is most of the run: 10% to 90%.
+            progress.report(
+                10 + int(done / total * 80),
+                f'Planned date {done}/{total}',
+                force=done == total,
+            )
+
+        # Plan in memory first: the old timetable stays in place (and
+        # published, if it was) until the new one is ready to replace it.
         summary = generate(
             dates,
             AM_courses,
@@ -235,43 +289,85 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             pbe_utilization=float(constraints.pbe_hall_utilization),
             cbe_group_count=constraints.cbe_group_count,
             cbe_faculty_groups=constraints.cbe_faculty_groups or {},
+            save=False,
+            on_date_planned=planned_date,
+            fit_check=fit_check,
         )
-        
+        schedules = summary.pop('schedules')
+
         print(f"[TASK] Timetable generation completed")
         print(f"[TASK] Summary: {summary}")
-        
-        # Update progress: 90%
-        job.progress = int(total_steps * 0.9)
-        job.save()
-        self.update_state(state='PROGRESS', meta={'progress': 90, 'status': 'Finalizing...'})
-        
-        # Mark as generated in settings. A new timetable is a draft: it
+
+        progress.report(92, 'Saving the timetable...', force=True)
+
+        # Swap the timetable in one transaction: a failure leaves the old
+        # one, its distribution, seating and publication exactly as they
+        # were. Distribution and seating were planned from the old
+        # timetable, so they go with it. A new timetable is a draft: it
         # needs publishing before department officers see it.
+        from django.db import transaction
         from .models import SystemSettings
         from . import publication
-        settings = SystemSettings.objects.first()
-        if settings:
-            settings.has_timetable = True
-            settings.save()
-        publication.clear(settings)
-        
+        with transaction.atomic():
+            reset_timetable()
+            save_to_timetable_db(schedules)
+            settings = SystemSettings.objects.first()
+            if settings:
+                settings.has_timetable = True
+                settings.save()
+            publication.clear(settings)
+
         # Complete job
         job.status = 'success'
-        job.progress = total_steps
+        job.progress = 100
         job.completed_at = timezone.now()
-        
-        # Include detailed summary in result
-        message = 'Timetable generated successfully'
+
+        # A course left out has no exam: say so, don't call it a success.
+        skipped = [
+            f"{code} ({period})"
+            for period, key in (('AM', 'skipped_am_codes'), ('PM', 'skipped_pm_codes'))
+            for code in summary.get(key, [])
+        ]
+        warnings = []
+        if skipped:
+            warnings.append(_warning(
+                f"{_plural(len(skipped), 'course', 'courses')} could not be "
+                "scheduled",
+                skipped,
+                "No date in the range had room for them. Widen the date "
+                "range or open more halls, then generate again.",
+            ))
+        if refused_oversized:
+            warnings.append(_warning(
+                f"{_plural(len(refused_oversized), 'course is', 'courses are')} "
+                "too big for one period, even with relaxed seating",
+                [f"{r['code']} ({r['students']} students)" for r in refused_oversized],
+                f"One period seats at most {relaxed_limit} students of a "
+                "course. Open more halls, or split the course.",
+            ))
+        refused_cbe = summary.get('refused_cbe', [])
+        if refused_cbe:
+            warnings.append(_warning(
+                f"{_plural(len(refused_cbe), 'CBE paper is', 'CBE papers are')} "
+                "too big for one day",
+                [f"{r['code']} ({r['students']} students)" for r in refused_cbe],
+                f"A CBE paper seats at most {refused_cbe[0]['limit']} students "
+                "over a full day. Assign its classes' faculties to different "
+                "CBE groups so it splits, or raise the auto-split threshold.",
+            ))
+        left_out = len(skipped) + len(refused_oversized) + len(refused_cbe)
+        if left_out:
+            message = (
+                f"Timetable generated without "
+                f"{_plural(left_out, 'course', 'courses')}"
+            )
+        else:
+            message = 'Timetable generated successfully'
         if summary.get('relaxed_courses'):
             codes = ', '.join(r['code'] for r in summary['relaxed_courses'])
             message += f'. Relaxed seating: {codes}'
-        if refused_oversized:
-            codes = ', '.join(r['code'] for r in refused_oversized)
-            message += (
-                f'. Refused as too big for one period even with relaxed '
-                f'seating: {codes}'
-            )
         job.result_data = {
+            'warnings': warnings,
             'message': message,
             'dates_count': len(dates),
             'total_scheduled': summary.get('total_scheduled', 0),
@@ -289,6 +385,8 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
                 for r in summary.get('relaxed_courses', [])
             ],
             'refused_oversized': refused_oversized,
+            'refused_cbe': summary.get('refused_cbe', []),
+            'rebooked_after_fit_check': summary.get('rebooked_after_fit_check', 0),
         }
         job.save()
         
@@ -355,7 +453,6 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         # Convert halls with the same safety factor timetable uses, so both
         # stages see one shared capacity model.
         constraints = _load_constraints()
-        from .utils import convert_hall_to_dict
         halls_list = convert_hall_to_dict(
             halls,
             safety_factor=float(constraints.pbe_hall_utilization),
@@ -380,6 +477,7 @@ def generate_distribution_task(self, job_id, user_id, date, period):
         job.completed_at = timezone.now()
         distributions_count = Distribution.objects.filter(date=date, period=period).count()
         job.result_data = {
+            'warnings': _unplaced_by_class_warning(unplaced),
             'message': 'Distribution generated successfully',
             'distributions_created': distributions_count,
             'date': date,
@@ -588,6 +686,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
         job.progress = 100
         job.completed_at = timezone.now()
         job.result_data = {
+            'warnings': _unplaced_students_warning(date, period),
             'message': 'Seat allocation completed successfully',
             'total_allocated': total_allocated,
             'total_unplaced': total_unplaced,
@@ -623,8 +722,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
 @shared_task(bind=True)
 def generate_distribution_all_task(self, job_id, user_id):
     """Distribute every (date, period) slot present in the timetable.
-    Skips any slot that already has a Distribution row."""
-    from .utils import convert_hall_to_dict
+    Skips any slot that already has a distribution plan."""
     job = BackgroundJob.objects.get(job_id=job_id)
     try:
         job.status = 'running'
@@ -654,7 +752,7 @@ def generate_distribution_all_task(self, job_id, user_id):
             })
             job.progress = progress
             job.save(update_fields=['progress'])
-            if Distribution.objects.filter(date=str(date), period=period).exists():
+            if slot_is_distributed(date, period):
                 results.append({'date': str(date), 'period': period, 'skipped': True})
                 continue
             halls_list = convert_hall_to_dict(
@@ -678,6 +776,7 @@ def generate_distribution_all_task(self, job_id, user_id):
         job.completed_at = timezone.now()
         skipped = sum(1 for r in results if r.get('skipped'))
         job.result_data = {
+            'warnings': _unplaced_by_class_warning(unplaced_by_class),
             'message': f'Bulk distribution completed across {total} slot(s) ({skipped} skipped)',
             'slots_processed': total,
             'slots_skipped': skipped,
@@ -744,6 +843,8 @@ def generate_allocation_all_task(self, job_id, user_id):
         _assert_ready('allocation')
         total = len(slots)
         results = []
+        warnings = []
+        failed = []
         for i, (date, period) in enumerate(slots):
             progress = int((i / total) * 95)
             self.update_state(state='PROGRESS', meta={
@@ -776,6 +877,9 @@ def generate_allocation_all_task(self, job_id, user_id):
                 # handler below can save a graceful, resumable state.
                 raise sub_result.result
             rd = sub_job.result_data or {}
+            warnings.extend(rd.get('warnings') or [])
+            if sub_job.status == 'failed':
+                failed.append(f'{date} {period}: {sub_job.error_message}')
             results.append({
                 'date': str(date),
                 'period': period,
@@ -785,18 +889,30 @@ def generate_allocation_all_task(self, job_id, user_id):
                 'reconciled': rd.get('reconciled_across_halls'),
             })
 
-        job.status = 'success'
         job.progress = 100
         job.completed_at = timezone.now()
         skipped = sum(1 for r in results if r.get('skipped'))
         job.result_data = {
+            'warnings': warnings,
             'message': f'Bulk allocation completed across {total} slot(s) ({skipped} skipped)',
             'slots_processed': total,
             'slots_skipped': skipped,
             'slots': results,
         }
+        if failed:
+            # A slot nobody is seated in is a failure, not a success with
+            # small print. Retry runs only the slots still unfinished.
+            job.status = 'failed'
+            job.error_message = (
+                f"Allocation failed for {_plural(len(failed), 'slot', 'slots')}: "
+                + '; '.join(failed)
+                + '. The other slots are seated; retry to run the failed ones.'
+            )
+            job.result_data['failed_slots'] = failed
+        else:
+            job.status = 'success'
         job.save()
-        return {'status': 'success', 'message': job.result_data['message']}
+        return {'status': job.status, 'message': job.error_message or job.result_data['message']}
     except NotReady as e:
         return _fail_not_ready(job, e.report)
     except SoftTimeLimitExceeded:

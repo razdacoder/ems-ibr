@@ -20,6 +20,8 @@ from ems.api.views.uploads import (
     HallUploadView,
 )
 from ems.api.views.jobs import (
+    ClearAllocationView,
+    ClearDistributionView,
     GenerateAllocationAllView,
     GenerateAllocationView,
     GenerateDistributionAllView,
@@ -145,6 +147,11 @@ scheduling_patterns = [
         name="api-generate-distribution",
     ),
     path(
+        "distribution/clear/",
+        ClearDistributionView.as_view(),
+        name="api-clear-distribution",
+    ),
+    path(
         "distribution/generate-all/",
         GenerateDistributionAllView.as_view(),
         name="api-generate-distribution-all",
@@ -159,6 +166,11 @@ scheduling_patterns = [
         "allocation/generate/",
         GenerateAllocationView.as_view(),
         name="api-generate-allocation",
+    ),
+    path(
+        "allocation/clear/",
+        ClearAllocationView.as_view(),
+        name="api-clear-allocation",
     ),
     path(
         "allocation/generate-all/",

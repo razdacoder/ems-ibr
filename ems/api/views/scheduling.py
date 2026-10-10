@@ -23,7 +23,13 @@ from ems.models import (
 )
 from ems import seating_rules
 from ems.seating_rules import RELAXED, STRICT
-from ems.utils import hall_effective_capacity, slot_relaxed_course_id
+from ems.utils import (
+    cbe_min_days,
+    cbe_sections,
+    get_courses,
+    hall_effective_capacity,
+    slot_relaxed_course_id,
+)
 
 
 class ReadinessView(APIView):
@@ -124,18 +130,21 @@ class TimetableEstimateView(APIView):
     """Estimate the minimum exam-window span needed to schedule every class
     without conflicts, given the current course catalog and constraints.
 
-    Two binding constraints:
+    Three binding constraints:
 
-    1. Per-class load — a class can sit at most one exam per period (AM/PM).
-       Given X AM courses + Y PM courses on the busiest class, you need at
-       least max(X, Y) valid exam days.
+    1. Per-class load — a class sits at most one exam a day, in either
+       period, so the busiest class needs a day per course it takes.
 
     2. Hall seat throughput — total seat demand across all PBE courses must
        fit into (days × seats-per-period × utilization). Independent for AM
        and PM. When seat demand dominates, this is what causes most skips.
 
-    The recommended day count is the max of both, plus a small buffer for
-    conflict resolution.
+    3. CBE capacity — a CBE course above the full-day threshold takes a day
+       of its own, and smaller CBE papers share days up to the daily cap
+       (``cbe_min_days``, the generator's rules).
+
+    The recommended day count is the max of the three, plus a small buffer
+    for conflict resolution.
     """
 
     permission_classes = [IsAuthenticated]
@@ -159,7 +168,7 @@ class TimetableEstimateView(APIView):
             constraints.seat_pattern if constraints else "checkerboard"
         )
 
-        # ─── Per-class load (1 exam per class per period) ───────────────
+        # ─── Per-class load (1 exam per class per day) ──────────────────
         worst_am = worst_pm = worst_total = 0
         class_count = 0
         for cls in Class.objects.active().prefetch_related("courses").only("id", "name"):
@@ -176,7 +185,9 @@ class TimetableEstimateView(APIView):
                     am += 1
             worst_am = max(worst_am, am)
             worst_pm = max(worst_pm, pm)
-            worst_total = max(worst_total, max(am, pm))
+            # The generator gives a class one exam a day, AM or PM, so its
+            # AM and PM papers all need days of their own.
+            worst_total = max(worst_total, am + pm)
 
         # ─── Seat-throughput (PBE only; CBE is computer-based) ──────────
         # Use allocation-reachable seats for the active pattern so the
@@ -229,7 +240,24 @@ class TimetableEstimateView(APIView):
         pm_days_for_seats = _ceil_div(pm_seat_demand, seats_per_period)
         throughput_days = max(am_days_for_seats, pm_days_for_seats)
 
-        min_exam_days = max(worst_total, throughput_days)
+        # ─── CBE capacity (same split and thresholds as generation) ─────
+        cbe, cbe_refused = cbe_sections(
+            get_courses(),
+            autosplit_threshold=(
+                constraints.cbe_autosplit_threshold if constraints else 9000
+            ),
+            group_count=constraints.cbe_group_count if constraints else 2,
+            faculty_groups=(constraints.cbe_faculty_groups if constraints else None),
+        )
+        cbe_days = cbe_min_days(
+            cbe,
+            fullday_threshold=(
+                constraints.cbe_fullday_threshold if constraints else 4500
+            ),
+            daily_cap=constraints.cbe_daily_cap_per_period if constraints else 4500,
+        )
+
+        min_exam_days = max(worst_total, throughput_days, cbe_days)
         recommended_exam_days = max(
             min_exam_days, int(round(min_exam_days * 1.2))
         )
@@ -240,7 +268,12 @@ class TimetableEstimateView(APIView):
         min_calendar_days = full_weeks * 7 + remainder
 
         # Surface which constraint dominates so the UI can explain the number.
-        bottleneck = "per_class" if worst_total >= throughput_days else "seat_throughput"
+        if worst_total >= max(throughput_days, cbe_days):
+            bottleneck = "per_class"
+        elif cbe_days >= throughput_days:
+            bottleneck = "cbe_capacity"
+        else:
+            bottleneck = "seat_throughput"
 
         return Response(
             {
@@ -257,6 +290,8 @@ class TimetableEstimateView(APIView):
                 "worst_class_pm": worst_pm,
                 "per_class_min_days": worst_total,
                 "throughput_min_days": throughput_days,
+                "cbe_min_days": cbe_days,
+                "cbe_refused": cbe_refused,
                 "am_seat_demand": am_seat_demand,
                 "pm_seat_demand": pm_seat_demand,
                 "seats_per_period": seats_per_period,

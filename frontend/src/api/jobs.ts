@@ -35,6 +35,21 @@ export interface JobProgressEvent {
   result: Record<string, unknown> | null;
 }
 
+/** Something a finished run left undone (courses not scheduled, students
+ * without a seat), from ``result_data.warnings``. */
+export interface JobWarning {
+  title: string;
+  items: string[];
+  hint: string;
+}
+
+export function jobWarnings(
+  result: Record<string, unknown> | null | undefined,
+): JobWarning[] {
+  const w = result?.warnings;
+  return Array.isArray(w) ? (w as JobWarning[]) : [];
+}
+
 const KEY = ["jobs"] as const;
 
 export function useJobs(params: { status?: JobStatus; job_type?: JobType; page?: number } = {}) {

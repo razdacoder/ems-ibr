@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -19,7 +21,10 @@ from ems.seating_rules import RELAXED, STRICT
 from ems.utils import (
     current_constraints,
     hall_fill_cap,
+    clear_slot_allocation,
+    clear_slot_distribution,
     is_valid_position,
+    slot_is_distributed,
     slot_relaxed_course_id,
 )
 from ems.models import (
@@ -31,6 +36,7 @@ from ems.models import (
     Faculty,
     Hall,
     SeatArrangement,
+    SystemSettings,
     TimeTable,
 )
 
@@ -120,6 +126,67 @@ def _assert_generation_allowed() -> None:
         )
 
 
+def _stale_cutoff():
+    """Jobs started before this cannot still be running: Celery's hard time
+    limit kills any task older than that."""
+    return timezone.now() - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT)
+
+
+def fail_stale_jobs() -> int:
+    """Mark failed every job still ``pending`` or ``running`` past the hard
+    time limit. A killed worker (time limit, deploy, crash) never writes a
+    final status, which left jobs "running" forever: undeletable, not
+    retryable, and in the way of every new run. Returns how many changed."""
+    stale = BackgroundJob.objects.filter(
+        status__in=("pending", "running"), started_at__lt=_stale_cutoff()
+    )
+    now = timezone.now()
+    never_started = stale.filter(status="pending").update(
+        status="failed",
+        completed_at=now,
+        error_message=(
+            "Never started: no worker picked the job up. Check that the "
+            "Celery worker is running, then retry."
+        ),
+    )
+    killed = stale.filter(status="running").update(
+        status="failed",
+        completed_at=now,
+        error_message=(
+            "Stopped without finishing: the worker was killed or restarted, "
+            "or the job ran past its time limit. Retry to run it again."
+        ),
+    )
+    return never_started + killed
+
+
+_JOB_LABELS = {
+    "timetable": "timetable",
+    "distribution": "distribution",
+    "distribution_all": "distribution",
+    "allocation": "seat allocation",
+    "allocation_all": "seat allocation",
+}
+
+
+def _assert_no_active_job(action: str) -> None:
+    """409 while any generation job may still be writing. Generation stages
+    replace each other's rows (a timetable run clears every slot), so only
+    one may run at a time. Stale jobs are failed first, so a killed worker
+    never blocks."""
+    fail_stale_jobs()
+    active = (
+        BackgroundJob.objects.filter(status__in=("pending", "running"))
+        .order_by("started_at")
+        .first()
+    )
+    if active:
+        raise Conflict(
+            f"A {_JOB_LABELS.get(active.job_type, active.job_type)} job is still "
+            f"{active.status}. Wait for it to finish before {action}."
+        )
+
+
 class JobViewSet(viewsets.ReadOnlyModelViewSet):
     """List and inspect background jobs.
 
@@ -133,6 +200,9 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_value_regex = "[\\w-]+"
 
     def get_queryset(self):
+        # Show a killed job as failed (so it can be retried or deleted), not
+        # as running forever.
+        fail_stale_jobs()
         qs = BackgroundJob.objects.all().select_related("created_by")
         params = self.request.query_params
         if status_filter := params.get("status"):
@@ -172,25 +242,13 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
         if job.status != "failed":
             raise Conflict("Only failed jobs can be retried.")
 
-        new_id = str(uuid.uuid4())
-        new_job = BackgroundJob.objects.create(
-            job_id=new_id,
-            job_type=job.job_type,
-            status="pending",
-            created_by=request.user,
-            params=job.params,
-        )
-
+        if _TASK_MAP_SOURCES.get(job.job_type) is None:
+            raise Conflict(f"Jobs of type '{job.job_type}' cannot be retried.")
         # Re-dispatch the matching Celery task with the original params.
-        params = job.params or {}
-        task = _TASK_MAP.get(job.job_type)
-        if task:
-            transaction.on_commit(
-                lambda: task.apply_async(
-                    args=_task_args(job.job_type, new_id, request.user.id, params)
-                )
-            )
-        return Response({"job_id": new_job.job_id}, status=status.HTTP_202_ACCEPTED)
+        new_id = _start_job(
+            request.user, job.job_type, job.params or {}, "retrying a job"
+        )
+        return Response({"job_id": new_id}, status=status.HTTP_202_ACCEPTED)
 
 
 def _task_args(job_type, job_id, user_id, params):
@@ -226,14 +284,46 @@ class _TaskRegistry(dict):
 _TASK_MAP = _TaskRegistry()
 
 
+_TASK_MAP_SOURCES = {
+    "timetable": "generate_timetable_task",
+    "distribution": "generate_distribution_task",
+    "allocation": "generate_allocation_task",
+    "distribution_all": "generate_distribution_all_task",
+    "allocation_all": "generate_allocation_all_task",
+}
+
+
 def _populate_task_map():
     if _TASK_MAP:
         return
-    _TASK_MAP["timetable"] = _import_task("generate_timetable_task")
-    _TASK_MAP["distribution"] = _import_task("generate_distribution_task")
-    _TASK_MAP["allocation"] = _import_task("generate_allocation_task")
-    _TASK_MAP["distribution_all"] = _import_task("generate_distribution_all_task")
-    _TASK_MAP["allocation_all"] = _import_task("generate_allocation_all_task")
+    for job_type, name in _TASK_MAP_SOURCES.items():
+        _TASK_MAP[job_type] = _import_task(name)
+
+
+def _start_job(user, job_type, params, action):
+    """Create a job and queue its task, unless another generation job is
+    active. The settings row is locked while checking, so two requests at
+    once cannot both start a job (on Postgres; SQLite serialises writes)."""
+    _populate_task_map()
+    job_id = str(uuid.uuid4())
+    with transaction.atomic():
+        lock_pk = _get_or_create_settings().pk
+        SystemSettings.objects.select_for_update().get(pk=lock_pk)
+        _assert_no_active_job(action)
+        BackgroundJob.objects.create(
+            job_id=job_id,
+            job_type=job_type,
+            status="pending",
+            created_by=user,
+            params=params,
+        )
+        task = _TASK_MAP[job_type]
+        transaction.on_commit(
+            lambda: task.apply_async(
+                args=_task_args(job_type, job_id, user.id, params)
+            )
+        )
+    return job_id
 
 
 # Generate endpoints --------------------------------------------------------
@@ -244,22 +334,7 @@ class _BaseGenerateView(APIView):
     job_type: str = ""
 
     def _create_job(self, user, params):
-        _populate_task_map()
-        job_id = str(uuid.uuid4())
-        BackgroundJob.objects.create(
-            job_id=job_id,
-            job_type=self.job_type,
-            status="pending",
-            created_by=user,
-            params=params,
-        )
-        task = _TASK_MAP[self.job_type]
-        transaction.on_commit(
-            lambda: task.apply_async(
-                args=_task_args(self.job_type, job_id, user.id, params)
-            )
-        )
-        return job_id
+        return _start_job(user, self.job_type, params, "starting another")
 
 
 class GenerateTimetableView(_BaseGenerateView):
@@ -352,10 +427,10 @@ class GenerateDistributionView(_BaseGenerateView):
         period = request.data.get("period")
         if not date or not period:
             raise ValidationError({"detail": "date and period are required."})
-        if Distribution.objects.filter(date=date, period=period).exists():
+        if slot_is_distributed(date, period):
             raise Conflict(
                 f"A distribution for {date} ({period}) already exists. "
-                "Clear it before regenerating."
+                "Clear the slot before regenerating."
             )
         _assert_ready("distribution", [(date, period)])
         job_id = self._create_job(request.user, {"date": date, "period": period})
@@ -371,7 +446,7 @@ class GenerateAllocationView(_BaseGenerateView):
         period = request.data.get("period")
         if not date or not period:
             raise ValidationError({"detail": "date and period are required."})
-        if not Distribution.objects.filter(date=date, period=period).exists():
+        if not slot_is_distributed(date, period):
             raise ValidationError(
                 {
                     "detail": (
@@ -391,7 +466,7 @@ class GenerateAllocationView(_BaseGenerateView):
 
 class GenerateDistributionAllView(_BaseGenerateView):
     """Distribute every (date, period) slot in the timetable in one go.
-    Slots that already have a Distribution row are skipped."""
+    Slots that already have a distribution plan are skipped."""
 
     job_type = "distribution_all"
 
@@ -424,6 +499,53 @@ class GenerateAllocationAllView(_BaseGenerateView):
         _assert_ready("allocation")
         job_id = self._create_job(request.user, {})
         return Response({"job_id": job_id}, status=status.HTTP_202_ACCEPTED)
+
+
+def _slot_from(data):
+    date = data.get("date")
+    period = data.get("period")
+    if not date or not period:
+        raise ValidationError({"detail": "date and period are required."})
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise ValidationError({"detail": "date must be in YYYY-MM-DD format."})
+    if period not in ("AM", "PM"):
+        raise ValidationError({"detail": "period must be AM or PM."})
+    return date, period
+
+
+
+
+class ClearDistributionView(APIView):
+    """POST /api/distribution/clear/ — body: {date, period}.
+
+    Clears one slot's distribution and the seat allocation planned from it,
+    so the slot can be distributed again."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        date, period = _slot_from(request.data)
+        _assert_no_active_job("clearing a slot")
+        with transaction.atomic():
+            clear_slot_distribution(date, period)
+        return Response(
+            {"detail": f"Distribution and seat allocation for {date} ({period}) cleared."}
+        )
+
+
+class ClearAllocationView(APIView):
+    """POST /api/allocation/clear/ — body: {date, period}. Clears one slot's
+    seat allocation; its distribution stays."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        date, period = _slot_from(request.data)
+        _assert_no_active_job("clearing a slot")
+        clear_slot_allocation(date, period)
+        return Response({"detail": f"Seat allocation for {date} ({period}) cleared."})
 
 
 class ManualSeatAssignmentView(APIView):

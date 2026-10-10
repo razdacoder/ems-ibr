@@ -134,10 +134,12 @@ export interface TimetableEstimate {
   worst_class_pm: number;
   per_class_min_days: number;
   throughput_min_days: number;
+  cbe_min_days: number;
+  cbe_refused: { code: string; students: number; limit: number }[];
   am_seat_demand: number;
   pm_seat_demand: number;
   seats_per_period: number;
-  bottleneck: "per_class" | "seat_throughput";
+  bottleneck: "per_class" | "seat_throughput" | "cbe_capacity";
   relaxed_count: number;
   refused_count: number;
   strict_limit: number;
@@ -345,5 +347,37 @@ export function useReadiness(
       return res.data;
     },
     enabled,
+  });
+}
+
+/** Clear one slot's distribution (and the seating planned from it), so
+ *  "Generate for all slots" distributes it again. */
+export function useClearDistributionSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slot: { date: string; period: Period }) => {
+      const res = await api.post<{ detail: string }>("/distribution/clear/", slot);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["distribution"] });
+      qc.invalidateQueries({ queryKey: ["allocation"] });
+      qc.invalidateQueries({ queryKey: ["readiness"] });
+    },
+  });
+}
+
+/** Clear one slot's seat allocation; its distribution stays. */
+export function useClearAllocationSlot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slot: { date: string; period: Period }) => {
+      const res = await api.post<{ detail: string }>("/allocation/clear/", slot);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allocation"] });
+      qc.invalidateQueries({ queryKey: ["readiness"] });
+    },
   });
 }

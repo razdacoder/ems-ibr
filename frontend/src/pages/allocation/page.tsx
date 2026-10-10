@@ -5,6 +5,7 @@ import {
   useAllocation,
   useReadiness,
   useTimetableDates,
+  useClearAllocationSlot,
 } from "@/api/scheduling";
 import { useGenerateAllocationAll } from "@/api/jobs";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { isSuperAdmin, useAuth } from "@/lib/auth";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
+import { useConfirm } from "@/lib/confirm";
 
 export default function AllocationPage() {
   const { user } = useAuth();
@@ -58,6 +60,30 @@ export default function AllocationPage() {
   const blocked = readiness.data?.ready === false;
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressOpen, setProgressOpen] = useState(false);
+  const confirm = useConfirm();
+  const clearSlot = useClearAllocationSlot();
+  const slotHasData = !!list.data?.results.length;
+
+  const onClearSlot = async () => {
+    if (!date) return;
+    const ok = await confirm({
+      title: `Clear seat allocation for ${date} ${period}?`,
+      description: "Every seat in this slot is removed, including seats assigned by hand. Generate for all slots afterwards to seat it again.",
+      confirmLabel: "Clear slot",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await clearSlot.mutateAsync({ date, period });
+      toast({ title: "Slot cleared" });
+    } catch (err) {
+      toast({
+        title: "Could not clear",
+        description: extractErrorEnvelope(err).detail,
+        variant: "destructive",
+      });
+    }
+  };
 
   const onGenerate = async () => {
     try {
@@ -127,6 +153,16 @@ export default function AllocationPage() {
             <SelectItem value="PM">PM</SelectItem>
           </SelectContent>
         </Select>
+        {isAdmin && slotHasData && (
+          <Button
+            variant="outline"
+            className="ml-auto"
+            onClick={onClearSlot}
+            disabled={clearSlot.isPending}
+          >
+            {clearSlot.isPending ? "Clearing…" : "Clear this slot"}
+          </Button>
+        )}
       </div>
 
       <Card>
