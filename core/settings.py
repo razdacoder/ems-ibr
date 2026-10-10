@@ -193,6 +193,9 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Uploaded institution logo. Set in production: the container's own disk is
 # wiped on every deploy. Format: cloudinary://<api_key>:<api_secret>@<cloud_name>
 CLOUDINARY_URL = env("CLOUDINARY_URL", default="")
+# Opt out of the ems.E001 deploy check: only for one instance whose
+# MEDIA_ROOT is on a persistent volume.
+LOCAL_MEDIA_PERSISTENT = env.bool("LOCAL_MEDIA_PERSISTENT", default=False)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

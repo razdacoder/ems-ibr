@@ -21,6 +21,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 
 from .branding import add_document_branding, load_logo
+from .export_files import XLSX, ZIP, SpooledFileResponse, spool
 from .identifiers import clean_number_text
 from .broadsheet import TimetableBroadSheet
 from .models import (
@@ -1084,7 +1085,7 @@ def generate_attendance_sheets(request):
     relaxed_course_id = slot_relaxed_course_id(date, period)
 
     # Create a zip file containing all attendance sheets
-    zip_buffer = io.BytesIO()
+    zip_buffer = spool()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         written = write_hall_attendance_sheets(
             zip_file,
@@ -1097,18 +1098,15 @@ def generate_attendance_sheets(request):
             logo=load_logo(settings_obj),
         )
     if not written:
+        zip_buffer.close()
         messages.error(request, "No placed students found for attendance sheets.")
         return redirect("allocation")
 
-
-    # Prepare response
-    zip_buffer.seek(0)
-    response = HttpResponse(zip_buffer.getvalue(), content_type="application/zip")
-    response["Content-Disposition"] = (
-        f'attachment; filename="Attendance_Sheets_{hall.name.strip()}_{date.strip()}_{period.strip()}.zip"'
+    return SpooledFileResponse(
+        zip_buffer,
+        f"Attendance_Sheets_{hall.name.strip()}_{date.strip()}_{period.strip()}.zip",
+        ZIP,
     )
-
-    return response
 
 
 @login_required(login_url="login")
@@ -1139,22 +1137,10 @@ def generate_broadsheet(request):
         exporter = TimetableBroadSheet()
         workbook = exporter.generate_excel(list(timetables), semester, academic_year)
 
-        # Create HTTP response
-        response = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-        # Generate filename
         filename = f"Examination_Timetable_{semester}_Semester_{academic_year.replace('/', '_')}.xlsx"
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-
-        # Save workbook to response
-        virtual_workbook = io.BytesIO()
+        virtual_workbook = spool()
         workbook.save(virtual_workbook)
-        virtual_workbook.seek(0)
-        response.write(virtual_workbook.getvalue())
-
-        return response
+        return SpooledFileResponse(virtual_workbook, filename, XLSX)
 
     except Exception as e:
         return HttpResponse(f"Error generating Excel file: {str(e)}", status=500)

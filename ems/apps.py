@@ -6,4 +6,4 @@ class EmsConfig(AppConfig):
     name = 'ems'
 
     def ready(self):
-        from ems import signals  # noqa: F401
+        from ems import checks, signals  # noqa: F401

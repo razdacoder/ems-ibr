@@ -17,7 +17,7 @@ DATE, PERIOD = "2026-08-24", "AM"
 
 def read_sheets(response):
     """zip response -> {filename: {"text": all paragraphs, "matrics": [...], "seats": [...]}}"""
-    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    archive = zipfile.ZipFile(io.BytesIO(response.getvalue()))
     sheets = {}
     for name in archive.namelist():
         doc = Document(io.BytesIO(archive.read(name)))
@@ -100,7 +100,7 @@ class BulkAttendanceExportTests(AttendanceFixture):
 
         response = export_arrangements(RequestFactory().get("/", {"date": DATE, "period": PERIOD}))
 
-        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        archive = zipfile.ZipFile(io.BytesIO(response.getvalue()))
         self.assertIn("error.txt", archive.namelist())
 
 
@@ -227,7 +227,7 @@ class BulkHallAttendanceApiTests(AttendanceFixture):
 
 class LogoTests(AttendanceFixture):
     def sheet_images(self, response):
-        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        archive = zipfile.ZipFile(io.BytesIO(response.getvalue()))
         return [n for n in archive.namelist()], [
             len(Document(io.BytesIO(archive.read(n))).inline_shapes) for n in archive.namelist()
         ]

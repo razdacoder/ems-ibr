@@ -13,6 +13,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 
 from . import publication
 from .branding import add_document_branding
+from .export_files import ZIP, SpooledFileResponse, spool
 from .models import Distribution, TimeTable, SeatArrangement, SystemSettings
 from .seating_rules import RELAXED_SHEET_LINE
 from .utils import slot_relaxed_course_id
@@ -200,7 +201,7 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
     relaxed_course_id = slot_relaxed_course_id(date_obj, period)
 
     # Create a zip containing DOCX attendance sheets grouped by course folders
-    in_memory_zip = io.BytesIO()
+    in_memory_zip = spool()
     with zipfile.ZipFile(in_memory_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for course_id, course_data in grouped.items():
             course = course_data['course']
@@ -321,8 +322,6 @@ def export_arrangements(request: HttpRequest) -> HttpResponse:
                 zip_path = f"{course_folder}/{filename}"
                 zip_file.writestr(zip_path, doc_buffer.getvalue())
 
-    # Prepare the zip for download
-    in_memory_zip.seek(0)
-    response = HttpResponse(in_memory_zip.getvalue(), content_type='application/zip')
-    response['Content-Disposition'] = f'attachment; filename="Attendance_Sheets_{date_obj}_{period}.zip"'
-    return response
+    return SpooledFileResponse(
+        in_memory_zip, f"Attendance_Sheets_{date_obj}_{period}.zip", ZIP
+    )

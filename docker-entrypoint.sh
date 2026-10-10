@@ -133,6 +133,12 @@ else
     echo "Collecting static files (incl. the React SPA bundle)..."
     python manage.py collectstatic --no-input
 
+    # Fails the deploy on errors only (the stock --deploy security checks are
+    # warnings). ems.E001: uploaded media must not live on this container's
+    # disk, or the logo is lost on redeploy and missing on other instances.
+    echo "Running deploy checks..."
+    python manage.py check --deploy --fail-level ERROR
+
     echo "Running database migrations..."
     python manage.py migrate --noinput
 

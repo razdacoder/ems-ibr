@@ -6,12 +6,9 @@ the renderer is bypassed, so the existing functions in ``ems.csv_gen`` and
 ``Content-Disposition`` headers) can be used as-is.
 """
 
-import io
 import zipfile
 from datetime import datetime
 from itertools import groupby
-
-from django.http import HttpResponse
 
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
@@ -19,6 +16,7 @@ from rest_framework.views import APIView
 
 from ems import csv_gen
 from ems.branding import load_logo
+from ems.export_files import ZIP, SpooledFileResponse, spool
 from ems.models import SeatArrangement, SystemSettings
 from ems.utils import slot_relaxed_course_id
 from ems.views import (
@@ -145,7 +143,7 @@ class BulkAttendanceSheetsView(APIView):
         logo = load_logo(settings_obj)
         relaxed_course_id = slot_relaxed_course_id(date, period)
 
-        buffer = io.BytesIO()
+        buffer = spool()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for _hall_id, rows in groupby(placed.iterator(chunk_size=2000), key=lambda a: a.hall_id):
                 rows = list(rows)
@@ -161,11 +159,9 @@ class BulkAttendanceSheetsView(APIView):
                     logo=logo,
                     folder=_zip_folder(hall.name),
                 )
-        response = HttpResponse(buffer.getvalue(), content_type="application/zip")
-        response["Content-Disposition"] = (
-            f'attachment; filename="Attendance_Sheets_All_Halls_{date}_{period}.zip"'
+        return SpooledFileResponse(
+            buffer, f"Attendance_Sheets_All_Halls_{date}_{period}.zip", ZIP
         )
-        return response
 
 
 class BroadsheetView(APIView):

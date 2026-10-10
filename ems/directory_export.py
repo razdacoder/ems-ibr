@@ -17,7 +17,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-from ems.branding import add_document_branding
+from ems.branding import add_document_branding, load_logo
 
 _HALL_HEADERS = ["Hall", "Class Name", "No. Of Students", "Matric Numbers"]
 _HALL_CSV_HEADERS = ["Date", "Period", *_HALL_HEADERS]
@@ -64,13 +64,15 @@ def _visa_slot_docx(doc, slot: dict) -> None:
 def build_docx(doc_type: str, payload: list[dict], settings_obj) -> bytes:
     """Render the payload to a multi-page DOCX (one page per slot)."""
     document = Document()
+    # Fetched once for the whole document, not once per page.
+    logo = load_logo(settings_obj)
     if not payload:
-        add_document_branding(document, settings_obj)
+        add_document_branding(document, settings_obj, logo=logo)
         document.add_paragraph("No data for the selected scope.")
     for i, slot in enumerate(payload):
         if i > 0:
             document.add_page_break()
-        add_document_branding(document, settings_obj)
+        add_document_branding(document, settings_obj, logo=logo)
         if doc_type == "hall":
             _hall_slot_docx(document, slot)
         else:
