@@ -18,7 +18,7 @@ from django.test import RequestFactory
 
 from django.core.exceptions import ValidationError
 from django.core.management import CommandError, call_command
-from django.db import connection
+from django.db import DEFAULT_DB_ALIAS, connection, connections
 from django.test import override_settings
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name, schema_context
@@ -33,6 +33,8 @@ from ems.notifications import job_group, notify, user_group
 
 from ems.models import AuditLog, BackgroundJob, Notification, SystemSettings, User
 from tenancy.features import KEYS
+from tenancy.management.commands.migrate_platform import LOCK_KEY
+from tenancy.migration_executor import LiveSchoolsExecutor
 from tenancy.models import Domain, Plan, School, validate_feature_keys
 from tenancy.slugs import RESERVED, SLUG_RE, schema_name_for
 from tenancy.testcases import SchoolClient, SchoolTestCase, SocketTestMixin
@@ -860,3 +862,102 @@ class LocalTimeExportTests(SchoolTestCase):
         stamps = [c.value for row in sheet.ws.iter_rows() for c in row
                   if isinstance(c.value, str) and c.value.startswith("Generated on")]
         self.assertEqual(stamps, ["Generated on: January 02, 2026 at 05:00 AM"])
+
+
+def migrated_schemas():
+    """Patch the per schema migration and record which schemas it ran on."""
+    ran = []
+    patcher = mock.patch(
+        "django_tenants.migration_executors.standard.run_migrations",
+        side_effect=lambda args, options, codename, schema_name, **kw: ran.append(schema_name),
+    )
+    return patcher, ran
+
+
+class LiveSchoolsExecutorTests(SchoolTestCase):
+    def setUp(self):
+        super().setUp()
+        connection.set_schema_to_public()
+        plan = Plan.objects.get(code="platform")
+        for status in School.Status:
+            slug = f"st-{status.value.replace('_', '-')}"
+            School.objects.create(
+                schema_name=schema_name_for(slug), slug=slug, name=slug, plan=plan,
+                status=status, first_admin_name="A", first_admin_email="a@x.com",
+            )
+
+    def tearDown(self):
+        connection.set_tenant(self.tenant)
+        super().tearDown()
+
+    def test_tenant_migrations_skip_schools_that_are_not_live(self):
+        # covers: AC-8
+        patcher, ran = migrated_schemas()
+        with patcher:
+            call_command("migrate_schemas", tenant=True, interactive=False, verbosity=0)
+
+        self.assertIn("school_test", ran)
+        self.assertTrue(
+            {"school_st_active", "school_st_suspended", "school_st_pending_deletion"} <= set(ran)
+        )
+        for skipped in ("school_st_provisioning", "school_st_failed", "school_st_purged"):
+            self.assertNotIn(skipped, ran)
+
+    def test_an_explicit_schema_migrates_even_while_provisioning(self):
+        # Provisioning's create_schema passes --schema for a school not yet live.
+        patcher, ran = migrated_schemas()
+        executor = LiveSchoolsExecutor([], {"schema_name": "school_st_provisioning"})
+        with patcher:
+            executor.run_migrations(tenants=["school_st_provisioning"])
+
+        self.assertEqual(ran, ["school_st_provisioning"])
+
+
+def migrate_lock_is_held():
+    """True when another session holds the deploy's migrate lock."""
+    probe = connections.create_connection(DEFAULT_DB_ALIAS)
+    try:
+        with probe.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", [LOCK_KEY])
+            got = cursor.fetchone()[0]
+            if got:
+                cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", [LOCK_KEY])
+        return not got
+    finally:
+        probe.close()
+
+
+class MigratePlatformTests(SchoolTestCase):
+    def run_steps(self, steps, fail_on=None):
+        def step(name, **options):
+            steps.append((name, "tenant" if options.get("tenant") else
+                          "shared" if options.get("shared") else None, migrate_lock_is_held()))
+            if (name, options.get("tenant")) == fail_on:
+                raise RuntimeError("migration 0042 failed")
+
+        with mock.patch(
+            "tenancy.management.commands.migrate_platform.call_command", side_effect=step
+        ):
+            call_command("migrate_platform", stdout=StringIO())
+
+    def test_shared_then_tenant_then_domains_all_under_the_lock(self):
+        # covers: AC-8
+        steps = []
+        self.run_steps(steps)
+
+        self.assertEqual(steps, [
+            ("migrate_schemas", "shared", True),
+            ("migrate_schemas", "tenant", True),
+            ("ensure_public_domains", None, True),
+        ])
+        self.assertFalse(migrate_lock_is_held())
+
+    def test_a_failing_school_migration_stops_the_run_and_frees_the_lock(self):
+        # covers: AC-8
+        steps = []
+        with self.assertRaisesMessage(RuntimeError, "migration 0042 failed"):
+            self.run_steps(steps, fail_on=("migrate_schemas", True))
+
+        self.assertEqual([name for name, *_ in steps], ["migrate_schemas", "migrate_schemas"])
+        self.assertFalse(migrate_lock_is_held())
+

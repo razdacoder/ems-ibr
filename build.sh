@@ -5,13 +5,12 @@ set -o errexit
 # steps here in sync with the Dockerfile. The frontend is a separate Node
 # service: `pnpm install --frozen-lockfile && pnpm build` then `pnpm start`,
 # in frontend/.
+#
+# No migrations here: they run in the pre-deploy command,
+# `python manage.py migrate_platform`, so a failed migration stops the release.
 
 # --- Backend deps ---------------------------------------------------------
 pip install -r requirements.txt
 
 # --- Django ---------------------------------------------------------------
 python manage.py collectstatic --no-input
-python manage.py makemigrations ems
-python manage.py migrate ems
-python manage.py migrate
-python manage.py create_superuser

@@ -84,6 +84,8 @@ INSTALLED_APPS = SHARED_APPS + [a for a in TENANT_APPS if a not in SHARED_APPS]
 
 TENANT_MODEL = "tenancy.School"
 TENANT_DOMAIN_MODEL = "tenancy.Domain"
+# Sequential, and only schools in a live status (tenancy.migration_executor).
+GET_EXECUTOR_FUNCTION = "tenancy.migration_executor.get_executor"
 
 MIDDLEWARE = [
     # /healthz first: probes may send any Host header.

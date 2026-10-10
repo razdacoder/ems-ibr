@@ -52,6 +52,10 @@ class School(TenantMixin):
         PENDING_DELETION = "pending_deletion", "Pending deletion"
         PURGED = "purged", "Purged"
 
+    # Schools whose schema is in use and must follow every deploy's
+    # migrations. Provisioning and failed schemas are rebuilt from scratch.
+    LIVE_STATUSES = (Status.ACTIVE, Status.SUSPENDED, Status.PENDING_DELETION)
+
     # The schema is created by provisioning, never as a side effect of save().
     auto_create_schema = False
 
