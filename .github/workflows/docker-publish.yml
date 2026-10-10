@@ -23,8 +23,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     # Two images: the Django API (api.<domain>), and the TanStack Start
-    # frontend serving the marketing site (<domain>) and dashboard
-    # (app.<domain>).
+    # dashboard (<domain>). The marketing site has its own repo (ordo-site).
     # Final image is ghcr.io/<owner>/<basename>, lowercased below.
     strategy:
       fail-fast: false

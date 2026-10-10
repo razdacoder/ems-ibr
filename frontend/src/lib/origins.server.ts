@@ -1,21 +1,18 @@
 /**
- * One app, three hosts:
+ * The dashboard's neighbours:
  *
- *   ordo.app      — marketing site (SSR)
- *   app.ordo.app  — dashboard (client-rendered)
+ *   ordo.app      — this dashboard (client-rendered)
  *   api.ordo.app  — Django (REST + WebSockets), a separate service
+ *   SITE_URL      — the marketing site, a separate repo on its own domain
  *
- * Each origin is derived from the host the request came in on, so one build
- * serves any domain (localhost / app.localhost in dev). SITE_URL, APP_URL
- * and PUBLIC_API_URL override the derivation when the hosts don't follow
- * that pattern.
+ * The API origin is derived from the host the request came in on (api. of
+ * the bare host), so one build serves any domain; PUBLIC_API_URL overrides
+ * it. The site can't be derived, so it's only linked to when SITE_URL is set.
  */
 
-export const APP_PREFIX = "app.";
-
 export interface Origins {
-  site: string;
-  app: string;
+  /** The marketing site, or null when SITE_URL isn't set. */
+  site: string | null;
   /** Django as the browser reaches it. */
   api: string;
 }
@@ -33,17 +30,12 @@ export function requestHost(request: Request): { proto: string; host: string } {
   };
 }
 
-export function isAppHost(host: string): boolean {
-  return host.startsWith(APP_PREFIX);
-}
-
 export function origins(request: Request): Origins {
   const { proto, host } = requestHost(request);
-  const bare = host.replace(/^(app|www)\./, "");
+  const bare = host.replace(/^www\./, "");
   const env = process.env;
   return {
-    site: env.SITE_URL ? trim(env.SITE_URL) : `${proto}://${bare}`,
-    app: env.APP_URL ? trim(env.APP_URL) : `${proto}://${APP_PREFIX}${bare}`,
+    site: env.SITE_URL ? trim(env.SITE_URL) : null,
     api: env.PUBLIC_API_URL ? trim(env.PUBLIC_API_URL) : `${proto}://api.${bare}`,
   };
 }

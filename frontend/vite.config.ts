@@ -4,15 +4,12 @@ import { nitro } from "nitro/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// One TanStack Start app on Node (Nitro) serving two hosts:
-//   ordo.app      — marketing site, server-rendered
-//   app.ordo.app  — dashboard, rendered in the browser (ssr: false)
-// Host routing lives in src/start.ts. Django is a separate service on
-// api.ordo.app that the browser calls directly. Server-side env (API_URL,
-// PUBLIC_API_URL, …) comes from the process in production; in dev,
-// .env.development fills it in. Dev: http://ordo.localhost:3000 is the
-// site, http://app.ordo.localhost:3000 the dashboard (plain localhost /
-// app.localhost work too, but can't share the theme cookie).
+// Ordo dashboard: TanStack Start on Node (Nitro), on the apex domain
+// (ordo.app), rendered in the browser (ssr: false). Django is a separate
+// service on api.ordo.app that the browser calls directly; the marketing
+// site is a separate repo on its own domain (SITE_URL). Server-side env
+// (API_URL, PUBLIC_API_URL, SITE_URL) comes from the process in production;
+// in dev, .env.development fills it in. Dev: http://localhost:3000.
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""), process.env);
   return {

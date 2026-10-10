@@ -1,9 +1,8 @@
 /**
- * The theme preference lives in a cookie on the parent domain (ordo.app),
- * so the site and the dashboard (app.ordo.app) share it — localStorage is
- * per-origin and would keep a separate setting on each host. On bare
- * `localhost` browsers refuse a Domain cookie, so it's host-only there; use
- * ordo.localhost / app.ordo.localhost in dev to share it.
+ * The theme preference lives in a cookie on the bare domain (ordo.app, www.
+ * stripped). Earlier builds set it there from app.ordo.app too, so existing
+ * preferences carry over now that the dashboard is on the apex. On bare
+ * `localhost` browsers refuse a Domain cookie, so it's host-only there.
  *
  * THEME_SCRIPT in routes/__root.tsx repeats this logic inline (it runs
  * before any module loads) — keep the two in sync.
@@ -16,7 +15,7 @@ export const THEME_COOKIE = "ordo-theme";
 const LEGACY_KEY = "ordo:theme";
 
 function cookieDomain(): string | null {
-  const host = window.location.hostname.replace(/^(app|www)\./, "");
+  const host = window.location.hostname.replace(/^www\./, "");
   return host.includes(".") ? host : null;
 }
 

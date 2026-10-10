@@ -233,20 +233,15 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "ems.api.exceptions.handler",
 }
 
-# The frontend (site + dashboard, frontend/) runs on other origins and calls
-# this API from the browser with a token header — no cookies, so no
-# credentials. In production set this to the dashboard origin, e.g.
-# https://app.ordo.app. WebSocket handshakes are checked against the same
-# list (core/asgi.py).
+# The dashboard (frontend/) runs on another origin and calls this API from
+# the browser with a token header — no cookies, so no credentials. In
+# production set this to the dashboard origin, e.g. https://ordo.app. The
+# marketing site (separate repo) only calls the API server-side, so it needs
+# no entry. WebSocket handshakes are checked against the same list
+# (core/asgi.py).
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
-    default=[
-        "http://localhost:3000",
-        "http://app.localhost:3000",
-        # Dev on ordo.localhost so the site and dashboard share the theme
-        # cookie (browsers refuse Domain=localhost).
-        "http://app.ordo.localhost:3000",
-    ],
+    default=["http://localhost:3000"],
 )
 CORS_ALLOW_CREDENTIALS = False
 CORS_EXPOSE_HEADERS = ["Content-Disposition"]
