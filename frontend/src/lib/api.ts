@@ -19,6 +19,20 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Django runs on its own origin (api.<domain>). The server works it out per
+// request and the root route hands it over here before any page renders.
+let apiOrigin = "";
+
+export function setApiOrigin(origin: string) {
+  apiOrigin = origin;
+  api.defaults.baseURL = `${origin}/api`;
+}
+
+/** WebSocket URL on the Django origin, e.g. wsUrl("/ws/notifications/"). */
+export function wsUrl(path: string): string {
+  return (apiOrigin || window.location.origin).replace(/^http/, "ws") + path;
+}
+
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {

@@ -1,28 +1,19 @@
 import { ArrowUpRight } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth";
+import { useOrigins } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 /**
- * Where the public pages should send someone: the dashboard if they're
- * already signed in, the login page otherwise.
+ * Where the public pages should send someone: the dashboard on the app
+ * subdomain. The session token lives in the app host's storage, so the
+ * site can't tell whether you're signed in — the dashboard's route guard
+ * forwards anyone signed out to its login page.
  */
 export function useAuthEntry() {
-  const { status } = useAuth();
-  const signedIn = status === "authenticated";
-  return {
-    signedIn,
-    /** False while the stored session is still being checked. */
-    ready: status !== "loading",
-    to: signedIn ? "/dashboard" : "/login",
-  };
+  return { href: `${useOrigins().app}/` };
 }
 
-/**
- * Header call-to-action that knows whether you're signed in. Holds its
- * width (invisible) while the session check runs so the header doesn't jump.
- */
+/** Header call-to-action into the dashboard. */
 export function AuthButton({
   size = "sm",
   className,
@@ -30,17 +21,15 @@ export function AuthButton({
   size?: "sm" | "default";
   className?: string;
 }) {
-  const { signedIn, ready, to } = useAuthEntry();
+  const { href } = useAuthEntry();
   return (
     <Button
-      render={<Link to={to} />}
+      render={<a href={href} />}
       variant="brand"
       size={size}
-      aria-hidden={!ready}
-      tabIndex={ready ? undefined : -1}
-      className={cn(!ready && "invisible", className)}
+      className={cn(className)}
     >
-      {signedIn ? "Dashboard" : "Sign in"}
+      Sign in
       <ArrowUpRight data-icon="inline-end" strokeWidth={2.25} />
     </Button>
   );

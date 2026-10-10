@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { Bell, CheckCheck } from "lucide-react";
 import {
   useMarkAllRead,
@@ -51,7 +51,8 @@ export function NotificationBell({
 
   const openItem = (n: AppNotification) => {
     if (!n.read_at) markRead.mutate(n.id);
-    if (n.link) navigate(n.link);
+    // Server-supplied path (may carry a query string), so navigate by href.
+    if (n.link) navigate({ href: n.link });
   };
 
   const badge = unread > 99 ? "99+" : String(unread);
@@ -62,7 +63,7 @@ export function NotificationBell({
         aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
         title="Notifications"
         className={cn(
-          "relative inline-flex items-center rounded-md text-muted-foreground transition-colors hover:bg-[color:var(--brand-soft)]/40 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--brand)]/40",
+          "relative inline-flex items-center rounded-none text-muted-foreground transition-colors hover:bg-[color:var(--brand-soft)]/40 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--brand)]/40",
           label ? "w-full gap-2.5 px-2.5 py-1.5 text-[13.5px]" : "size-8 justify-center",
           className,
         )}

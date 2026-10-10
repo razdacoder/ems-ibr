@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, useLocation, Navigate, Link } from "react-router-dom";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { RedirectHome } from "@/components/route-guards";
 import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/logo";
 import { InstitutionLogo } from "@/components/institution-logo";
+import { useOrigins } from "@/lib/config";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -32,7 +34,8 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const { login, status } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const search = useSearch({ from: "/login" });
+  const origins = useOrigins();
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -41,16 +44,17 @@ export default function LoginPage() {
   });
 
   if (status === "authenticated") {
-    return <Navigate to="/dashboard" replace />;
+    return <RedirectHome />;
   }
 
   const onSubmit = async (values: FormValues) => {
     setTopError(null);
     try {
       await login(values.email, values.password);
-      const redirectTo =
-        (location.state as { from?: string } | null)?.from ?? "/dashboard";
-      navigate(redirectTo, { replace: true });
+      // Only same-app paths — never an attacker-supplied absolute URL.
+      const back = search.redirect;
+      const safe = back?.startsWith("/") && !back.startsWith("//");
+      navigate({ href: safe ? back : "/", replace: true });
     } catch (err) {
       const envelope = extractErrorEnvelope(err);
       setTopError(envelope.detail);
@@ -73,12 +77,12 @@ export default function LoginPage() {
       >
         <div className="relative flex h-full flex-col justify-between p-12 xl:p-16">
           <div className="flex items-center justify-between">
-            <Link
-              to="/"
+            <a
+              href={`${origins.site}/`}
               className="inline-flex"
             >
               <Wordmark size="lg" />
-            </Link>
+            </a>
           </div>
 
           <div className="max-w-xl">
@@ -155,12 +159,12 @@ export default function LoginPage() {
           <ThemeToggle size="sm" iconOnly />
         </div>
         <div className="flex items-center justify-between border-b border-[color:var(--border)] px-6 py-5 lg:hidden">
-          <Link
-            to="/"
+          <a
+            href={`${origins.site}/`}
             className="inline-flex"
           >
             <Wordmark />
-          </Link>
+          </a>
           <div className="flex items-center gap-2">
             <ThemeToggle size="sm" iconOnly />
           </div>
@@ -226,7 +230,7 @@ export default function LoginPage() {
                           autoComplete="email"
                           autoFocus
                           placeholder="you@university.edu"
-                          className="h-11 rounded-md border-[color:var(--border)] bg-background"
+                          className="h-11"
                           {...field}
                         />
                       </FormControl>
@@ -245,7 +249,7 @@ export default function LoginPage() {
                       <FormControl>
                         <PasswordInput
                           autoComplete="current-password"
-                          className="h-11 rounded-md border-[color:var(--border)] bg-background"
+                          className="h-11"
                           {...field}
                         />
                       </FormControl>

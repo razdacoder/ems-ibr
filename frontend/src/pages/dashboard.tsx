@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
+import type { AppPath } from "@/lib/paths";
 import { useDashboardStats } from "@/api/system";
 import { InstitutionName } from "@/components/institution-logo";
 import { useAuth } from "@/lib/auth";
@@ -25,7 +26,7 @@ const TILES: Array<{
     | "students_count";
   label: string;
   icon: typeof Building2;
-  to: string;
+  to: AppPath;
   /** Admin-only routes/data — staff users should not see these tiles. */
   adminOnly?: boolean;
 }> = [

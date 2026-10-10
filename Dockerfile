@@ -1,15 +1,6 @@
-# --- Stage 1: build the React SPA -----------------------------------------
-FROM node:20-slim AS frontend
-WORKDIR /frontend
+# Django API (REST + WebSockets). The site and dashboard are a separate
+# image built from frontend/Dockerfile.
 
-# package manifests first for layer-cached installs
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-COPY frontend/ ./
-RUN npm run build
-
-# --- Stage 2: Python runtime ----------------------------------------------
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,9 +25,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Application source. .dockerignore excludes .venv, node_modules,
 # db.sqlite3, etc., so this stays lean.
 COPY . .
-
-# Drop in the React build from stage 1 so collectstatic can pick it up.
-COPY --from=frontend /frontend/dist ./frontend/dist
 
 # Materialize STATIC_ROOT inside the image. Failing fast here catches a
 # broken build at image-build time, not runtime.

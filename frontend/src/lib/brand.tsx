@@ -11,6 +11,9 @@ import { useTheme } from "@/lib/theme";
  * chroma for the primary slots), so a custom brand looks as polished as the
  * default in both light and dark mode. When no colour is set we remove the
  * overrides and the stylesheet defaults take over.
+ *
+ * The server renders the same values as a <style> block (brandCss) so the
+ * first paint is already on-brand; BrandApplier keeps it live afterwards.
  */
 
 const BRAND_VARS = [
@@ -86,6 +89,34 @@ function applyBrand(hex: string, isDark: boolean) {
   set("--chart-3", 0.55, 0.22);
   set("--chart-4", 0.42, 0.21);
   set("--chart-5", 0.3, 0.16);
+}
+
+/** CSS overriding the brand variables for light and dark mode, or "". */
+export function brandCss(hex: string | null | undefined): string {
+  const parsed = hex ? hexToOklch(hex) : null;
+  if (!parsed) return "";
+  const { c, h } = parsed;
+  const v = (name: string, l: number, chroma: number) =>
+    `${name}:oklch(${l} ${chroma} ${h});`;
+  const main = clamp(c, 0.08, 0.26);
+  // Chart series — light→deep ramp at the brand hue.
+  const charts =
+    v("--chart-1", 0.78, 0.12) +
+    v("--chart-2", 0.66, 0.18) +
+    v("--chart-3", 0.55, 0.22) +
+    v("--chart-4", 0.42, 0.21) +
+    v("--chart-5", 0.3, 0.16);
+  const light =
+    v("--brand", 0.55, main) +
+    v("--brand-foreground", 0.99, 0.005) +
+    v("--brand-soft", 0.95, 0.045) +
+    v("--brand-strong", 0.42, Math.min(main, 0.22));
+  const dark =
+    v("--brand", 0.7, Math.min(main, 0.2)) +
+    v("--brand-foreground", 0.155, 0.012) +
+    v("--brand-soft", 0.32, 0.1) +
+    v("--brand-strong", 0.84, Math.min(main, 0.16));
+  return `:root{${light}${charts}}.dark{${dark}${charts}}`;
 }
 
 /** Headless: applies the brand colour whenever it or the theme changes. */

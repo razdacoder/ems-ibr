@@ -18,13 +18,22 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  # Image name suffix under the registry owner. Final image is
-  # ghcr.io/<owner>/<IMAGE_BASENAME>, lowercased in the step below.
-  IMAGE_BASENAME: ems-aura-schedule
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Two images: the Django API (api.<domain>), and the TanStack Start
+    # frontend serving the marketing site (<domain>) and dashboard
+    # (app.<domain>).
+    # Final image is ghcr.io/<owner>/<basename>, lowercased below.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - basename: ems-aura-schedule
+            context: .
+          - basename: ems-aura-schedule-frontend
+            context: frontend
     permissions:
       contents: read
       packages: write
@@ -37,7 +46,7 @@ jobs:
       # login can contain uppercase, so normalize it here.
       - name: Compute lowercase image name
         run: |
-          echo "IMAGE_NAME=$(echo '${{ github.repository_owner }}/${{ env.IMAGE_BASENAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=$(echo '${{ github.repository_owner }}/${{ matrix.basename }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,18 +73,19 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # Builds the whole app (Dockerfile stage 1 compiles the React SPA,
-      # stage 2 is the Python/Daphne runtime). Pushes on every event except
-      # pull_request, which only validates that the image builds.
+      # API image: Python/Daphne runtime. Frontend image: frontend/Dockerfile
+      # (Node SSR via Nitro).
+      # Pushes on every event except pull_request, which only validates that
+      # the image builds.
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.basename }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.basename }}
           # Single, clean manifest — avoids the "unknown/unknown" attestation
           # entry that trips up some registries / deploy platforms.
           provenance: false

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { AlertTriangle, Info } from "lucide-react";
 import type { Readiness } from "@/api/scheduling";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -182,7 +182,8 @@ function Items({
       {shown.map((it) => (
         <li key={it.key} className="flex flex-wrap items-baseline gap-2">
           <Link
-            to={`/classes/${it.classId}`}
+            to="/classes/$id"
+            params={{ id: String(it.classId) }}
             className="font-medium text-foreground"
           >
             {it.label}

@@ -57,7 +57,7 @@ import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { EMPTY } from "@/lib/format";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 
 export default function ClassesListPage() {
   const { user } = useAuth();
@@ -274,7 +274,7 @@ export default function ClassesListPage() {
                   <TableCell className="text-right">
                     <RowActions>
                       <Button
-                        render={<Link to={`/classes/${c.id}`} />}
+                        render={<Link to="/classes/$id" params={{ id: String(c.id) }} />}
                         size="xs"
                         variant="outline"
                       >

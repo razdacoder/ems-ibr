@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* In the stylesheet, not a JS import, so the face applies from the first
+   server-rendered paint rather than after the client bundle runs. */
+@import "@fontsource-variable/outfit";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -61,7 +64,7 @@
 
 :root {
   /* Ordo — Bone canvas, Ink text, Signal green accent. */
-  --background: oklch(1 0 0); /* Bone */
+  --background: oklch(1 0 none); /* Bone. Hue `none`, not 0: color-mix in oklch would otherwise swing tints toward pink. */
   --foreground: oklch(0.145 0.008 326); /* Ink */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0.008 326);
@@ -111,10 +114,12 @@
   --accent-blue-fg: var(--brand-strong);
   --accent-yellow: var(--brand-soft);
   --accent-yellow-fg: var(--brand-strong);
-  --accent-red: var(--brand-soft);
-  --accent-red-fg: var(--brand-strong);
+  /* Red is for errors only, so it's the destructive colour, not brand. */
+  --accent-red: color-mix(in srgb, var(--destructive) 12%, var(--background));
+  --accent-red-fg: var(--destructive);
 
-  /* Chart series — Signal green shades from light to deep, no hue rotation. */
+  /* Chart series — neutral mauve ramp, light to deep. lib/brand.tsx swaps
+     in brand-hue shades when an institution colour is set. */
   --chart-1: oklch(0.865 0.012 325.68);
   --chart-2: oklch(0.542 0.034 322.5);
   --chart-3: oklch(0.435 0.029 321.78);
@@ -177,8 +182,9 @@
   --accent-blue-fg: var(--brand-strong);
   --accent-yellow: var(--brand-soft);
   --accent-yellow-fg: var(--brand-strong);
-  --accent-red: var(--brand-soft);
-  --accent-red-fg: var(--brand-strong);
+  /* Red is for errors only, so it's the destructive colour, not brand. */
+  --accent-red: color-mix(in srgb, var(--destructive) 12%, var(--background));
+  --accent-red-fg: var(--destructive);
 
   --chart-1: oklch(0.865 0.012 325.68);
   --chart-2: oklch(0.542 0.034 322.5);
@@ -188,8 +194,8 @@
 
   --sidebar: oklch(0.212 0.019 322.12);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: oklch(0.263 0.024 320.12);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);

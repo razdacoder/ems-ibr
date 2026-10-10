@@ -52,10 +52,7 @@ Ink text on a Bone canvas, square controls, small uppercase labels with wide let
 
 These were found while extracting the system. The docs describe the intended rule; the code doesn't follow it yet.
 
-- **Light `--brand-soft` renders pale pink, not pale green.** It is defined as `color-mix(in oklch, var(--brand) 14%, var(--background))`, and `--background` is `oklch(1 0 0)`. The `0` there is an explicit hue, not `none`, so the mix interpolates the hue from 142° to 0°. This affects every light-mode section chip and tone fill in the app. Fix: write the background as `oklch(1 0 none)`, or mix `in srgb`.
-- **Red and amber tones render green.** `--accent-red-fg` and `--accent-yellow-fg` alias to the brand pair. They are still used where an error or warning colour is clearly meant: the Settings danger zone, over-capacity counts in allocation, hall validation text, failed job status, and distribution load bars. Those places should use `--destructive` (or a label and icon) instead.
-- **Dark `--sidebar-primary` is a stray blue** (`oklch(0.488 0.243 264)`) left over from the shadcn default. It is unused today but off-system.
-- **The `--chart-*` comment says "Signal green shades"**, but the defaults are neutral mauve. They only turn into brand-hue shades when an institution colour is set.
-- **Toast** still uses the older shadcn recipe (`rounded-md`, `red-300` and similar), not the square, token-only style.
-- **The favicon's ink** is `#251b28`, but the Ink token is `#0c090c`. The files in `logo/` use the token.
-- **Unused fonts:** `@fontsource-variable/bodoni-moda` and `@fontsource/ibm-plex-mono` are installed but never imported. `font-serif` and `font-mono` both map to Outfit.
+- **Amber tones still render green.** `--accent-yellow*` / `--accent-amber*` alias to the brand pair, and that's deliberate under principle 1: queued, pending and near-capacity states are told apart by label and icon. If a real warning colour is ever wanted, it needs adding as a token, not borrowed from a palette.
+- **Raster favicons** (`favicon-32.png`, `apple-touch-icon.png`) still carry the old ink `#251b28`; re-export them from `favicon.svg`.
+
+Resolved (October 2026): light `--brand-soft` drifting pink (Bone is now `oklch(1 0 none)`), the red tone rendering green (`--accent-red*` now resolve to `--destructive`), the stray blue dark `--sidebar-primary` (now `--primary`), the `--chart-*` comment, the Toast recipe (now square and token-only), the favicon SVG ink (now the Ink token), and the unused Bodoni Moda / IBM Plex Mono packages (removed).

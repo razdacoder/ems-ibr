@@ -81,10 +81,7 @@ ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # In prod, the Docker build copies the React app's index.html into
-        # frontend/dist/. Catchall URL renders it as a Django template so the
-        # SPA boots from any unrecognised path.
-        "DIRS": [BASE_DIR / "frontend" / "dist"],
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -161,16 +158,12 @@ STATIC_URL = "/static/"
 # Static files collection directory
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Directory where source static files are located. The React app's compiled
-# bundle (frontend/dist) is also collected so WhiteNoise can serve it under
-# /static/. The empty `static/` dir keeps DEBUG=True local runs working
-# even before the frontend has been built.
+# Directory where source static files are located (admin/DRF static only —
+# the frontend is its own service). The empty `static/` dir keeps
+# DEBUG=True local runs working.
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-_FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
-if _FRONTEND_DIST.exists():
-    STATICFILES_DIRS.append(_FRONTEND_DIST)
 
 # Django 5.0+ uses STORAGES instead of deprecated STATICFILES_STORAGE
 # Use standard FileSystemStorage - WhiteNoise middleware will handle serving and compression
@@ -240,15 +233,19 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "ems.api.exceptions.handler",
 }
 
-# CORS for the Vite dev server and any deployed frontend origin. In the
-# bundled-frontend production deploy, the SPA is same-origin so CORS is not
-# strictly required — but the dev defaults below are kept so `npm run dev`
-# against a local Django server works out of the box.
+# The frontend (site + dashboard, frontend/) runs on other origins and calls
+# this API from the browser with a token header — no cookies, so no
+# credentials. In production set this to the dashboard origin, e.g.
+# https://app.ordo.app. WebSocket handshakes are checked against the same
+# list (core/asgi.py).
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://app.localhost:3000",
+        # Dev on ordo.localhost so the site and dashboard share the theme
+        # cookie (browsers refuse Domain=localhost).
+        "http://app.ordo.localhost:3000",
     ],
 )
 CORS_ALLOW_CREDENTIALS = False

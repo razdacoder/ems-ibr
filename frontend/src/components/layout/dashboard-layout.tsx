@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, Outlet } from "@tanstack/react-router";
+import type { AppPath } from "@/lib/paths";
 import {
   Armchair,
   Boxes,
@@ -62,7 +63,7 @@ interface NavSection {
 }
 
 interface NavItem {
-  to: string;
+  to: AppPath;
   label: string;
   icon: LucideIcon;
   /** When set, the item is shown only if the predicate passes for the user. */
@@ -73,7 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: "Overview",
     tone: "iris",
-    items: [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+    items: [{ to: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Catalog",
@@ -186,12 +187,12 @@ function SidebarContent({
         )}
       >
         {collapsed ? (
-          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+          <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
             <Logo size={22} />
           </Link>
         ) : (
           <>
-            <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+            <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
               <Wordmark />
             </Link>
             <InstitutionLogo size={32} className="ml-auto" />
@@ -231,10 +232,10 @@ function SidebarContent({
               )}
               <div className="space-y-0.5">
                 {section.items.map(({ to, label, icon: Icon }) => (
-                  <NavLink
+                  <Link
                     key={to}
                     to={to}
-                    end={to === "/dashboard"}
+                    activeOptions={{ exact: to === "/" }}
                     onClick={onNavigate}
                     title={collapsed ? label : undefined}
                     style={
@@ -243,17 +244,18 @@ function SidebarContent({
                         "--nav-fg": accentFg,
                       } as React.CSSProperties
                     }
-                    className={({ isActive }) =>
-                      cn(
-                        "group relative flex items-center rounded-md text-[13.5px] transition-all duration-200",
-                        collapsed
-                          ? "h-9 justify-center"
-                          : "gap-2.5 px-2.5 py-1.5",
-                        isActive
-                          ? "bg-[color:var(--nav-bg)] text-[color:var(--nav-fg)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--nav-fg)_22%,transparent)]"
-                          : "text-muted-foreground hover:bg-[color:var(--nav-bg)]/60 hover:text-[color:var(--nav-fg)]",
-                      )
-                    }
+                    className={cn(
+                      "group relative flex items-center rounded-md text-[13.5px] transition-all duration-200",
+                      collapsed ? "h-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
+                    )}
+                    activeProps={{
+                      className:
+                        "bg-[color:var(--nav-bg)] text-[color:var(--nav-fg)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--nav-fg)_22%,transparent)]",
+                    }}
+                    inactiveProps={{
+                      className:
+                        "text-muted-foreground hover:bg-[color:var(--nav-bg)]/60 hover:text-[color:var(--nav-fg)]",
+                    }}
                   >
                     {({ isActive }) => (
                       <>
@@ -284,7 +286,7 @@ function SidebarContent({
                         )}
                       </>
                     )}
-                  </NavLink>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -487,7 +489,7 @@ export function DashboardLayout() {
           >
             <Menu strokeWidth={2} />
           </Button>
-          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+          <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
             <Wordmark size="sm" />
           </Link>
           <div className="flex items-center gap-2">

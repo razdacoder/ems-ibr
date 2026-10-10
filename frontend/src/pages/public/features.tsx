@@ -1,8 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
-import { useFeatures } from "@/api/public";
+import type { FeatureSummary } from "@/lib/site-api";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLockup } from "@/components/logo";
 import { useReveal } from "@/lib/use-reveal";
@@ -13,20 +12,20 @@ function PublicHeader() {
     <header className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-background/70 backdrop-blur-md">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-8">
         <Link
-          to="/"
+          to="/site"
           className="flex items-center"
         >
           <BrandLockup size="lg" />
         </Link>
         <nav className="hidden items-center gap-8 text-[14px] text-muted-foreground md:flex">
           <Link
-            to="/"
+            to="/site"
             className="transition-colors hover:text-[color:var(--brand-strong)]"
           >
             Home
           </Link>
           <Link
-            to="/features"
+            to="/site/features"
             className="text-foreground"
             style={{ color: "var(--brand-strong)" }}
           >
@@ -50,33 +49,32 @@ function PublicFooter() {
         <span>&copy; {new Date().getFullYear()} Ordo · All rights reserved.</span>
         <span className="flex items-center gap-6">
           <Link
-            to="/"
+            to="/site"
             className="transition-colors hover:text-[color:var(--brand-strong)]"
           >
             Home
           </Link>
           <Link
-            to="/features"
+            to="/site/features"
             className="transition-colors hover:text-[color:var(--brand-strong)]"
           >
             Modules
           </Link>
-          <Link
-            to={entry.to}
+          <a
+            href={entry.href}
             className="transition-colors hover:text-[color:var(--brand-strong)]"
           >
-            {entry.signedIn ? "Dashboard" : "Sign in"}
-          </Link>
+            Sign in
+          </a>
         </span>
       </div>
     </footer>
   );
 }
 
-export default function FeaturesPage() {
+export default function FeaturesPage({ features }: { features: FeatureSummary[] }) {
   const entry = useAuthEntry();
   useReveal();
-  const features = useFeatures();
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
       <PublicHeader />
@@ -133,7 +131,7 @@ export default function FeaturesPage() {
                   className="mt-6 flex items-center gap-4"
                 >
                   <Button
-                    render={<Link to={entry.to} />}
+                    render={<a href={entry.href} />}
                     variant="brand"
                     size="lg"
                   >
@@ -154,68 +152,61 @@ export default function FeaturesPage() {
           <div className="mx-auto max-w-7xl px-6 py-16 sm:px-8 lg:py-24">
             <div data-reveal className="mb-10 flex items-end justify-end">
               <p className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:block">
-                {features.data?.length ?? 0} modules
+                {features.length} modules
               </p>
             </div>
 
-            {features.isLoading ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-44 rounded-[12px]" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {features.data?.map((f, i) => (
-                  <Link
-                    key={f.slug}
-                    to={`/features/${f.slug}`}
-                    data-reveal
-                    style={
-                      {
-                        "--reveal-delay": `${i * 70}ms`,
-                      } as React.CSSProperties
-                    }
-                    className="group relative flex flex-col justify-between gap-6 overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)]/40 hover:shadow-[0_22px_44px_-26px_color-mix(in_oklch,var(--brand)_60%,transparent)]"
-                  >
-                    {/* Top rail — slides in on hover */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {features.map((f, i) => (
+                <Link
+                  key={f.slug}
+                  to="/site/features/$slug"
+                  params={{ slug: f.slug }}
+                  data-reveal
+                  style={
+                    {
+                      "--reveal-delay": `${i * 70}ms`,
+                    } as React.CSSProperties
+                  }
+                  className="group relative flex flex-col justify-between gap-6 overflow-hidden rounded-[14px] border border-[color:var(--border)] bg-card p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)]/40 hover:shadow-[0_22px_44px_-26px_color-mix(in_oklch,var(--brand)_60%,transparent)]"
+                >
+                  {/* Top rail — slides in on hover */}
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100"
+                    style={{ backgroundColor: "var(--brand)" }}
+                  />
+                  <div className="flex items-start justify-between gap-4">
                     <span
-                      aria-hidden
-                      className="absolute inset-x-0 top-0 h-[3px] origin-left scale-x-0 transition-transform duration-500 ease-out group-hover:scale-x-100"
-                      style={{ backgroundColor: "var(--brand)" }}
-                    />
-                    <div className="flex items-start justify-between gap-4">
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
+                      style={{
+                        backgroundColor: "var(--brand-soft)",
+                        color: "var(--brand-strong)",
+                      }}
+                    >
                       <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em]"
-                        style={{
-                          backgroundColor: "var(--brand-soft)",
-                          color: "var(--brand-strong)",
-                        }}
-                      >
-                        <span
-                          aria-hidden
-                          className="size-1 rounded-full"
-                          style={{ backgroundColor: "var(--brand-strong)" }}
-                        />
-                        Module · {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <ArrowUpRight
-                        className="size-4 text-muted-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[color:var(--brand-strong)]"
-                        strokeWidth={2.25}
+                        aria-hidden
+                        className="size-1 rounded-full"
+                        style={{ backgroundColor: "var(--brand-strong)" }}
                       />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-[1.625rem] leading-[1.1] tracking-[-0.01em]">
-                        {f.title}
-                      </h3>
-                      <p className="mt-2 text-[14px] leading-[1.6] text-muted-foreground">
-                        {f.subtitle}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+                      Module · {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <ArrowUpRight
+                      className="size-4 text-muted-foreground transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[color:var(--brand-strong)]"
+                      strokeWidth={2.25}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-[1.625rem] leading-[1.1] tracking-[-0.01em]">
+                      {f.title}
+                    </h3>
+                    <p className="mt-2 text-[14px] leading-[1.6] text-muted-foreground">
+                      {f.subtitle}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -253,13 +244,13 @@ export default function FeaturesPage() {
               </h2>
             </div>
             <Button
-              render={<Link to={entry.to} />}
+              render={<a href={entry.href} />}
               size="lg"
               variant="inverse"
               data-reveal
               style={{ ["--reveal-delay" as string]: "120ms" }}
             >
-              {entry.signedIn ? "Go to dashboard" : "Sign in"}
+              Sign in
               <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
             </Button>
           </div>

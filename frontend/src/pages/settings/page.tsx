@@ -313,7 +313,7 @@ export default function SettingsPage() {
                         <textarea
                           rows={2}
                           placeholder="123 Campus Road, City"
-                          className="flex min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          className="flex min-h-[64px] w-full border border-transparent border-b-input bg-transparent px-0 py-2 text-base outline-none transition-[color,border-color] placeholder:text-muted-foreground focus-visible:border-b-ring aria-invalid:border-b-destructive md:text-sm"
                           {...field}
                         />
                       </FormControl>
@@ -366,7 +366,7 @@ export default function SettingsPage() {
                           aria-label="Brand color"
                           value={field.value || "#3FE06B"}
                           onChange={(e) => field.onChange(e.target.value)}
-                          className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
+                          className="h-9 w-12 shrink-0 cursor-pointer rounded-none border border-input bg-transparent p-1"
                         />
                         <FormControl>
                           <Input

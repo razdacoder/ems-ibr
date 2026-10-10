@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearch } from "@tanstack/react-router";
 import { ArrowLeft, LayoutGrid, List } from "lucide-react";
 import { useHallAllocation } from "@/api/scheduling";
 import { api } from "@/lib/api";
@@ -32,12 +32,12 @@ import { seatNumberGrid } from "@/lib/hall-layout";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function HallAllocationPage() {
-  const [params] = useSearchParams();
-  const cleanParam = (v: string | null) =>
+  const search = useSearch({ from: "/_app/allocation/hall" });
+  const cleanParam = (v: string | undefined) =>
     v && v !== "undefined" && v !== "null" ? v : undefined;
-  const date = cleanParam(params.get("date"));
-  const period = (cleanParam(params.get("period")) ?? "AM") as "AM" | "PM";
-  const hallId = cleanParam(params.get("hall_id"));
+  const date = cleanParam(search.date);
+  const period = (cleanParam(search.period) ?? "AM") as "AM" | "PM";
+  const hallId = cleanParam(search.hall_id);
   const { user } = useAuth();
   // Only super admins may manually assign seats; committee members view/export only.
   const isAdmin = isSuperAdmin(user);
@@ -132,7 +132,8 @@ export default function HallAllocationPage() {
   return (
     <div className="space-y-10">
       <Link
-        to={`/allocation${date ? `?date=${date}&period=${period}` : ""}`}
+        to="/allocation"
+        search={date ? { date, period } : {}}
         className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3" strokeWidth={2.25} />

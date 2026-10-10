@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -409,14 +409,14 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/70 backdrop-blur-md">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 sm:px-8">
           <Link
-            to="/"
+            to="/site"
             className="flex items-center"
           >
             <BrandLockup size="lg" />
           </Link>
 
           <nav className="hidden items-center gap-9 text-[14px] text-muted-foreground md:flex">
-            <Link to="/features" className="hover:text-[color:var(--brand-strong)]">
+            <Link to="/site/features" className="hover:text-[color:var(--brand-strong)]">
               Modules
             </Link>
             <a href="#pipeline" className="hover:text-[color:var(--brand-strong)]">
@@ -502,7 +502,7 @@ export default function LandingPage() {
 
                 <div className="mt-10 flex flex-wrap items-center gap-4">
                   <Button
-                    render={<Link to={entry.to} />}
+                    render={<a href={entry.href} />}
                     size="lg"
                     variant="brand"
                   >
@@ -510,7 +510,7 @@ export default function LandingPage() {
                     <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
                   </Button>
                   <Link
-                    to="/features"
+                    to="/site/features"
                     className="group inline-flex items-center gap-1.5 text-[14px] font-medium text-foreground"
                   >
                     See every module
@@ -739,7 +739,7 @@ export default function LandingPage() {
                 </h2>
               </div>
               <Link
-                to="/features"
+                to="/site/features"
                 className="group inline-flex items-center gap-1.5 text-[13px] text-foreground"
                 data-reveal
               >
@@ -1247,15 +1247,15 @@ export default function LandingPage() {
               style={{ ["--reveal-delay" as string]: "200ms" }}
             >
               <Button
-                render={<Link to={entry.to} />}
+                render={<a href={entry.href} />}
                 size="lg"
                 variant="inverse"
               >
-                {entry.signedIn ? "Go to dashboard" : "Sign in to the dashboard"}
+                Sign in to the dashboard
                 <ArrowRight data-icon="inline-end" strokeWidth={2.25} />
               </Button>
               <Link
-                to="/features"
+                to="/site/features"
                 className="group inline-flex items-center gap-1.5 text-[14px] font-medium"
                 style={{
                   color: "color-mix(in oklch, var(--brand-foreground) 85%, transparent)",
@@ -1287,7 +1287,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 gap-10 py-16 sm:grid-cols-12">
               <div className="col-span-2 sm:col-span-5">
                 <Link
-                  to="/"
+                  to="/site"
                   className="inline-flex text-foreground"
                 >
                   <Wordmark size="lg" />
@@ -1307,7 +1307,7 @@ export default function LandingPage() {
                 <ul className="mt-4 space-y-2.5 text-[13.5px] text-foreground">
                   <li>
                     <Link
-                      to="/features"
+                      to="/site/features"
                       className="hover:text-[color:var(--brand-strong)]"
                     >
                       Modules
@@ -1330,12 +1330,12 @@ export default function LandingPage() {
                     </a>
                   </li>
                   <li>
-                    <Link
-                      to={entry.to}
+                    <a
+                      href={entry.href}
                       className="hover:text-[color:var(--brand-strong)]"
                     >
                       Dashboard
-                    </Link>
+                    </a>
                   </li>
                 </ul>
               </div>

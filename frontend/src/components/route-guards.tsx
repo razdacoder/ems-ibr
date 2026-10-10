@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   canManageData,
   canManageFaculties,
@@ -10,17 +10,39 @@ import {
 } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/*
+ * Redirects fire once, from an effect. TanStack's <Navigate> re-navigates
+ * whenever its props object changes — i.e. on every re-render of the guard,
+ * which happens while the navigation is pending — so it never settles.
+ */
+
+/** Send a signed-out visitor to /login, remembering where they were going. */
+function RedirectToLogin() {
+  const navigate = useNavigate();
+  const [from] = useState(useLocation().href);
+  useEffect(() => {
+    navigate({ to: "/login", search: { redirect: from }, replace: true });
+  }, [navigate, from]);
+  return <FullPageSkeleton />;
+}
+
+/** Send the visitor to the dashboard home. */
+export function RedirectHome() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate({ to: "/", replace: true });
+  }, [navigate]);
+  return null;
+}
+
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useAuth();
-  const location = useLocation();
   if (status === "loading") return <FullPageSkeleton />;
-  if (status === "unauthenticated") {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  }
+  if (status === "unauthenticated") return <RedirectToLogin />;
   return <>{children}</>;
 }
 
-/** Gate children behind a capability predicate; redirect elsewhere to /dashboard. */
+/** Gate children behind a capability predicate; redirect others home. */
 function RequireCapability({
   allow,
   children,
@@ -29,14 +51,9 @@ function RequireCapability({
   children: ReactNode;
 }) {
   const { status, user } = useAuth();
-  const location = useLocation();
   if (status === "loading") return <FullPageSkeleton />;
-  if (status === "unauthenticated") {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  }
-  if (!allow(user)) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (status === "unauthenticated") return <RedirectToLogin />;
+  if (!allow(user)) return <RedirectHome />;
   return <>{children}</>;
 }
 

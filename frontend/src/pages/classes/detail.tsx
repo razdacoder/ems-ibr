@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,7 +60,7 @@ import { toast } from "@/lib/use-toast";
 import { formatEmail, formatName, formatTitle, orEmpty } from "@/lib/format";
 
 export default function ClassDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams({ from: "/_app/classes/$id" });
   const numericId = id ? Number(id) : undefined;
   const cls = useClass(numericId);
   const remove = useRemoveCourseFromClass(numericId ?? 0);
