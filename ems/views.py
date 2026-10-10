@@ -1358,7 +1358,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         params={"start_date": startDate, "end_date": endDate},
     )
 
-    # Force commit to database before triggering task (important for SQLite)
+    # Queue the task only after the job row is committed, so the worker can read it
     from django.db import transaction
 
     transaction.on_commit(
@@ -1397,7 +1397,7 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             params={"date": date, "period": period},
         )
 
-        # Force commit to database before triggering task (important for SQLite)
+        # Queue the task only after the job row is committed, so the worker can read it
         from django.db import transaction
 
         transaction.on_commit(
@@ -1459,7 +1459,7 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             params={"date": date, "period": period},
         )
 
-        # Force commit to database before triggering task (important for SQLite)
+        # Queue the task only after the job row is committed, so the worker can read it
         from django.db import transaction
 
         transaction.on_commit(

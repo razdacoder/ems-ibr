@@ -35,3 +35,10 @@ daphne==4.1.2
 Pillow==12.2.0
 reportlab==4.5.1
 cloudinary==1.46.2
+
+# Multi school platform (spec 0003)
+django-tenants==3.13.0
+tenant-schemas-celery==5.0.0
+pyotp==2.10.0
+cryptography==50.0.2
+boto3==1.43.111

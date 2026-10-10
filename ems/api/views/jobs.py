@@ -303,7 +303,7 @@ def _populate_task_map():
 def _start_job(user, job_type, params, action):
     """Create a job and queue its task, unless another generation job is
     active. The settings row is locked while checking, so two requests at
-    once cannot both start a job (on Postgres; SQLite serialises writes)."""
+    once cannot both start a job."""
     _populate_task_map()
     job_id = str(uuid.uuid4())
     with transaction.atomic():

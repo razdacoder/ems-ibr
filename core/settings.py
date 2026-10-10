@@ -1,7 +1,6 @@
 import environ
 from pathlib import Path
 import os
-import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -102,21 +101,12 @@ ASGI_APPLICATION = "core.asgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 # Database configuration
-# Use PostgreSQL if DATABASE_URL is provided, otherwise fallback to SQLite
-if env("DATABASE_URL", default=None):
-    # PostgreSQL Database Configuration (for production)
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.parse(env("DATABASE_URL"))
-    }
-else:
-    # Fallback to SQLite for development
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# Postgres is required everywhere, including tests and local dev: each school
+# will live in its own Postgres schema (spec 0003), which SQLite can't do.
+import dj_database_url
+DATABASES = {
+    'default': dj_database_url.parse(env("DATABASE_URL"))
+}
 
 
 # Password validation
@@ -262,8 +252,11 @@ CHANNEL_LAYERS = {
 
 # The test suite runs without Redis (CI has none), so job-progress and
 # notification pushes go through an in-process layer there. A fast hasher
-# keeps the many test users cheap.
-if len(sys.argv) > 1 and sys.argv[1] == "test":
+# keeps the many test users cheap. ORDO_TESTING is set by whatever runs the
+# tests (CI, or `ORDO_TESTING=1 python manage.py test`), so it holds under
+# any runner rather than depending on argv.
+TESTING = env.bool("ORDO_TESTING", default=False)
+if TESTING:
     CHANNEL_LAYERS = {
         "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
     }
