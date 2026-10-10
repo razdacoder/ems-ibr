@@ -4,6 +4,8 @@ Every ``ems`` table lives in a school's schema, so tests run inside one: the
 ``test`` school at ``test.localhost``, created once per run and reused by
 every class (``FastTenantTestCase``). Each test still rolls back as usual.
 """
+from unittest import mock
+
 from django_tenants.test.cases import FastTenantTestCase, TenantTestCase
 from rest_framework.test import APIClient
 
@@ -60,3 +62,16 @@ class SchoolTestCase(FastTenantTestCase):
         super(TenantTestCase, cls).tearDownClass()
         super().tearDownClass()
 
+
+class SocketTestMixin:
+    """Run WebSocket consumers inside the test's transaction.
+
+    ``WebsocketCommunicator`` runs sync database code back on the test's own
+    thread and connection, but Channels closes that connection around each
+    call, which would end the transaction the test rolls back. Keep it open.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.enterClassContext(mock.patch("channels.db.close_old_connections"))

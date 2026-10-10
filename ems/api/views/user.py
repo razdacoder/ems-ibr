@@ -1,8 +1,8 @@
 import csv
-from datetime import datetime
 
 from django.db import transaction
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
@@ -63,7 +63,7 @@ class UserViewSet(viewsets.ModelViewSet):
         accounts are excluded.
         """
         users = self.get_queryset().filter(is_staff=False)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = timezone.localtime().strftime("%Y%m%d-%H%M%S")
         filename = f"departmental-staff-{timestamp}.csv"
         response = HttpResponse(
             content_type="text/csv",
@@ -91,7 +91,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     dept.name if dept else "",
                     dept.slug if dept else "",
                     "yes" if u.is_active else "no",
-                    u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
+                    timezone.localtime(u.created_at).strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
                 ]
             )
         return response

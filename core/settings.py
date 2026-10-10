@@ -200,7 +200,8 @@ STATICFILES_DIRS = [
 # Use standard FileSystemStorage - WhiteNoise middleware will handle serving and compression
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        # MEDIA_ROOT/<schema_name>/, resolved on every call.
+        "BACKEND": "ems.cloudinary_storage.SchoolFileSystemStorage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -237,8 +238,17 @@ CELERY_CACHE_BACKEND = "default"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
+# Beat schedules in UTC; school tasks activate the school's own zone.
+CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
+# django_celery_results would store every school's task arguments in the
+# public schema, outside isolation. BackgroundJob already records outcomes.
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_EXPIRES = 24 * 60 * 60  # cleans up anything that opts back in
+# One message per worker process, acked when done: jobs from different
+# schools start in arrival order instead of queueing behind a prefetch.
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes (hard: worker SIGKILL, uncatchable)
 # Soft limit fires ~5 min earlier as a catchable SoftTimeLimitExceeded so a
 # task can mark its BackgroundJob 'failed' with a useful message instead of

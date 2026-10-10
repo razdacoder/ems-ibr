@@ -1,16 +1,16 @@
 """The notification service, the inbox API and the live WebSocket push."""
-import unittest
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
-from django.test import TransactionTestCase
+from django.db import connection
 from rest_framework.authtoken.models import Token
 
 from core.asgi import application
 from ems.models import AuditLog, Notification, User
 from ems.notifications import notify, user_group
-from tenancy.testcases import SchoolClient, SchoolTestCase
+from tenancy.testcases import (
+    SCHOOL_TEST_HOST, SchoolClient, SchoolTestCase, SocketTestMixin,
+)
 
 from .helpers import make_department
 
@@ -49,7 +49,9 @@ class NotifyTests(SchoolTestCase):
     def test_pushes_to_each_recipient_group_after_commit(self):
         layer = get_channel_layer()
         channel = async_to_sync(layer.new_channel)()
-        async_to_sync(layer.group_add)(user_group(self.ada.pk), channel)
+        async_to_sync(layer.group_add)(
+            user_group(connection.schema_name, self.ada.pk), channel
+        )
 
         with self.captureOnCommitCallbacks(execute=True):
             notify([self.ada], title="Hello", link="/timetable")
@@ -117,11 +119,7 @@ class InboxApiTests(SchoolTestCase):
         self.assertEqual(SchoolClient().get("/api/notifications/").status_code, 401)
 
 
-# Sockets resolve their school from the Host header once the WebSocket
-# tenant middleware lands (spec 0003, build slice 4); until then a socket
-# can't reach any school's tables.
-@unittest.skip("Needs WebSocket school scope (spec 0003, build slice 4).")
-class NotificationSocketTests(TransactionTestCase):
+class NotificationSocketTests(SocketTestMixin, SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.token = Token.objects.get(user=self.ada).key
@@ -131,7 +129,10 @@ class NotificationSocketTests(TransactionTestCase):
         return WebsocketCommunicator(
             application,
             f"/ws/notifications/?token={token}",
-            headers=[(b"host", b"localhost"), (b"origin", b"http://localhost")],
+            headers=[
+                (b"host", SCHOOL_TEST_HOST.encode()),
+                (b"origin", f"http://{SCHOOL_TEST_HOST}:3000".encode()),
+            ],
         )
 
     def test_sends_the_unread_count_then_each_new_one(self):
@@ -142,7 +143,7 @@ class NotificationSocketTests(TransactionTestCase):
             self.assertEqual(await ws.receive_json_from(), {"type": "unread", "count": 1})
 
             await get_channel_layer().group_send(
-                user_group(self.ada.pk),
+                user_group("school_test", self.ada.pk),
                 {"type": "notification.new", "data": {"title": "Live"}},
             )
             self.assertEqual(

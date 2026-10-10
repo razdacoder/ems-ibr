@@ -1,11 +1,13 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
+from django.db import connection
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from rest_framework.authtoken.models import Token
 
 from ems.models import BackgroundJob, Class, Student
+from ems.notifications import job_group
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
@@ -30,7 +32,7 @@ def push_job_progress(sender, instance: BackgroundJob, **kwargs):
     }
     try:
         async_to_sync(layer.group_send)(
-            f"job_{instance.job_id}",
+            job_group(connection.schema_name, instance.job_id),
             {"type": "job.progress", "data": payload},
         )
     except Exception:
