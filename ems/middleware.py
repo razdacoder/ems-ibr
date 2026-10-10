@@ -14,6 +14,9 @@ though token auth has no session middleware behind it.
 import json
 import re
 
+from django.db import connection
+from django_tenants.utils import get_public_schema_name
+
 from ems.models import AuditLog, User
 
 # Trailing path segments that name a custom action rather than an object id.
@@ -195,6 +198,9 @@ class AuditLogMiddleware:
     def _record(self, request, response, is_login, login_email):
         path = request.path or ""
         if not path.startswith("/api/"):
+            return
+        # admin.<base> and api.<base> have no school, so no AuditLog table.
+        if connection.schema_name == get_public_schema_name():
             return
 
         method = (request.method or "").upper()

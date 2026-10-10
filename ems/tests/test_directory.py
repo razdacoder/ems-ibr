@@ -1,17 +1,17 @@
 """Hall directory: one row per (hall, class) with the class's matric range."""
 import datetime as dt
 
-from django.test import TestCase
 
 from ems.directory import format_matric_range, hall_summary_rows
 from ems.models import SeatArrangement
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import enrol, make_class, make_course, make_department, make_hall
 
 DATE, PERIOD = dt.date(2026, 8, 17), "AM"
 
 
-class FormatMatricRangeTests(TestCase):
+class FormatMatricRangeTests(SchoolTestCase):
     def test_shows_the_full_start_and_the_differing_end(self):
         matrics = ["2430113585", "2430113600", "2430113616"]
 
@@ -38,7 +38,7 @@ class FormatMatricRangeTests(TestCase):
         self.assertEqual(format_matric_range([]), "")
 
 
-class HallSummaryRowsTests(TestCase):
+class HallSummaryRowsTests(SchoolTestCase):
     def setUp(self):
         self.course = make_course("ACC 121")
         self.cls = make_class(6, make_department("ac"), name="ND II")

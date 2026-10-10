@@ -126,6 +126,9 @@ else
     echo "Running database migrations..."
     python manage.py migrate --noinput
 
+    # admin.<base> and api.<base> on the public schema (idempotent).
+    python manage.py ensure_public_domains
+
     echo "Creating superuser if needed..."
     python manage.py create_superuser || true
 

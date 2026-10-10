@@ -22,8 +22,17 @@ SECRET_KEY = env(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS",
-                         default=['ems-ibr.onrender.com', 'localhost', '127.0.0.1'])
+# Every hostname derives from this: <slug>.<base> for schools, admin.<base>
+# for the console and api.<base> for the marketing site (spec 0003).
+# `ordo.app` in production, `staging.ordo.app` on Render, `localhost` locally.
+PLATFORM_BASE_DOMAIN = env("PLATFORM_BASE_DOMAIN", default="localhost")
+
+# The leading dot admits every subdomain. Any other host gets Django's 400,
+# which says nothing about which schools exist. USE_X_FORWARDED_HOST stays
+# off: the school always comes from the real Host header.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[f".{PLATFORM_BASE_DOMAIN}"])
+if DEBUG or env.bool("ORDO_TESTING", default=False):
+    ALLOWED_HOSTS.append(".localhost")
 
 # CSRF Configuration for production
 CSRF_TRUSTED_ORIGINS = env.list(
@@ -43,23 +52,39 @@ if not DEBUG:
 
 # Application definition
 
-INSTALLED_APPS = [
+# One Postgres schema per school (django-tenants). Shared apps live in the
+# public schema; tenant apps get their own tables in every school's schema,
+# so school data never shares a table with another school's.
+SHARED_APPS = [
+    "django_tenants",
     "daphne",
-    "django.contrib.admin",
-    "django.contrib.auth",
+    "tenancy",
     "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
     "django.contrib.staticfiles",
     "channels",
     "rest_framework",
-    "rest_framework.authtoken",
     "corsheaders",
     "django_celery_results",
+]
+
+TENANT_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "rest_framework.authtoken",
     "ems",
 ]
 
+INSTALLED_APPS = SHARED_APPS + [a for a in TENANT_APPS if a not in SHARED_APPS]
+
+TENANT_MODEL = "tenancy.School"
+TENANT_DOMAIN_MODEL = "tenancy.Domain"
+
 MIDDLEWARE = [
+    # /healthz first: probes may send any Host header.
+    "tenancy.middleware.HealthzMiddleware",
+    "tenancy.middleware.SchoolMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -75,7 +100,9 @@ MIDDLEWARE = [
 AUTH_USER_MODEL = "ems.User"
 
 
+# School hosts get core.urls; admin.<base> and api.<base> get the public one.
 ROOT_URLCONF = "core.urls"
+PUBLIC_SCHEMA_URLCONF = "core.urls_public"
 
 TEMPLATES = [
     {
@@ -106,6 +133,16 @@ ASGI_APPLICATION = "core.asgi.application"
 import dj_database_url
 DATABASES = {
     'default': dj_database_url.parse(env("DATABASE_URL"))
+}
+DATABASES["default"]["ENGINE"] = "django_tenants.postgresql_backend"
+DATABASE_ROUTERS = ["django_tenants.routers.TenantSyncRouter"]
+
+# Cache keys carry the schema name, so one school never reads another's.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "KEY_FUNCTION": "django_tenants.cache.make_key",
+    },
 }
 
 

@@ -53,7 +53,6 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
-from ems.api.views.public import FeatureDetailView, FeaturesIndexView
 
 auth_patterns = [
     path("login/", LoginView.as_view(), name="api-login"),
@@ -215,23 +214,13 @@ directory_patterns = [
     path("export/", DirectoryExportView.as_view(), name="api-directory-export"),
 ]
 
-public_patterns = [
-    path("features/", FeaturesIndexView.as_view(), name="api-public-features"),
-    path(
-        "features/<slug:slug>/",
-        FeatureDetailView.as_view(),
-        name="api-public-feature-detail",
-    ),
-]
-
-
 urlpatterns = [
     path("auth/", include(auth_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),
     path("exports/", include(export_patterns)),
     path("directory/", include(directory_patterns)),
-    path("public/", include(public_patterns)),
+    path("public/", include("ems.api.public_urls")),
     path("", include(scheduling_patterns)),
     path("", include(router.urls)),
 ]

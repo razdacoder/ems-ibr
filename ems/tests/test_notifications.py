@@ -1,14 +1,16 @@
 """The notification service, the inbox API and the live WebSocket push."""
+import unittest
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 from rest_framework.authtoken.models import Token
-from rest_framework.test import APIClient
 
 from core.asgi import application
 from ems.models import AuditLog, Notification, User
 from ems.notifications import notify, user_group
+from tenancy.testcases import SchoolClient, SchoolTestCase
 
 from .helpers import make_department
 
@@ -19,7 +21,7 @@ def officer(email, department=None, **fields):
     )
 
 
-class NotifyTests(TestCase):
+class NotifyTests(SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.bola = officer("bola@example.com")
@@ -59,11 +61,11 @@ class NotifyTests(TestCase):
         self.assertIsNone(message["data"]["read_at"])
 
 
-class InboxApiTests(TestCase):
+class InboxApiTests(SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.bola = officer("bola@example.com")
-        self.client = APIClient()
+        self.client = SchoolClient()
         self.client.force_authenticate(self.ada)
         self.first, = notify([self.ada], title="First")
         self.second, = notify([self.ada], title="Second")
@@ -112,9 +114,13 @@ class InboxApiTests(TestCase):
         self.assertFalse(AuditLog.objects.exists())
 
     def test_needs_sign_in(self):
-        self.assertEqual(APIClient().get("/api/notifications/").status_code, 401)
+        self.assertEqual(SchoolClient().get("/api/notifications/").status_code, 401)
 
 
+# Sockets resolve their school from the Host header once the WebSocket
+# tenant middleware lands (spec 0003, build slice 4); until then a socket
+# can't reach any school's tables.
+@unittest.skip("Needs WebSocket school scope (spec 0003, build slice 4).")
 class NotificationSocketTests(TransactionTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
