@@ -27,6 +27,7 @@ let apiOrigin = "";
 export function setApiOrigin(origin: string) {
   apiOrigin = origin;
   api.defaults.baseURL = `${origin}/api`;
+  platformApi.defaults.baseURL = `${origin}/api/platform`;
 }
 
 /** WebSocket URL on the Django origin, e.g. wsUrl("/ws/notifications/"). */
@@ -50,6 +51,50 @@ api.interceptors.response.use(
       if (!window.location.pathname.startsWith("/login")) {
         window.location.assign("/login");
       }
+    }
+    return Promise.reject(error);
+  },
+);
+
+/*
+ * The platform console (admin.<base>) has its own token, kept apart from the
+ * school one, sent as a Bearer token. Django never accepts either on the
+ * other's host.
+ */
+const PLATFORM_TOKEN_KEY = "ordo.platform.token";
+
+export function getPlatformToken(): string | null {
+  return localStorage.getItem(PLATFORM_TOKEN_KEY);
+}
+
+export function setPlatformToken(token: string) {
+  localStorage.setItem(PLATFORM_TOKEN_KEY, token);
+}
+
+export function clearPlatformToken() {
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+}
+
+export const platformApi = axios.create({
+  baseURL: "/api/platform",
+  headers: { "Content-Type": "application/json" },
+});
+
+platformApi.interceptors.request.use((config) => {
+  const token = getPlatformToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+platformApi.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Expired or revoked session. Sign in steps answer 400/410/429, not 401.
+    if (error.response?.status === 401 && getPlatformToken()) {
+      clearPlatformToken();
+      window.location.assign("/console/login");
     }
     return Promise.reject(error);
   },

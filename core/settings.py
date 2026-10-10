@@ -26,6 +26,13 @@ DEBUG = env.bool("DEBUG", default=True)
 # for the console and api.<base> for the marketing site (spec 0003).
 # `ordo.app` in production, `staging.ordo.app` on Render, `localhost` locally.
 PLATFORM_BASE_DOMAIN = env("PLATFORM_BASE_DOMAIN", default="localhost")
+# Scheme for links Ordo emails out (platform admin and school invites).
+PLATFORM_URL_SCHEME = env("PLATFORM_URL_SCHEME", default="https")
+# Fernet key encrypting platform admins' TOTP secrets. Generate one with
+# `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+# Losing it locks every admin out of 2FA: re-enrol them with
+# `manage.py create_platform_admin --reset-2fa --email <e>`.
+PLATFORM_TOTP_KEY = env("PLATFORM_TOTP_KEY", default="")
 
 # The leading dot admits every subdomain. Any other host gets Django's 400,
 # which says nothing about which schools exist. USE_X_FORWARDED_HOST stays
@@ -303,6 +310,18 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Outgoing email (invites), always sent from a Celery task so no request
+# waits on SMTP. Locally, with no EMAIL_HOST, messages print to the console.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = 30
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Ordo <no-reply@ordo.app>")
+if DEBUG and not EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # The test suite runs without Redis (CI has none), so job-progress and
 # notification pushes go through an in-process layer there. A fast hasher
 # keeps the many test users cheap. ORDO_TESTING is set by whatever runs the
@@ -314,3 +333,5 @@ if TESTING:
         "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
     }
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    PLATFORM_TOTP_KEY = PLATFORM_TOTP_KEY or "nA0rJ8bFrYBqf6ZYpAgTEmCgwQqP_3ZD2Pz0F2Gm1Wc="
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

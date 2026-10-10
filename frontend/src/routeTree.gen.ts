@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as PlatformRouteImport } from './routes/_platform'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
@@ -27,13 +28,23 @@ import { Route as AppStudentsRouteImport } from './routes/_app/students'
 import { Route as AppTimetableRouteImport } from './routes/_app/timetable'
 import { Route as AppUploadsRouteImport } from './routes/_app/uploads'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as PlatformConsoleRouteImport } from './routes/_platform/_console'
+import { Route as PlatformAcceptRouteImport } from './routes/_platform/accept'
 import { Route as AppAllocationIndexRouteImport } from './routes/_app/allocation.index'
 import { Route as AppAllocationHallRouteImport } from './routes/_app/allocation.hall'
 import { Route as AppClassesIndexRouteImport } from './routes/_app/classes.index'
 import { Route as AppClassesIdRouteImport } from './routes/_app/classes.$id'
+import { Route as PlatformConsoleLoginRouteImport } from './routes/_platform/console.login'
+import { Route as PlatformConsoleConsoleIndexRouteImport } from './routes/_platform/_console/console.index'
+import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
+import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlatformRoute = PlatformRouteImport.update({
+  id: '/_platform',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -121,6 +132,15 @@ const AppUsersRoute = AppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
+const PlatformConsoleRoute = PlatformConsoleRouteImport.update({
+  id: '/_console',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const PlatformAcceptRoute = PlatformAcceptRouteImport.update({
+  id: '/accept',
+  path: '/accept',
+  getParentRoute: () => PlatformRoute,
+} as any)
 const AppAllocationIndexRoute = AppAllocationIndexRouteImport.update({
   id: '/allocation/',
   path: '/allocation/',
@@ -141,6 +161,29 @@ const AppClassesIdRoute = AppClassesIdRouteImport.update({
   path: '/classes/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const PlatformConsoleLoginRoute = PlatformConsoleLoginRouteImport.update({
+  id: '/console/login',
+  path: '/console/login',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const PlatformConsoleConsoleIndexRoute =
+  PlatformConsoleConsoleIndexRouteImport.update({
+    id: '/console/',
+    path: '/console/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAdminsRoute =
+  PlatformConsoleConsoleAdminsRouteImport.update({
+    id: '/console/admins',
+    path: '/console/admins',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAuditRoute =
+  PlatformConsoleConsoleAuditRouteImport.update({
+    id: '/console/audit',
+    path: '/console/audit',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -160,12 +203,18 @@ export interface FileRoutesByFullPath {
   '/timetable': typeof AppTimetableRoute
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
+  '/accept': typeof PlatformAcceptRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
+  '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation/': typeof AppAllocationIndexRoute
   '/classes/': typeof AppClassesIndexRoute
+  '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console/': typeof PlatformConsoleConsoleIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AppAuditRoute
   '/constraints': typeof AppConstraintsRoute
@@ -182,15 +231,20 @@ export interface FileRoutesByTo {
   '/timetable': typeof AppTimetableRoute
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
-  '/': typeof AppIndexRoute
+  '/accept': typeof PlatformAcceptRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
+  '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation': typeof AppAllocationIndexRoute
   '/classes': typeof AppClassesIndexRoute
+  '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console': typeof PlatformConsoleConsoleIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_platform': typeof PlatformRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/constraints': typeof AppConstraintsRoute
@@ -207,11 +261,17 @@ export interface FileRoutesById {
   '/_app/timetable': typeof AppTimetableRoute
   '/_app/uploads': typeof AppUploadsRoute
   '/_app/users': typeof AppUsersRoute
+  '/_platform/_console': typeof PlatformConsoleRouteWithChildren
+  '/_platform/accept': typeof PlatformAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/_app/allocation/hall': typeof AppAllocationHallRoute
   '/_app/classes/$id': typeof AppClassesIdRoute
+  '/_platform/console/login': typeof PlatformConsoleLoginRoute
   '/_app/allocation/': typeof AppAllocationIndexRoute
   '/_app/classes/': typeof AppClassesIndexRoute
+  '/_platform/_console/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/_platform/_console/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -233,12 +293,18 @@ export interface FileRouteTypes {
     | '/timetable'
     | '/uploads'
     | '/users'
+    | '/accept'
     | '/allocation/hall'
     | '/classes/$id'
+    | '/console/login'
     | '/allocation/'
     | '/classes/'
+    | '/console/admins'
+    | '/console/audit'
+    | '/console/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/login'
     | '/audit'
     | '/constraints'
@@ -255,14 +321,19 @@ export interface FileRouteTypes {
     | '/timetable'
     | '/uploads'
     | '/users'
-    | '/'
+    | '/accept'
     | '/allocation/hall'
     | '/classes/$id'
+    | '/console/login'
     | '/allocation'
     | '/classes'
+    | '/console/admins'
+    | '/console/audit'
+    | '/console'
   id:
     | '__root__'
     | '/_app'
+    | '/_platform'
     | '/login'
     | '/_app/audit'
     | '/_app/constraints'
@@ -279,15 +350,22 @@ export interface FileRouteTypes {
     | '/_app/timetable'
     | '/_app/uploads'
     | '/_app/users'
+    | '/_platform/_console'
+    | '/_platform/accept'
     | '/_app/'
     | '/_app/allocation/hall'
     | '/_app/classes/$id'
+    | '/_platform/console/login'
     | '/_app/allocation/'
     | '/_app/classes/'
+    | '/_platform/_console/console/admins'
+    | '/_platform/_console/console/audit'
+    | '/_platform/_console/console/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  PlatformRoute: typeof PlatformRouteWithChildren
   LoginRoute: typeof LoginRoute
 }
 
@@ -298,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_platform': {
+      id: '/_platform'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PlatformRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -419,6 +504,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_platform/_console': {
+      id: '/_platform/_console'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PlatformConsoleRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/_platform/accept': {
+      id: '/_platform/accept'
+      path: '/accept'
+      fullPath: '/accept'
+      preLoaderRoute: typeof PlatformAcceptRouteImport
+      parentRoute: typeof PlatformRoute
+    }
     '/_app/allocation/': {
       id: '/_app/allocation/'
       path: '/allocation'
@@ -446,6 +545,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/classes/$id'
       preLoaderRoute: typeof AppClassesIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_platform/console/login': {
+      id: '/_platform/console/login'
+      path: '/console/login'
+      fullPath: '/console/login'
+      preLoaderRoute: typeof PlatformConsoleLoginRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/_platform/_console/console/': {
+      id: '/_platform/_console/console/'
+      path: '/console'
+      fullPath: '/console/'
+      preLoaderRoute: typeof PlatformConsoleConsoleIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/admins': {
+      id: '/_platform/_console/console/admins'
+      path: '/console/admins'
+      fullPath: '/console/admins'
+      preLoaderRoute: typeof PlatformConsoleConsoleAdminsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/audit': {
+      id: '/_platform/_console/console/audit'
+      path: '/console/audit'
+      fullPath: '/console/audit'
+      preLoaderRoute: typeof PlatformConsoleConsoleAuditRouteImport
+      parentRoute: typeof PlatformConsoleRoute
     }
   }
 }
@@ -498,8 +625,41 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface PlatformConsoleRouteChildren {
+  PlatformConsoleConsoleAdminsRoute: typeof PlatformConsoleConsoleAdminsRoute
+  PlatformConsoleConsoleAuditRoute: typeof PlatformConsoleConsoleAuditRoute
+  PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
+}
+
+const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
+  PlatformConsoleConsoleAdminsRoute: PlatformConsoleConsoleAdminsRoute,
+  PlatformConsoleConsoleAuditRoute: PlatformConsoleConsoleAuditRoute,
+  PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
+}
+
+const PlatformConsoleRouteWithChildren = PlatformConsoleRoute._addFileChildren(
+  PlatformConsoleRouteChildren,
+)
+
+interface PlatformRouteChildren {
+  PlatformConsoleRoute: typeof PlatformConsoleRouteWithChildren
+  PlatformAcceptRoute: typeof PlatformAcceptRoute
+  PlatformConsoleLoginRoute: typeof PlatformConsoleLoginRoute
+}
+
+const PlatformRouteChildren: PlatformRouteChildren = {
+  PlatformConsoleRoute: PlatformConsoleRouteWithChildren,
+  PlatformAcceptRoute: PlatformAcceptRoute,
+  PlatformConsoleLoginRoute: PlatformConsoleLoginRoute,
+}
+
+const PlatformRouteWithChildren = PlatformRoute._addFileChildren(
+  PlatformRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  PlatformRoute: PlatformRouteWithChildren,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport

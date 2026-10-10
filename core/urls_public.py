@@ -5,4 +5,5 @@ from django.urls import include, path
 
 urlpatterns = [
     path("api/public/", include("ems.api.public_urls")),
+    path("api/platform/", include("tenancy.urls")),
 ]

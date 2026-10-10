@@ -3,8 +3,14 @@
 Each ``School`` is a Postgres schema holding its own ``ems`` tables, picked
 per request from the Host header (``tenancy.middleware.SchoolMiddleware``).
 The public schema is a ``School`` row too, ``schema_name="public"``, serving
-``admin.<base>`` and ``api.<base>`` (spec 0003).
+``admin.<base>`` and ``api.<base>`` (spec 0003). Platform admins, their
+tokens and the console audit log live here as well.
 """
+from django.contrib.auth.hashers import (
+    check_password,
+    is_password_usable,
+    make_password,
+)
 from django.core.exceptions import ValidationError
 from django.db import models
 from django_tenants.models import DomainMixin, TenantMixin
@@ -98,3 +104,107 @@ class School(TenantMixin):
 
 class Domain(DomainMixin):
     """A hostname that resolves to a school, e.g. ``unilag.ordo.app``."""
+
+
+class PlatformAdmin(models.Model):
+    """A member of the Ordo team, signing in at ``admin.<base>``.
+
+    Deliberately not ``AUTH_USER_MODEL``: it only exists in the public schema,
+    so a platform account can never turn up as a user inside a school.
+    """
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        SUPPORT = "support", "Support"
+
+    email = models.EmailField(unique=True)
+    name = models.CharField(max_length=255)
+    # Unusable until the invite is accepted (tenancy.invites).
+    password = models.CharField(max_length=128)
+    role = models.CharField(max_length=10, choices=Role.choices)
+    # Fernet encrypted (tenancy.totp). Replaced on every login until confirmed.
+    totp_secret = models.TextField(blank=True, default="")
+    totp_confirmed_at = models.DateTimeField(null=True, blank=True)
+    # The last accepted timestep: a code at or before it is a replay.
+    totp_last_step = models.BigIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # DRF treats whatever authentication returns as request.user.
+    is_authenticated = True
+    is_anonymous = False
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        # Matched case insensitively at login, so stored in one case.
+        self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_owner(self):
+        return self.role == self.Role.OWNER
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        def upgrade(raw):
+            self.set_password(raw)
+            self.save(update_fields=["password"])
+
+        return check_password(raw_password, self.password, upgrade)
+
+    def set_unusable_password(self):
+        # A fresh random value each time, which also voids any invite link
+        # signed over the old one.
+        self.password = make_password(None)
+
+    def has_usable_password(self):
+        return is_password_usable(self.password)
+
+
+class PlatformToken(models.Model):
+    """A console session. Only the SHA-256 of the key is stored."""
+
+    key_hash = models.CharField(max_length=64, primary_key=True)
+    admin = models.ForeignKey(
+        PlatformAdmin, on_delete=models.CASCADE, related_name="tokens"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+
+class PlatformAuditLog(models.Model):
+    """Every console write, sign in and failed attempt.
+
+    Failed attempts double as the lockout counter (tenancy.lockout).
+    """
+
+    admin = models.ForeignKey(
+        PlatformAdmin,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_entries",
+    )
+    school = models.ForeignKey(
+        School,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="platform_audit_entries",
+    )
+    action = models.CharField(max_length=64)
+    detail = models.JSONField(default=dict, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["school", "-created_at"]),
+            models.Index(fields=["action", "-created_at"]),
+        ]

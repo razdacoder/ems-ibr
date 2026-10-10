@@ -9,6 +9,7 @@ import {
   type AuthUser,
 } from "@/lib/auth";
 import { useHostKind } from "@/lib/config";
+import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import type { HostKind } from "@/lib/origins.server";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFoundPage from "@/pages/not-found";
@@ -49,7 +50,39 @@ export function RequireHost({
   kind: HostKind;
   children: ReactNode;
 }) {
-  if (useHostKind() !== kind) return <NotFoundPage />;
+  const host = useHostKind();
+  const { pathname } = useLocation();
+  if (host === kind) return <>{children}</>;
+  // The console lives under /console, so its bare host lands there.
+  if (host === "console" && pathname === "/") return <RedirectTo to="/console" />;
+  return <NotFoundPage />;
+}
+
+function RedirectTo({ to, from }: { to: "/console" | "/console/login"; from?: string }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate({
+      to,
+      search: to === "/console/login" ? { redirect: from } : undefined,
+      replace: true,
+    } as Parameters<typeof navigate>[0]);
+  }, [navigate, to, from]);
+  return <FullPageSkeleton />;
+}
+
+/** Signed in platform admins only; others go to the console sign in. */
+export function RequirePlatformAuth({ children }: { children: ReactNode }) {
+  const { status } = usePlatformAuth();
+  const [from] = useState(useLocation().href);
+  if (status === "loading") return <FullPageSkeleton />;
+  if (status === "unauthenticated") return <RedirectTo to="/console/login" from={from} />;
+  return <>{children}</>;
+}
+
+/** Owner only console pages; Support is sent to the console overview. */
+export function RequirePlatformOwner({ children }: { children: ReactNode }) {
+  const { admin } = usePlatformAuth();
+  if (!isPlatformOwner(admin)) return <RedirectTo to="/console" />;
   return <>{children}</>;
 }
 
