@@ -3,56 +3,22 @@ import {
   createMiddleware,
   createStart,
 } from "@tanstack/react-start";
-import { isAppHost, origins, requestHost } from "@/lib/origins.server";
-
-// Marketing-site pages, as public URLs (internally under /site — see
-// router.tsx). Everything else is the dashboard.
-function isSitePath(pathname: string): boolean {
-  return (
-    pathname === "/" ||
-    pathname === "/features" ||
-    pathname.startsWith("/features/")
-  );
-}
-
-/** "/site/features" → "/features": the router's internal prefix, never public. */
-function stripSitePrefix(pathname: string): string | null {
-  if (pathname === "/site" || pathname.startsWith("/site/")) {
-    return pathname.slice("/site".length) || "/";
-  }
-  return null;
-}
 
 /**
- * Keeps each host to its own pages. Only page loads are steered —
- * server-function calls, assets and dev-server modules pass straight through.
- *
- *   app host:  /features…   → same path on the site
- *              /dashboard   → / (the dashboard's old home)
- *   site host: anything that isn't a site page (an old ordo.app/login
- *              bookmark) → same path on the app host, query string intact
- *   either:    /site/…      → the public site URL
+ * The marketing site used to live on this domain. Its old URLs (indexed,
+ * bookmarked) go to the same path on SITE_URL so they keep working. Only
+ * page loads are steered — server-function calls and assets pass through.
  */
-const hostRouting = createMiddleware().server(({ request, next }) => {
+const oldSiteUrls = createMiddleware().server(({ request, next }) => {
+  const site = process.env.SITE_URL?.replace(/\/+$/, "");
   const isPage =
     request.method === "GET" &&
     (request.headers.get("accept") ?? "").includes("text/html");
-  if (!isPage) return next();
+  if (!site || !isPage) return next();
 
   const { pathname, search } = new URL(request.url);
-  const { host } = requestHost(request);
-  const to = origins(request);
-
-  const sitePath = stripSitePrefix(pathname);
-  if (sitePath !== null) return Response.redirect(to.site + sitePath + search, 302);
-
-  if (isAppHost(host)) {
-    if (pathname !== "/" && isSitePath(pathname)) {
-      return Response.redirect(to.site + pathname + search, 302);
-    }
-    if (pathname === "/dashboard") return Response.redirect(`${to.app}/${search}`, 302);
-  } else if (!isSitePath(pathname)) {
-    return Response.redirect(to.app + pathname + search, 302);
+  if (pathname === "/features" || pathname.startsWith("/features/")) {
+    return Response.redirect(site + pathname + search, 301);
   }
   return next();
 });
@@ -66,5 +32,5 @@ const csrf = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [csrf, hostRouting],
+  requestMiddleware: [csrf, oldSiteUrls],
 }));

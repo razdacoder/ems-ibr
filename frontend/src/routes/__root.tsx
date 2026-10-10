@@ -6,7 +6,7 @@ import {
   createRootRoute,
 } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { getConfig } from "@/lib/site-api";
+import { getConfig } from "@/lib/server-config";
 import { setApiOrigin } from "@/lib/api";
 import { makeQueryClient } from "@/lib/query";
 import { AuthProvider } from "@/lib/auth";

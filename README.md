@@ -26,7 +26,7 @@ The documentation reflects the behavior and configuration found in the current r
 
 | Path | Purpose |
 | --- | --- |
-| `frontend/` | User-facing web application |
+| `frontend/` | Dashboard web application (apex domain). The marketing site lives in a separate repo, `ordo-site`. |
 | `ems/` | Examination-management domain and service implementation |
 | `core/` | Application configuration and runtime setup |
 | `docs/` | Product, marketing, and technical documentation |

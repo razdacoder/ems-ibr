@@ -27,13 +27,10 @@ import { Route as AppStudentsRouteImport } from './routes/_app/students'
 import { Route as AppTimetableRouteImport } from './routes/_app/timetable'
 import { Route as AppUploadsRouteImport } from './routes/_app/uploads'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
-import { Route as SiteIndexRouteImport } from './routes/site/index'
 import { Route as AppAllocationIndexRouteImport } from './routes/_app/allocation.index'
 import { Route as AppAllocationHallRouteImport } from './routes/_app/allocation.hall'
 import { Route as AppClassesIndexRouteImport } from './routes/_app/classes.index'
 import { Route as AppClassesIdRouteImport } from './routes/_app/classes.$id'
-import { Route as SiteFeaturesIndexRouteImport } from './routes/site/features.index'
-import { Route as SiteFeaturesSlugRouteImport } from './routes/site/features.$slug'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -124,11 +121,6 @@ const AppUsersRoute = AppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
-const SiteIndexRoute = SiteIndexRouteImport.update({
-  id: '/site/',
-  path: '/site/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppAllocationIndexRoute = AppAllocationIndexRouteImport.update({
   id: '/allocation/',
   path: '/allocation/',
@@ -149,16 +141,6 @@ const AppClassesIdRoute = AppClassesIdRouteImport.update({
   path: '/classes/$id',
   getParentRoute: () => AppRoute,
 } as any)
-const SiteFeaturesIndexRoute = SiteFeaturesIndexRouteImport.update({
-  id: '/site/features/',
-  path: '/site/features/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SiteFeaturesSlugRoute = SiteFeaturesSlugRouteImport.update({
-  id: '/site/features/$slug',
-  path: '/site/features/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -178,13 +160,10 @@ export interface FileRoutesByFullPath {
   '/timetable': typeof AppTimetableRoute
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
-  '/site/': typeof SiteIndexRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
-  '/site/features/$slug': typeof SiteFeaturesSlugRoute
   '/allocation/': typeof AppAllocationIndexRoute
   '/classes/': typeof AppClassesIndexRoute
-  '/site/features/': typeof SiteFeaturesIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -204,13 +183,10 @@ export interface FileRoutesByTo {
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
-  '/site': typeof SiteIndexRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
-  '/site/features/$slug': typeof SiteFeaturesSlugRoute
   '/allocation': typeof AppAllocationIndexRoute
   '/classes': typeof AppClassesIndexRoute
-  '/site/features': typeof SiteFeaturesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -232,13 +208,10 @@ export interface FileRoutesById {
   '/_app/uploads': typeof AppUploadsRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
-  '/site/': typeof SiteIndexRoute
   '/_app/allocation/hall': typeof AppAllocationHallRoute
   '/_app/classes/$id': typeof AppClassesIdRoute
-  '/site/features/$slug': typeof SiteFeaturesSlugRoute
   '/_app/allocation/': typeof AppAllocationIndexRoute
   '/_app/classes/': typeof AppClassesIndexRoute
-  '/site/features/': typeof SiteFeaturesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -260,13 +233,10 @@ export interface FileRouteTypes {
     | '/timetable'
     | '/uploads'
     | '/users'
-    | '/site/'
     | '/allocation/hall'
     | '/classes/$id'
-    | '/site/features/$slug'
     | '/allocation/'
     | '/classes/'
-    | '/site/features/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -286,13 +256,10 @@ export interface FileRouteTypes {
     | '/uploads'
     | '/users'
     | '/'
-    | '/site'
     | '/allocation/hall'
     | '/classes/$id'
-    | '/site/features/$slug'
     | '/allocation'
     | '/classes'
-    | '/site/features'
   id:
     | '__root__'
     | '/_app'
@@ -313,21 +280,15 @@ export interface FileRouteTypes {
     | '/_app/uploads'
     | '/_app/users'
     | '/_app/'
-    | '/site/'
     | '/_app/allocation/hall'
     | '/_app/classes/$id'
-    | '/site/features/$slug'
     | '/_app/allocation/'
     | '/_app/classes/'
-    | '/site/features/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
-  SiteIndexRoute: typeof SiteIndexRoute
-  SiteFeaturesSlugRoute: typeof SiteFeaturesSlugRoute
-  SiteFeaturesIndexRoute: typeof SiteFeaturesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -458,13 +419,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
-    '/site/': {
-      id: '/site/'
-      path: '/site'
-      fullPath: '/site/'
-      preLoaderRoute: typeof SiteIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_app/allocation/': {
       id: '/_app/allocation/'
       path: '/allocation'
@@ -492,20 +446,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/classes/$id'
       preLoaderRoute: typeof AppClassesIdRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/site/features/': {
-      id: '/site/features/'
-      path: '/site/features'
-      fullPath: '/site/features/'
-      preLoaderRoute: typeof SiteFeaturesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/site/features/$slug': {
-      id: '/site/features/$slug'
-      path: '/site/features/$slug'
-      fullPath: '/site/features/$slug'
-      preLoaderRoute: typeof SiteFeaturesSlugRouteImport
-      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -561,9 +501,6 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
-  SiteIndexRoute: SiteIndexRoute,
-  SiteFeaturesSlugRoute: SiteFeaturesSlugRoute,
-  SiteFeaturesIndexRoute: SiteFeaturesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

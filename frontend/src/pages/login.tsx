@@ -36,6 +36,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/login" });
   const origins = useOrigins();
+  // The wordmark links to the marketing site when SITE_URL is set.
+  const siteHref = origins.site ? `${origins.site}/` : undefined;
   const [topError, setTopError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -78,7 +80,7 @@ export default function LoginPage() {
         <div className="relative flex h-full flex-col justify-between p-12 xl:p-16">
           <div className="flex items-center justify-between">
             <a
-              href={`${origins.site}/`}
+              href={siteHref}
               className="inline-flex"
             >
               <Wordmark size="lg" />
@@ -160,7 +162,7 @@ export default function LoginPage() {
         </div>
         <div className="flex items-center justify-between border-b border-[color:var(--border)] px-6 py-5 lg:hidden">
           <a
-            href={`${origins.site}/`}
+            href={siteHref}
             className="inline-flex"
           >
             <Wordmark />
