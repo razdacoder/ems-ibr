@@ -17,7 +17,7 @@ from django.http import Http404
 from django.test import RequestFactory
 
 from django.core.exceptions import ValidationError
-from django.core.management import CommandError, call_command
+from django.core.management import call_command
 from django.db import DEFAULT_DB_ALIAS, connection, connections
 from django.test import override_settings
 from django.utils import timezone
@@ -283,68 +283,6 @@ class SeedTests(SchoolTestCase):
         public = School.objects.get(schema_name=get_public_schema_name())
         self.assertEqual(public.status, School.Status.ACTIVE)
         self.assertEqual(public.plan.code, "platform")
-
-
-class CreateSchoolCommandTests(SchoolTestCase):
-    def setUp(self):
-        super().setUp()
-        # Schools are only created from the public schema.
-        connection.set_schema_to_public()
-
-    def tearDown(self):
-        connection.set_tenant(self.tenant)
-        super().tearDown()
-
-    def create(self, *args):
-        call_command("create_school", *args, stdout=StringIO(), verbosity=0)
-
-    def test_it_provisions_a_live_school_at_its_subdomain(self):
-        # covers: AC-1
-        self.create("uni-lagos")
-
-        school = School.objects.get(slug="uni-lagos")
-        self.assertEqual(school.schema_name, "school_uni_lagos")
-        self.assertEqual(school.status, School.Status.ACTIVE)
-        self.assertTrue(school.was_ever_active)
-        self.assertEqual(school.plan.code, "platform")
-        self.assertEqual(
-            list(school.domains.values_list("domain", "is_primary")),
-            [("uni-lagos.localhost", True)],
-        )
-        with schema_context("school_uni_lagos"):
-            self.assertEqual(
-                list(SystemSettings.objects.values_list("institution_name", flat=True)),
-                ["Uni Lagos"],
-            )
-
-    def test_it_uses_the_named_plan(self):
-        Plan.objects.create(code="basic", name="Basic")
-        self.create("acme", "--plan", "basic")
-        self.assertEqual(School.objects.get(slug="acme").plan.code, "basic")
-
-    def test_a_bad_slug_is_refused_and_nothing_is_saved(self):
-        with self.assertRaisesMessage(CommandError, "Slug must be"):
-            self.create("Bad_Slug")
-        self.assertFalse(School.objects.filter(slug="Bad_Slug").exists())
-
-    def test_a_taken_slug_is_refused(self):
-        with self.assertRaisesMessage(CommandError, "already exists"):
-            self.create("test")
-
-    def test_an_unknown_plan_is_refused(self):
-        with self.assertRaisesMessage(CommandError, "No plan with code 'gold'"):
-            self.create("acme", "--plan", "gold")
-        self.assertFalse(School.objects.filter(slug="acme").exists())
-
-    def test_a_provisioning_error_marks_the_school_failed(self):
-        with mock.patch.object(School, "create_schema", side_effect=RuntimeError("boom")):
-            with self.assertRaisesMessage(CommandError, "Provisioning failed: boom"):
-                self.create("acme")
-
-        school = School.objects.get(slug="acme")
-        self.assertEqual(school.status, School.Status.FAILED)
-        self.assertEqual(school.provisioning_error, "boom")
-        self.assertFalse(school.was_ever_active)
 
 
 @override_settings(PLATFORM_BASE_DOMAIN="class-level.example")

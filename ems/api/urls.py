@@ -53,6 +53,13 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
+from ems.api.views.invites import (
+    InviteAcceptView,
+    InviteDetailView,
+    InviteListView,
+    InviteResendView,
+    InviteRevokeView,
+)
 
 auth_patterns = [
     path("login/", LoginView.as_view(), name="api-login"),
@@ -214,8 +221,17 @@ directory_patterns = [
     path("export/", DirectoryExportView.as_view(), name="api-directory-export"),
 ]
 
+invite_patterns = [
+    path("", InviteListView.as_view(), name="api-invites"),
+    path("<int:pk>/revoke/", InviteRevokeView.as_view(), name="api-invite-revoke"),
+    path("<int:pk>/resend/", InviteResendView.as_view(), name="api-invite-resend"),
+    path("<str:token>/", InviteDetailView.as_view(), name="api-invite-detail"),
+    path("<str:token>/accept/", InviteAcceptView.as_view(), name="api-invite-accept"),
+]
+
 urlpatterns = [
     path("auth/", include(auth_patterns)),
+    path("invites/", include(invite_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),
     path("exports/", include(export_patterns)),

@@ -7,8 +7,8 @@ import re
 # 3 to 30 characters, lowercase letters, digits and inner hyphens.
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$")
 
-# Never allowed for a school (spec 0003, child 0002). `test` and `demo` are
-# for schools made in code: the test suite and `manage.py create_school`.
+# Never allowed for a school (spec 0003, child 0002). `test` is the test
+# suite's own school.
 RESERVED = frozenset({
     "admin", "api", "www", "app", "static", "media", "mail", "smtp", "support",
     "status", "docs", "help", "blog", "ordo", "staging", "test", "dev", "demo",

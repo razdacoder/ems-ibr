@@ -29,10 +29,14 @@ app.conf.task_send_sent_event = True
 # Platform beat tasks, times in UTC. Each runs in the public schema and enters
 # school schemas itself with ``schema_context``. Entries land with their tasks
 # in later build slices: tenancy.tasks.snapshot_usage (daily 01:00),
-# purge_schools (daily 02:00), fail_stale_provisioning (every 10 min),
-# close_expired_support_sessions (every 10 min), prune_usage_snapshots
-# (daily 03:00).
-app.conf.beat_schedule = {}
+# purge_schools (daily 02:00), close_expired_support_sessions (every 10 min),
+# prune_usage_snapshots (daily 03:00).
+app.conf.beat_schedule = {
+    "fail-stale-provisioning": {
+        "task": "tenancy.tasks.fail_stale_provisioning",
+        "schedule": 10 * 60,
+    },
+}
 
 
 # Zones of the tasks running in this thread, innermost last. A task can run

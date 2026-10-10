@@ -252,6 +252,50 @@ class User(AbstractBaseUser, PermissionsMixin):
         }
 
 
+class Invite(models.Model):
+    """An emailed link that lets someone join this school and set a password.
+
+    Only the SHA-256 of the token is stored; the raw token is in the email
+    alone (spec 0003, child 0004). Open means neither accepted nor revoked,
+    and only one open invite may exist per email.
+    """
+
+    email = models.EmailField()
+    # Same meaning as ``User.role``: null is a department officer.
+    role = models.CharField(
+        max_length=4, choices=User.Role.choices, null=True, blank=True
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, null=True, blank=True
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    # Null when Ordo sent it (the first admin, made at provisioning).
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invites_sent",
+    )
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["email"],
+                condition=models.Q(accepted_at__isnull=True, revoked_at__isnull=True),
+                name="one_open_invite_per_email",
+            )
+        ]
+
+    def __str__(self):
+        return self.email
+
+
 class Course(models.Model):
     COURSE_TYPE = (("PBE", "PBE"), ("CBE", "CBE"))
     name = models.CharField(max_length=255)

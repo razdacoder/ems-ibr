@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import ConsoleHomePage from "@/pages/platform/home";
+import ConsoleSchoolsPage from "@/pages/platform/schools";
 
 export const Route = createFileRoute("/_platform/_console/console/")({
-  component: ConsoleHomePage,
+  head: () => ({ meta: [{ title: "Schools | Ordo console" }] }),
+  component: ConsoleSchoolsPage,
 });

@@ -1,0 +1,7 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+<p style="margin:0 0 16px;">Hello{% if name %} {{ name }}{% endif %},</p>
+<p style="margin:0 0 16px;"><strong>{{ school_name }}</strong> is ready on Ordo, and you're its first administrator ({{ role }}).</p>
+{% include "emails/_button.html" with label="Set your password" %}
+<p style="margin:0;">The link works once and expires in {{ days }} days. Once you're in, you can invite the rest of your team.</p>
+{% endblock %}

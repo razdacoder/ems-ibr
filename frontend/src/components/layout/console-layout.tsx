@@ -1,5 +1,5 @@
-import { Link, Outlet } from "@tanstack/react-router";
-import { LogOut, type LucideIcon, LayoutDashboard, ScrollText, ShieldCheck } from "lucide-react";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
+import { LogOut, type LucideIcon, School, ScrollText, ShieldCheck } from "lucide-react";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -24,11 +24,13 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   requires?: (a: PlatformAdmin | null) => boolean;
+  /** Also active on these sub paths (the console home is /console itself). */
+  also?: string;
 }
 
-// Schools, plans and support sessions join as their build slices land.
+// Plans and support sessions join as their build slices land.
 const NAV: NavItem[] = [
-  { to: "/console", label: "Overview", icon: LayoutDashboard },
+  { to: "/console", label: "Schools", icon: School, also: "/console/schools" },
   { to: "/console/admins", label: "Admins", icon: ShieldCheck, requires: isPlatformOwner },
   { to: "/console/audit", label: "Audit log", icon: ScrollText },
 ];
@@ -36,6 +38,7 @@ const NAV: NavItem[] = [
 /** The signed in console at admin.<base>: top bar, nav and the page. */
 export function ConsoleLayout() {
   const { admin, logout } = usePlatformAuth();
+  const { pathname } = useLocation();
   const items = NAV.filter((item) => !item.requires || item.requires(admin));
   const initials =
     admin?.name
@@ -49,21 +52,27 @@ export function ConsoleLayout() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b border-[color:var(--border)] bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-          <Link to="/console" className="inline-flex items-center gap-3" aria-label="Console overview">
+          <Link to="/console" className="inline-flex items-center gap-3" aria-label="Schools">
             <Wordmark />
             <span className="hidden rounded-full border border-[color:var(--border)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:inline">
               Console
             </span>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Console">
-            {items.map(({ to, label, icon: Icon }) => (
+            {items.map(({ to, label, icon: Icon, also }) => (
               <Link
                 key={to}
                 to={to}
                 activeOptions={{ exact: to === "/console" }}
-                className="inline-flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-[13.5px] font-medium transition-colors"
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-[13.5px] font-medium transition-colors",
+                  also && pathname.startsWith(also) && "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]",
+                )}
                 activeProps={{ className: "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]" }}
-                inactiveProps={{ className: "text-muted-foreground hover:text-foreground" }}
+                inactiveProps={{
+                  className:
+                    also && pathname.startsWith(also) ? "" : "text-muted-foreground hover:text-foreground",
+                }}
               >
                 <Icon className="size-3.5" strokeWidth={2} aria-hidden />
                 <span className="hidden md:inline">{label}</span>

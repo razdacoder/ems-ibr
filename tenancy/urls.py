@@ -1,7 +1,7 @@
 """``/api/platform/``: public urlconf only, never on a school host."""
 from django.urls import path
 
-from tenancy import views
+from tenancy import school_views, views
 
 urlpatterns = [
     path("auth/login/", views.LoginView.as_view()),
@@ -16,4 +16,9 @@ urlpatterns = [
     path("admins/<int:pk>/unlock/", views.AdminUnlockView.as_view()),
     path("admins/<int:pk>/resend-invite/", views.AdminResendInviteView.as_view()),
     path("audit/", views.AuditLogView.as_view()),
+    path("plans/", school_views.PlanListView.as_view()),
+    path("schools/", school_views.SchoolListView.as_view()),
+    path("schools/<int:pk>/", school_views.SchoolDetailView.as_view()),
+    path("schools/<int:pk>/retry/", school_views.SchoolRetryView.as_view()),
+    path("schools/<int:pk>/resend-invite/", school_views.SchoolResendInviteView.as_view()),
 ]

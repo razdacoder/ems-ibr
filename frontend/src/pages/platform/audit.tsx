@@ -25,7 +25,15 @@ const ACTION_LABELS: Record<string, string> = {
   admin_updated: "Changed an admin",
   admin_2fa_reset: "Reset an admin's two factor sign in",
   unlocked: "Unlocked an admin's sign in",
+  school_created: "Created a school",
+  school_provisioned: "School set up",
+  school_provisioning_failed: "School setup failed",
+  school_provisioning_retried: "Retried a school's setup",
+  school_invite_resent: "Resent a school's first admin invite",
 };
+
+/** Written by background work, not by an admin. */
+const SYSTEM_ACTIONS = new Set(["school_provisioned", "school_provisioning_failed"]);
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -82,7 +90,9 @@ export default function ConsoleAuditPage() {
                   {formatTimestamp(row.created_at)}
                 </TableCell>
                 <TableCell>
-                  <span className="block font-medium">{row.admin?.name ?? "Unknown"}</span>
+                  <span className="block font-medium">
+                    {row.admin?.name ?? (SYSTEM_ACTIONS.has(row.action) ? "Ordo" : "Unknown")}
+                  </span>
                   {row.admin && (
                     <span className="block text-[12px] text-muted-foreground">{row.admin.email}</span>
                   )}

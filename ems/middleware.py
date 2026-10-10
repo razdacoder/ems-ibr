@@ -33,6 +33,8 @@ _ACTION_VERBS = {
     "enable-bulk-upload": "Enabled bulk upload",
     "publish": "Published",
     "unpublish": "Withdrew",
+    "revoke": "Revoked",
+    "resend": "Resent",
 }
 
 # A user's own inbox housekeeping (marking notifications read) is not
@@ -42,6 +44,7 @@ _UNAUDITED_RESOURCES = frozenset({"notifications"})
 # Map URL resource segment -> singular human label.
 _RESOURCE_LABELS = {
     "users": "user",
+    "invites": "invite",
     "departments": "department",
     "faculties": "faculty",
     "courses": "course",

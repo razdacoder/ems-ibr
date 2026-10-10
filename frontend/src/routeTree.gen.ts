@@ -30,6 +30,7 @@ import { Route as AppUploadsRouteImport } from './routes/_app/uploads'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as PlatformConsoleRouteImport } from './routes/_platform/_console'
 import { Route as PlatformAcceptRouteImport } from './routes/_platform/accept'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAllocationIndexRouteImport } from './routes/_app/allocation.index'
 import { Route as AppAllocationHallRouteImport } from './routes/_app/allocation.hall'
 import { Route as AppClassesIndexRouteImport } from './routes/_app/classes.index'
@@ -38,6 +39,8 @@ import { Route as PlatformConsoleLoginRouteImport } from './routes/_platform/con
 import { Route as PlatformConsoleConsoleIndexRouteImport } from './routes/_platform/_console/console.index'
 import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
 import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
+import { Route as PlatformConsoleConsoleSchoolsIdRouteImport } from './routes/_platform/_console/console.schools.$id'
+import { Route as PlatformConsoleConsoleSchoolsNewRouteImport } from './routes/_platform/_console/console.schools.new'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -141,6 +144,11 @@ const PlatformAcceptRoute = PlatformAcceptRouteImport.update({
   path: '/accept',
   getParentRoute: () => PlatformRoute,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAllocationIndexRoute = AppAllocationIndexRouteImport.update({
   id: '/allocation/',
   path: '/allocation/',
@@ -184,6 +192,18 @@ const PlatformConsoleConsoleAuditRoute =
     path: '/console/audit',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleSchoolsIdRoute =
+  PlatformConsoleConsoleSchoolsIdRouteImport.update({
+    id: '/console/schools/$id',
+    path: '/console/schools/$id',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleSchoolsNewRoute =
+  PlatformConsoleConsoleSchoolsNewRouteImport.update({
+    id: '/console/schools/new',
+    path: '/console/schools/new',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -204,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
   '/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
   '/console/login': typeof PlatformConsoleLoginRoute
@@ -212,6 +233,8 @@ export interface FileRoutesByFullPath {
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
@@ -232,6 +255,7 @@ export interface FileRoutesByTo {
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
   '/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
   '/console/login': typeof PlatformConsoleLoginRoute
@@ -240,6 +264,8 @@ export interface FileRoutesByTo {
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/console': typeof PlatformConsoleConsoleIndexRoute
+  '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -263,6 +289,7 @@ export interface FileRoutesById {
   '/_app/users': typeof AppUsersRoute
   '/_platform/_console': typeof PlatformConsoleRouteWithChildren
   '/_platform/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/allocation/hall': typeof AppAllocationHallRoute
   '/_app/classes/$id': typeof AppClassesIdRoute
@@ -272,6 +299,8 @@ export interface FileRoutesById {
   '/_platform/_console/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/_platform/_console/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/_platform/_console/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -294,6 +323,7 @@ export interface FileRouteTypes {
     | '/uploads'
     | '/users'
     | '/accept'
+    | '/invite/$token'
     | '/allocation/hall'
     | '/classes/$id'
     | '/console/login'
@@ -302,6 +332,8 @@ export interface FileRouteTypes {
     | '/console/admins'
     | '/console/audit'
     | '/console/'
+    | '/console/schools/$id'
+    | '/console/schools/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -322,6 +354,7 @@ export interface FileRouteTypes {
     | '/uploads'
     | '/users'
     | '/accept'
+    | '/invite/$token'
     | '/allocation/hall'
     | '/classes/$id'
     | '/console/login'
@@ -330,6 +363,8 @@ export interface FileRouteTypes {
     | '/console/admins'
     | '/console/audit'
     | '/console'
+    | '/console/schools/$id'
+    | '/console/schools/new'
   id:
     | '__root__'
     | '/_app'
@@ -352,6 +387,7 @@ export interface FileRouteTypes {
     | '/_app/users'
     | '/_platform/_console'
     | '/_platform/accept'
+    | '/invite/$token'
     | '/_app/'
     | '/_app/allocation/hall'
     | '/_app/classes/$id'
@@ -361,12 +397,15 @@ export interface FileRouteTypes {
     | '/_platform/_console/console/admins'
     | '/_platform/_console/console/audit'
     | '/_platform/_console/console/'
+    | '/_platform/_console/console/schools/$id'
+    | '/_platform/_console/console/schools/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   PlatformRoute: typeof PlatformRouteWithChildren
   LoginRoute: typeof LoginRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -518,6 +557,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformAcceptRouteImport
       parentRoute: typeof PlatformRoute
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/allocation/': {
       id: '/_app/allocation/'
       path: '/allocation'
@@ -572,6 +618,20 @@ declare module '@tanstack/react-router' {
       path: '/console/audit'
       fullPath: '/console/audit'
       preLoaderRoute: typeof PlatformConsoleConsoleAuditRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/$id': {
+      id: '/_platform/_console/console/schools/$id'
+      path: '/console/schools/$id'
+      fullPath: '/console/schools/$id'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsIdRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/new': {
+      id: '/_platform/_console/console/schools/new'
+      path: '/console/schools/new'
+      fullPath: '/console/schools/new'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsNewRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
   }
@@ -629,12 +689,16 @@ interface PlatformConsoleRouteChildren {
   PlatformConsoleConsoleAdminsRoute: typeof PlatformConsoleConsoleAdminsRoute
   PlatformConsoleConsoleAuditRoute: typeof PlatformConsoleConsoleAuditRoute
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
+  PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
+  PlatformConsoleConsoleSchoolsNewRoute: typeof PlatformConsoleConsoleSchoolsNewRoute
 }
 
 const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
   PlatformConsoleConsoleAdminsRoute: PlatformConsoleConsoleAdminsRoute,
   PlatformConsoleConsoleAuditRoute: PlatformConsoleConsoleAuditRoute,
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
+  PlatformConsoleConsoleSchoolsIdRoute: PlatformConsoleConsoleSchoolsIdRoute,
+  PlatformConsoleConsoleSchoolsNewRoute: PlatformConsoleConsoleSchoolsNewRoute,
 }
 
 const PlatformConsoleRouteWithChildren = PlatformConsoleRoute._addFileChildren(
@@ -661,6 +725,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   PlatformRoute: PlatformRouteWithChildren,
   LoginRoute: LoginRoute,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

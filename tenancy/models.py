@@ -12,8 +12,9 @@ from django.contrib.auth.hashers import (
     make_password,
 )
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import connection, models
 from django_tenants.models import DomainMixin, TenantMixin
+from django_tenants.utils import get_public_schema_name
 
 from tenancy.features import KEYS
 
@@ -96,10 +97,26 @@ class School(TenantMixin):
     # Bucket key of the final export, or "never_active".
     final_export_ref = models.CharField(max_length=255, blank=True, default="")
     purged_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        "PlatformAdmin",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="schools_created",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+    def drop_schema(self):
+        """Drop this school's schema and every table in it, if it exists."""
+        if self.schema_name == get_public_schema_name():
+            raise ValueError("The public schema is never dropped.")
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DROP SCHEMA IF EXISTS {connection.ops.quote_name(self.schema_name)} CASCADE"
+            )
 
 
 class Domain(DomainMixin):

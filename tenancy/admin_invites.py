@@ -48,14 +48,13 @@ def accept_url(admin):
 
 def send(admin):
     """Email ``admin`` a fresh link once the surrounding transaction commits."""
-    url = accept_url(admin)
-    body = (
-        f"Hello {admin.name},\n\n"
-        f"You've been invited to the Ordo console as {admin.get_role_display()}.\n"
-        f"Set your password here:\n\n{url}\n\n"
-        "The link works once and expires in 48 hours. After setting your "
-        "password you'll be asked to set up an authenticator app.\n"
-    )
+    context = {
+        "name": admin.name,
+        "role": admin.get_role_display(),
+        "url": accept_url(admin),
+    }
     transaction.on_commit(
-        lambda: send_email.delay(admin.email, "Your Ordo console invite", body)
+        lambda: send_email.delay(
+            admin.email, "Your Ordo console invite", "platform_admin_invite", context
+        )
     )
