@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useHasFeature } from "@/api/school";
 import {
   useEnableBulkUpload,
   useResetSystem,
@@ -74,6 +75,9 @@ export default function SettingsPage() {
 
   const [topError, setTopError] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  // Without branding in the plan the logo, exam heading and colour are locked
+  // (the server refuses changes to them).
+  const branding = useHasFeature("branding");
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -226,6 +230,16 @@ export default function SettingsPage() {
                   </Alert>
                 )}
 
+                {!branding && (
+                  <Alert>
+                    <AlertDescription>
+                      Custom branding isn't in your school's plan, so the logo, exam heading
+                      and brand colour can't be changed. Documents show your institution's
+                      name and contact details without them.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Logo upload + live preview */}
                 <div className="flex items-center gap-4">
                   <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-input bg-muted/30">
@@ -245,6 +259,7 @@ export default function SettingsPage() {
                     <FormLabel>Institution logo</FormLabel>
                     <Input
                       type="file"
+                      disabled={!branding}
                       accept="image/png,image/jpeg,image/svg+xml,image/webp"
                       onChange={(e) =>
                         setLogoFile(e.target.files?.[0] ?? null)
@@ -295,6 +310,7 @@ export default function SettingsPage() {
                         <FormControl>
                           <Input
                             placeholder="Office of the Examinations Committee"
+                            disabled={!branding}
                             {...field}
                           />
                         </FormControl>
@@ -365,6 +381,7 @@ export default function SettingsPage() {
                           type="color"
                           aria-label="Brand color"
                           value={field.value || "#3FE06B"}
+                          disabled={!branding}
                           onChange={(e) => field.onChange(e.target.value)}
                           className="h-9 w-12 shrink-0 cursor-pointer rounded-none border border-input bg-transparent p-1"
                         />
@@ -372,10 +389,11 @@ export default function SettingsPage() {
                           <Input
                             placeholder="#3FE06B"
                             className="max-w-[160px]"
+                            disabled={!branding}
                             {...field}
                           />
                         </FormControl>
-                        {field.value && (
+                        {field.value && branding && (
                           <Button
                             type="button"
                             variant="ghost"

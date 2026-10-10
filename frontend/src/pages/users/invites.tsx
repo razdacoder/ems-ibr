@@ -12,6 +12,7 @@ import {
 } from "@/api/invites";
 import { useDepartments } from "@/api/departments";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PlanUsage } from "@/components/plan-usage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,7 +103,12 @@ export function InvitesList({ tabs, onInvite }: { tabs: ReactNode; onInvite: () 
           <MailPlus data-icon="inline-start" /> Invite staff
         </Button>
       }
-      filters={tabs}
+      filters={
+        <>
+          {tabs}
+          <PlanUsage kind="staff_users" />
+        </>
+      }
       isLoading={list.isLoading}
       error={list.error}
       isEmpty={!list.data?.results.length}

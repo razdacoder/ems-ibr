@@ -8,9 +8,11 @@ import {
   useAuth,
   type AuthUser,
 } from "@/lib/auth";
+import { FEATURE_LABELS, type FeatureKey, useSchoolPlan } from "@/api/school";
 import { useHostKind } from "@/lib/config";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import type { HostKind } from "@/lib/origins.server";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFoundPage from "@/pages/not-found";
 
@@ -123,6 +125,33 @@ export const RequireFacultyOfficer = ({ children }: { children: ReactNode }) => 
 export const RequireCommittee = ({ children }: { children: ReactNode }) => (
   <RequireCapability allow={isCommittee}>{children}</RequireCapability>
 );
+
+/**
+ * A page the school's plan may leave off. The server refuses it either way;
+ * this says so plainly instead of showing a page of errors.
+ */
+export function RequireFeature({ feature, children }: { feature: FeatureKey; children: ReactNode }) {
+  const plan = useSchoolPlan();
+  if (plan.isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (plan.data && !plan.data.features.includes(feature)) {
+    return (
+      <Alert>
+        <AlertTitle>{FEATURE_LABELS[feature]} isn't in your plan</AlertTitle>
+        <AlertDescription>
+          Your school's plan doesn't include this. Contact Ordo if you'd like it added.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  return <>{children}</>;
+}
 
 function FullPageSkeleton() {
   return (

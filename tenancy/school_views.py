@@ -1,12 +1,15 @@
-"""Schools and plans in the console, ``/api/platform/`` (spec 0003, child 0004).
+"""Schools and plans in the console, ``/api/platform/`` (spec 0003, children 0004, 0005).
 
 Creating a school saves it with its primary domain and queues provisioning,
 which builds the schema in the background. Every transition locks the
 ``School`` row and records a ``PlatformAuditLog`` row.
 """
+from datetime import date
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name, schema_context
@@ -24,6 +27,7 @@ from tenancy.serializers import (
     PlanSerializer,
     SchoolDetailSerializer,
     SchoolListSerializer,
+    UpdateSchoolSerializer,
 )
 from tenancy.slugs import schema_name_for
 from tenancy.tasks import provision_school
@@ -127,8 +131,44 @@ class SchoolListView(generics.ListAPIView):
 
 
 class SchoolDetailView(PlatformView):
+    def get_permissions(self):
+        if self.request.method == "PATCH":
+            return [IsPlatformOwner()]
+        return [IsPlatformStaff()]
+
     def get(self, request, pk):
         return _detail(get_object_or_404(schools(), pk=pk))
+
+    def patch(self, request, pk):
+        """Edit details, plan, overrides or dates. The slug never changes."""
+        with transaction.atomic():
+            school = get_object_or_404(schools().select_for_update(of=("self",)), pk=pk)
+            serializer = UpdateSchoolSerializer(school, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            changes = _apply(school, serializer.validated_data)
+            if changes:
+                school.save(update_fields=list(changes))
+                audit.record(request, "school_updated", school, changes=changes)
+        return _detail(schools().get(pk=pk))
+
+
+def _audit_value(value):
+    if isinstance(value, Plan):
+        return value.code
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def _apply(obj, data):
+    """Set the fields whose value changes; ``{field: [old, new]}`` for the audit."""
+    changes = {}
+    for field, value in data.items():
+        old = getattr(obj, field)
+        if old != value:
+            changes[field] = [_audit_value(old), _audit_value(value)]
+            setattr(obj, field, value)
+    return changes
 
 
 class SchoolRetryView(PlatformView):
@@ -187,9 +227,52 @@ class SchoolResendInviteView(PlatformView):
         return Response(status=status.HTTP_202_ACCEPTED)
 
 
+def plans():
+    """Every plan with how many schools are on it (the public row isn't one)."""
+    on_plan = (
+        schools()
+        .filter(plan=OuterRef("pk"))
+        .order_by()
+        .values("plan")
+        .annotate(n=Count("pk"))
+        .values("n")
+    )
+    return Plan.objects.annotate(school_count=Coalesce(Subquery(on_plan), 0))
+
+
 class PlanListView(PlatformView):
-    """Every plan, offered ones first. Editing plans arrives with slice 8."""
+    """Every plan, offered ones first. Plans are deactivated, never deleted."""
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsPlatformOwner()]
+        return [IsPlatformStaff()]
 
     def get(self, request):
-        plans = Plan.objects.order_by("-is_active", "name")
-        return Response(PlanSerializer(plans, many=True).data)
+        return Response(PlanSerializer(plans().order_by("-is_active", "name"), many=True).data)
+
+    def post(self, request):
+        serializer = PlanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            plan = serializer.save()
+            audit.record(request, "plan_created", code=plan.code, plan=serializer.data)
+        return Response(
+            PlanSerializer(plans().get(pk=plan.pk)).data, status=status.HTTP_201_CREATED
+        )
+
+
+class PlanDetailView(PlatformView):
+    permission_classes = [IsPlatformOwner]
+
+    def patch(self, request, pk):
+        """Edit any field but the code; ``is_active`` false stops offering it."""
+        with transaction.atomic():
+            plan = get_object_or_404(Plan.objects.select_for_update(), pk=pk)
+            serializer = PlanSerializer(plan, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            changes = _apply(plan, serializer.validated_data)
+            if changes:
+                plan.save(update_fields=list(changes))
+                audit.record(request, "plan_updated", code=plan.code, changes=changes)
+        return Response(PlanSerializer(plans().get(pk=pk)).data)

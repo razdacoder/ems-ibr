@@ -21,6 +21,7 @@ from ems.api.serializers.invite import (
     InviteSerializer,
 )
 from ems.api.serializers.user import DepartmentRefSerializer, UserSerializer
+from tenancy import limits
 
 JUST_INVITED = "This email was invited a moment ago. Refresh the list."
 
@@ -31,6 +32,10 @@ def _send(request, **fields):
         raise Conflict(invites.USER_EXISTS)
     try:
         with transaction.atomic():
+            # Open invites hold a seat too, except the one a resend replaces.
+            limits.assert_can_add_staff(
+                1, count_invites=True, except_email=fields["email"].strip().lower()
+            )
             return invites.invite(request.tenant, invited_by=request.user, **fields)
     except IntegrityError:
         # Two admins inviting the same email at once: one open invite only.

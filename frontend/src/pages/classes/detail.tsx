@@ -17,6 +17,7 @@ import {
 } from "@/api/uploads";
 import { useSystemSettings } from "@/api/system";
 import { FileUploadCard } from "@/components/file-upload-card";
+import { PlanUsage } from "@/components/plan-usage";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -568,39 +569,42 @@ function ClassUploadGrid({ classId }: { classId: number }) {
     useState<{ created: number; updated: number } | null>(null);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <FileUploadCard
-        title="Upload class courses"
-        description="CSV with a single COURSE CODE column. Courses must already exist in the catalog."
-        disabled={locked}
-        isPending={courseUpload.isPending}
-        result={coursesResult}
-        error={courseUpload.error}
-        onUpload={async (file) => {
-          const r = await courseUpload.mutateAsync(file);
-          setCoursesResult(r);
-          toast({
-            title: "Courses linked",
-            description: `Added ${r.created}, already-linked ${r.updated}`,
-          });
-        }}
-      />
-      <FileUploadCard
-        title="Upload class students"
-        description="CSV columns: MATRIC NUMBER, FIRSTNAME, LASTNAME, EMAIL, PHONE NUMBER"
-        disabled={locked}
-        isPending={studentUpload.isPending}
-        result={studentsResult}
-        error={studentUpload.error}
-        onUpload={async (file) => {
-          const r = await studentUpload.mutateAsync(file);
-          setStudentsResult(r);
-          toast({
-            title: "Students uploaded",
-            description: `Created ${r.created}, updated ${r.updated}`,
-          });
-        }}
-      />
+    <div className="space-y-3">
+      <PlanUsage kind="students" className="block text-right" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <FileUploadCard
+          title="Upload class courses"
+          description="CSV with a single COURSE CODE column. Courses must already exist in the catalog."
+          disabled={locked}
+          isPending={courseUpload.isPending}
+          result={coursesResult}
+          error={courseUpload.error}
+          onUpload={async (file) => {
+            const r = await courseUpload.mutateAsync(file);
+            setCoursesResult(r);
+            toast({
+              title: "Courses linked",
+              description: `Added ${r.created}, already-linked ${r.updated}`,
+            });
+          }}
+        />
+        <FileUploadCard
+          title="Upload class students"
+          description="CSV columns: MATRIC NUMBER, FIRSTNAME, LASTNAME, EMAIL, PHONE NUMBER"
+          disabled={locked}
+          isPending={studentUpload.isPending}
+          result={studentsResult}
+          error={studentUpload.error}
+          onUpload={async (file) => {
+            const r = await studentUpload.mutateAsync(file);
+            setStudentsResult(r);
+            toast({
+              title: "Students uploaded",
+              description: `Created ${r.created}, updated ${r.updated}`,
+            });
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -9,8 +9,13 @@ class Conflict(APIException):
     default_code = "conflict"
 
 
+class CodedAPIException(APIException):
+    """An error whose ``default_code`` is part of the response, as ``code``,
+    so the client can tell it apart (``plan_limit``, ``feature_disabled``)."""
+
+
 def handler(exc, context):
-    """Uniform error envelope: {detail, errors?}.
+    """Uniform error envelope: {detail, errors?, code?}.
 
     `detail` is a single human-readable message, `errors` (optional) is a
     field -> list[message] map suitable for react-hook-form `setError`.
@@ -49,4 +54,6 @@ def handler(exc, context):
     else:
         response.data = {"detail": str(data)}
 
+    if isinstance(exc, CodedAPIException):
+        response.data["code"] = exc.default_code
     return response

@@ -39,6 +39,8 @@ from ems.models import (
     SystemSettings,
     TimeTable,
 )
+from tenancy import limits
+from tenancy.permissions import requires_feature
 
 
 def _assert_ready(stage: str, slots=None) -> None:
@@ -244,6 +246,8 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
 
         if _TASK_MAP_SOURCES.get(job.job_type) is None:
             raise Conflict(f"Jobs of type '{job.job_type}' cannot be retried.")
+        # A retry starts a job without its gated endpoint, so check here too.
+        limits.assert_feature_for_job(job.job_type)
         # Re-dispatch the matching Celery task with the original params.
         new_id = _start_job(
             request.user, job.job_type, job.params or {}, "retrying a job"
@@ -438,6 +442,7 @@ class GenerateDistributionView(_BaseGenerateView):
 
 
 class GenerateAllocationView(_BaseGenerateView):
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
     job_type = "allocation"
 
     def post(self, request):
@@ -487,6 +492,7 @@ class GenerateAllocationAllView(_BaseGenerateView):
     """Allocate every (date, period) slot that has a Distribution but no
     SeatArrangement yet."""
 
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
     job_type = "allocation_all"
 
     def post(self, request):
@@ -539,7 +545,7 @@ class ClearAllocationView(APIView):
     """POST /api/allocation/clear/ — body: {date, period}. Clears one slot's
     seat allocation; its distribution stays."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
 
     def post(self, request):
         date, period = _slot_from(request.data)
@@ -551,7 +557,7 @@ class ClearAllocationView(APIView):
 class ManualSeatAssignmentView(APIView):
     """POST /api/allocation/manual-assign/ — body: {seat_arrangement_id, seat_number}."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
 
     def post(self, request):
         sa_id = request.data.get("seat_arrangement_id")

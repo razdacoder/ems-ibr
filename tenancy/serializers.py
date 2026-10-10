@@ -108,7 +108,22 @@ class PlatformAuditLogSerializer(serializers.ModelSerializer):
         return {"id": obj.school.id, "name": obj.school.name, "slug": obj.school.slug}
 
 
+def _feature_list(**kwargs):
+    return serializers.ListField(child=serializers.ChoiceField(choices=sorted(KEYS)), **kwargs)
+
+
 class PlanSerializer(serializers.ModelSerializer):
+    """A plan as the console lists it, and its create and edit form.
+
+    The code is fixed once the plan exists. ``school_count`` is annotated by
+    the list view.
+    """
+
+    max_students = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    max_staff_users = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    features = _feature_list(required=False)
+    school_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Plan
         fields = [
@@ -119,7 +134,16 @@ class PlanSerializer(serializers.ModelSerializer):
             "max_staff_users",
             "features",
             "is_active",
+            "school_count",
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance is not None and not isinstance(self.instance, (list, tuple)):
+            self.fields["code"].read_only = True
+
+    def validate_features(self, value):
+        return sorted(set(value))
 
 
 class _PlanRefSerializer(serializers.ModelSerializer):
@@ -205,11 +229,7 @@ class CreateSchoolSerializer(serializers.Serializer):
     max_staff_users_override = serializers.IntegerField(
         min_value=0, allow_null=True, required=False
     )
-    features_override = serializers.ListField(
-        child=serializers.ChoiceField(choices=sorted(KEYS)),
-        allow_null=True,
-        required=False,
-    )
+    features_override = _feature_list(allow_null=True, required=False)
     first_admin_name = serializers.CharField(max_length=255)
     first_admin_email = serializers.EmailField()
     contact_name = serializers.CharField(max_length=255, allow_blank=True, required=False)
@@ -256,9 +276,34 @@ class CreateSchoolSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        start, renews = attrs.get("plan_started_on"), attrs.get("renews_on")
-        if start and renews and renews < start:
-            raise serializers.ValidationError(
-                {"renews_on": ["The renewal date can't be before the plan starts."]}
-            )
+        _check_dates(attrs.get("plan_started_on"), attrs.get("renews_on"))
+        return attrs
+
+
+def _check_dates(start, renews):
+    if start and renews and renews < start:
+        raise serializers.ValidationError(
+            {"renews_on": ["The renewal date can't be before the plan starts."]}
+        )
+
+
+class UpdateSchoolSerializer(CreateSchoolSerializer):
+    """Edit a school: any create field but the slug, which never changes.
+
+    Validates against ``instance``: a school may stay on a plan that is no
+    longer offered, but can't be moved onto one.
+    """
+
+    slug = None
+
+    def validate_plan(self, value):
+        if value.pk == self.instance.plan_id:
+            return value
+        return super().validate_plan(value)
+
+    def validate(self, attrs):
+        _check_dates(
+            attrs.get("plan_started_on", self.instance.plan_started_on),
+            attrs.get("renews_on", self.instance.renews_on),
+        )
         return attrs

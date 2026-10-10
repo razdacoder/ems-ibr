@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PlanUsage } from "@/components/plan-usage";
 import { Input } from "@/components/ui/input";
 import {
   Form,
@@ -113,6 +114,7 @@ export default function StudentsListPage() {
         searchPlaceholder="Search by name or matric"
         filters={
           <>
+            <PlanUsage kind="students" />
             {user?.is_staff && (
               <Select
                 value={department}

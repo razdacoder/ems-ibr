@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, RotateCcw, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
 import { FEATURE_LABELS, type SchoolDetail, useSchool } from "@/api/platform";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractErrorEnvelope } from "@/lib/api";
@@ -76,6 +76,16 @@ function SchoolView({ school }: { school: SchoolDetail }) {
                 <RotateCcw data-icon="inline-start" />
                 Retry setup
               </Button>
+            )}
+            {owner && (
+              <Link
+                to="/console/schools/$id/edit"
+                params={{ id: String(school.id) }}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <Pencil data-icon="inline-start" />
+                Edit
+              </Link>
             )}
             {canResend && (
               <Button variant="outline" disabled={actions.pending} onClick={() => void actions.resend(school)}>

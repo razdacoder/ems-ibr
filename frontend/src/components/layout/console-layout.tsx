@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { LogOut, type LucideIcon, School, ScrollText, ShieldCheck } from "lucide-react";
+import { Layers, LogOut, type LucideIcon, School, ScrollText, ShieldCheck } from "lucide-react";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -28,9 +28,10 @@ interface NavItem {
   also?: string;
 }
 
-// Plans and support sessions join as their build slices land.
+// Support sessions join when their build slice lands.
 const NAV: NavItem[] = [
   { to: "/console", label: "Schools", icon: School, also: "/console/schools" },
+  { to: "/console/plans", label: "Plans", icon: Layers },
   { to: "/console/admins", label: "Admins", icon: ShieldCheck, requires: isPlatformOwner },
   { to: "/console/audit", label: "Audit log", icon: ScrollText },
 ];

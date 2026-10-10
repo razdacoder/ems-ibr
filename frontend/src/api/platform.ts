@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { platformApi } from "@/lib/api";
 import type { PlatformRole } from "@/lib/platform-auth";
+import type { FeatureKey } from "./school";
 import type { PaginatedResponse } from "./types";
 
 export interface PlatformAdminRow {
@@ -109,14 +110,7 @@ export function usePlatformAudit(params: PlatformAuditParams = {}) {
   });
 }
 
-export type FeatureKey = "seat_allocation" | "exports" | "publication" | "branding";
-
-export const FEATURE_LABELS: Record<FeatureKey, string> = {
-  seat_allocation: "Seat allocation",
-  exports: "Exports",
-  publication: "Timetable publication",
-  branding: "Branding",
-};
+export { FEATURE_LABELS, type FeatureKey } from "./school";
 
 export interface PlanRow {
   id: number;
@@ -126,14 +120,45 @@ export interface PlanRow {
   max_staff_users: number | null;
   features: FeatureKey[];
   is_active: boolean;
+  /** Schools on this plan. */
+  school_count: number;
 }
+
+export type PlanInput = Pick<
+  PlanRow,
+  "code" | "name" | "max_students" | "max_staff_users" | "features" | "is_active"
+>;
+
+const PLANS = ["platform", "plans"] as const;
 
 export function usePlans() {
   return useQuery({
-    queryKey: ["platform", "plans"],
+    queryKey: PLANS,
     queryFn: async () => (await platformApi.get<PlanRow[]>("/plans/")).data,
   });
 }
+
+/** Invalidate plans, schools (they show their plan) and the audit log. */
+function usePlanMutation<TVars>(fn: (vars: TVars) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: PLANS });
+      void qc.invalidateQueries({ queryKey: SCHOOLS });
+      void qc.invalidateQueries({ queryKey: AUDIT });
+    },
+  });
+}
+
+export const useCreatePlan = () =>
+  usePlanMutation((input: PlanInput) => platformApi.post<PlanRow>("/plans/", input));
+
+/** Any field but the code, which never changes. Plans are deactivated, never deleted. */
+export const useUpdatePlan = () =>
+  usePlanMutation(({ id, ...input }: Partial<Omit<PlanInput, "code">> & { id: number }) =>
+    platformApi.patch<PlanRow>(`/plans/${id}/`, input),
+  );
 
 export type SchoolStatus =
   | "provisioning"
@@ -255,6 +280,15 @@ export const useCreateSchool = () =>
   useSchoolMutation(
     async (input: CreateSchoolInput) =>
       (await platformApi.post<SchoolDetail>("/schools/", input)).data,
+  );
+
+/** Any create field but the slug, which never changes. */
+export type UpdateSchoolInput = Partial<Omit<CreateSchoolInput, "slug">>;
+
+export const useUpdateSchool = () =>
+  useSchoolMutation(
+    async ({ id, ...input }: UpdateSchoolInput & { id: number }) =>
+      (await platformApi.patch<SchoolDetail>(`/schools/${id}/`, input)).data,
   );
 
 export const useRetrySchool = () =>

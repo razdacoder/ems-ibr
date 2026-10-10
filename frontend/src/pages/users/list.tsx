@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PlanUsage } from "@/components/plan-usage";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -178,7 +179,12 @@ function UsersTable({ tabs, onInvite }: { tabs: ReactNode; onInvite: () => void 
             </Button>
           </div>
         }
-        filters={tabs}
+        filters={
+          <>
+            {tabs}
+            <PlanUsage kind="staff_users" />
+          </>
+        }
         query={query}
         onQueryChange={(q) => { setQuery(q); setPage(1); }}
         searchPlaceholder="Search by name or email"

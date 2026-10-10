@@ -30,6 +30,7 @@ from ems.utils import (
     hall_effective_capacity,
     slot_relaxed_course_id,
 )
+from tenancy.permissions import requires_feature
 
 
 class ReadinessView(APIView):
@@ -386,7 +387,7 @@ class DistributionStatisticsView(APIView):
 class AllocationListView(APIView):
     """Aggregated by hall — drives the allocation summary page."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("seat_allocation")]
 
     def get(self, request):
         date = request.query_params.get("date")
@@ -419,7 +420,7 @@ class AllocationListView(APIView):
 class HallAllocationView(APIView):
     """Full seat grid + placed/unplaced lists for one hall."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("seat_allocation")]
 
     def get(self, request):
         date = request.query_params.get("date")

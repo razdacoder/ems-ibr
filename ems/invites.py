@@ -20,6 +20,7 @@ from rest_framework.exceptions import APIException
 
 from ems.api.exceptions import Conflict
 from ems.models import Invite, User
+from tenancy import limits
 
 INVITE_TTL = timedelta(days=7)
 
@@ -127,6 +128,7 @@ def accept(token, *, first_name, last_name, password):
     found = find(token, lock=True)
     if user_exists(found.email):
         raise Conflict(USER_EXISTS)
+    limits.assert_can_add_staff(1)
     user = User(
         email=found.email,
         first_name=first_name,

@@ -19,6 +19,7 @@ from django.db import transaction
 from ems.identifiers import clean_number_text
 from ems.seating_rules import DEFAULT_SEAT_ORDER, SEAT_ORDERS
 from ems.models import Class, Course, Department, Student
+from tenancy import limits
 
 
 class UploadError(ValueError):
@@ -257,51 +258,55 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
     _check_no_duplicates(df, "MATRIC NUMBER", "matric numbers")
 
     matric_numbers = df["MATRIC NUMBER"].tolist()
-    existing = {
-        s.matric_no: s
-        for s in Student.objects.filter(matric_no__in=matric_numbers).only(
-            "id",
-            "matric_no",
-            "first_name",
-            "last_name",
-            "email",
-            "phone",
-            "department_id",
-            "level_id",
-        )
-    }
-
-    to_create: list[Student] = []
-    to_update: list[Student] = []
-    # Classes whose lists this upload changes: this one, plus any class a
-    # re-uploaded student moves out of.
-    touched = {cls.id}
-    for record in df.to_dict("records"):
-        matric = record["MATRIC NUMBER"]
-        if matric in existing:
-            s = existing[matric]
-            touched.add(s.level_id)
-            s.first_name = record["FIRSTNAME"]
-            s.last_name = record["LASTNAME"]
-            s.email = record["EMAIL"]
-            s.phone = record["PHONE NUMBER"]
-            s.department = cls.department
-            s.level = cls
-            to_update.append(s)
-        else:
-            to_create.append(
-                Student(
-                    matric_no=matric,
-                    first_name=record["FIRSTNAME"],
-                    last_name=record["LASTNAME"],
-                    email=record["EMAIL"],
-                    phone=record["PHONE NUMBER"],
-                    department=cls.department,
-                    level=cls,
-                )
-            )
-
     with transaction.atomic():
+        # Which rows are new is read under the plan's student lock, so two
+        # uploads at once can't jointly go over the cap.
+        limits.lock_students()
+        existing = {
+            s.matric_no: s
+            for s in Student.objects.filter(matric_no__in=matric_numbers).only(
+                "id",
+                "matric_no",
+                "first_name",
+                "last_name",
+                "email",
+                "phone",
+                "department_id",
+                "level_id",
+            )
+        }
+
+        to_create: list[Student] = []
+        to_update: list[Student] = []
+        # Classes whose lists this upload changes: this one, plus any class a
+        # re-uploaded student moves out of.
+        touched = {cls.id}
+        for record in df.to_dict("records"):
+            matric = record["MATRIC NUMBER"]
+            if matric in existing:
+                s = existing[matric]
+                touched.add(s.level_id)
+                s.first_name = record["FIRSTNAME"]
+                s.last_name = record["LASTNAME"]
+                s.email = record["EMAIL"]
+                s.phone = record["PHONE NUMBER"]
+                s.department = cls.department
+                s.level = cls
+                to_update.append(s)
+            else:
+                to_create.append(
+                    Student(
+                        matric_no=matric,
+                        first_name=record["FIRSTNAME"],
+                        last_name=record["LASTNAME"],
+                        email=record["EMAIL"],
+                        phone=record["PHONE NUMBER"],
+                        department=cls.department,
+                        level=cls,
+                    )
+                )
+
+        limits.assert_can_add_students(len(to_create))
         if to_create:
             Student.objects.bulk_create(to_create, batch_size=250)
         if to_update:

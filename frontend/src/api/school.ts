@@ -1,0 +1,44 @@
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+/** Optional features a plan switches on (tenancy.features.KEYS). */
+export type FeatureKey = "seat_allocation" | "exports" | "publication" | "branding";
+
+export const FEATURE_LABELS: Record<FeatureKey, string> = {
+  seat_allocation: "Seat allocation",
+  exports: "Exports",
+  publication: "Timetable publication",
+  branding: "Branding",
+};
+
+/** This school's effective plan: GET /api/school/. Null limits are unlimited. */
+export interface SchoolPlan {
+  name: string;
+  slug: string;
+  status: string;
+  timezone: string;
+  features: FeatureKey[];
+  limits: { max_students: number | null; max_staff_users: number | null };
+  usage: { students: number; staff_users: number };
+  support: { active: boolean; expires_at: string } | null;
+}
+
+export const SCHOOL_PLAN_KEY = ["school"] as const;
+
+/** Loaded once by the dashboard layout; every other caller reads the cache. */
+export function useSchoolPlan() {
+  return useQuery({
+    queryKey: SCHOOL_PLAN_KEY,
+    queryFn: async () => (await api.get<SchoolPlan>("/school/")).data,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Whether the plan includes ``key``. True until the plan has loaded, so a
+ * school with the feature never sees it flicker; the server refuses anyway.
+ */
+export function useHasFeature(key: FeatureKey): boolean {
+  const plan = useSchoolPlan();
+  return plan.data ? plan.data.features.includes(key) : true;
+}

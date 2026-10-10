@@ -17,6 +17,7 @@ urlpatterns = [
     path("admins/<int:pk>/resend-invite/", views.AdminResendInviteView.as_view()),
     path("audit/", views.AuditLogView.as_view()),
     path("plans/", school_views.PlanListView.as_view()),
+    path("plans/<int:pk>/", school_views.PlanDetailView.as_view()),
     path("schools/", school_views.SchoolListView.as_view()),
     path("schools/<int:pk>/", school_views.SchoolDetailView.as_view()),
     path("schools/<int:pk>/retry/", school_views.SchoolRetryView.as_view()),
