@@ -12,7 +12,14 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { FEATURE_LABELS, type SchoolDetail, useSchool } from "@/api/platform";
+import {
+  FEATURE_LABELS,
+  type SchoolDetail,
+  usePlatformAudit,
+  useSchool,
+  useSchoolUsage,
+} from "@/api/platform";
+import { TrendChart } from "@/components/trend-chart";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +31,7 @@ import { orEmpty } from "@/lib/format";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
 import { StartSupportDialog, SupportSessionsCard } from "./school-support";
+import { AuditTable } from "./audit";
 import { SchoolStatusBadge, formatDay, useSchoolActions } from "./schools";
 
 function BackToSchools() {
@@ -290,8 +298,127 @@ function SchoolView({ school }: { school: SchoolDetail }) {
         </Section>
       </div>
 
+      <UsageCard schoolId={school.id} />
       <SupportSessionsCard schoolId={school.id} />
+      <ActivityCard schoolId={school.id} />
     </div>
+  );
+}
+
+const RANGES = [30, 90, 365] as const;
+
+/** Nightly usage over time against the plan's limits (student count charted). */
+function UsageCard({ schoolId }: { schoolId: number }) {
+  const [days, setDays] = useState<(typeof RANGES)[number]>(90);
+  const usage = useSchoolUsage(schoolId, days);
+  const snapshots = usage.data?.snapshots ?? [];
+  const latest = snapshots.at(-1);
+  const limits = usage.data?.limits;
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>Usage</CardTitle>
+        <div className="flex gap-1" role="group" aria-label="Range">
+          {RANGES.map((r) => (
+            <Button
+              key={r}
+              size="xs"
+              variant={r === days ? "default" : "ghost"}
+              aria-pressed={r === days}
+              onClick={() => setDays(r)}
+            >
+              {r === 365 ? "1 year" : `${r} days`}
+            </Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 px-0">
+        {usage.isLoading ? (
+          <Skeleton className="mx-5 h-[180px]" />
+        ) : (
+          <>
+            <div className="grid gap-3 px-5 sm:grid-cols-3">
+              <UsageMeter label="Students" value={latest?.students} limit={limits?.max_students} />
+              <UsageMeter label="Staff users" value={latest?.staff_users} limit={limits?.max_staff_users} />
+              <div>
+                <p className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Last active
+                </p>
+                <p className="mt-1 text-[14px]">
+                  {latest?.last_activity_at ? formatDay(latest.last_activity_at) : "No data yet"}
+                </p>
+              </div>
+            </div>
+            <TrendChart
+              label="Students"
+              limit={limits?.max_students}
+              points={snapshots.map((s) => ({
+                date: s.date,
+                value: s.students,
+                details: [
+                  ["Staff", s.staff_users],
+                  ["Jobs", s.jobs],
+                ],
+              }))}
+            />
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function UsageMeter({ label, value, limit }: { label: string; value?: number; limit?: number | null }) {
+  const share = value != null && limit ? Math.min(value / limit, 1) : null;
+  const over = value != null && limit != null && value > limit;
+  return (
+    <div>
+      <p className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className={over ? "mt-1 text-[14px] text-destructive" : "mt-1 text-[14px]"}>
+        {value == null ? "No data yet" : value.toLocaleString()}
+        <span className="text-muted-foreground"> of {limit == null ? "unlimited" : limit.toLocaleString()}</span>
+      </p>
+      {share != null && (
+        <div className="mt-1.5 h-1.5 bg-[color:var(--muted)]">
+          <div
+            className="h-full"
+            style={{
+              width: `${share * 100}%`,
+              backgroundColor: over || share >= 0.9 ? "var(--destructive)" : "var(--brand-strong)",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The latest console activity about this school. */
+function ActivityCard({ schoolId }: { schoolId: number }) {
+  const audit = usePlatformAudit({ school: schoolId, page: 1 });
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>Activity</CardTitle>
+        <Link
+          to="/console/audit"
+          search={{ school: schoolId }}
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+        >
+          View all
+        </Link>
+      </CardHeader>
+      <CardContent className="px-0">
+        {audit.isLoading ? (
+          <Skeleton className="mx-5 h-24" />
+        ) : audit.data?.results.length ? (
+          <AuditTable rows={audit.data.results.slice(0, 8)} showSchool={false} />
+        ) : (
+          <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">Nothing recorded yet.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

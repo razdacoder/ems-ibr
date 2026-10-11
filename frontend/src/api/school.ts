@@ -22,6 +22,8 @@ export interface SchoolPlan {
   usage: { students: number; staff_users: number };
   /** Set only for an Ordo support token: drives the support banner. */
   support: { active: boolean; expires_at: string; admin_name: string } | null;
+  /** Messages from the Ordo team, newest first (at most three). */
+  announcements?: Array<{ id: number; message: string; level: "info" | "warning"; ends_at: string | null }>;
 }
 
 export const SCHOOL_PLAN_KEY = ["school"] as const;

@@ -43,6 +43,7 @@ from tenancy.serializers import (
 from tenancy.slugs import schema_name_for
 from tenancy.tasks import export_school, provision_school
 from tenancy.views import PlatformView
+from tenancy.console_views import backup_summary
 
 logger = logging.getLogger(__name__)
 
@@ -592,5 +593,6 @@ class OverviewView(PlatformView):
                     for s in support
                 ],
                 "recent_activity": PlatformAuditLogSerializer(recent, many=True).data,
+                "backup": backup_summary(now),
             }
         )

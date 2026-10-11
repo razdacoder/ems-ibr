@@ -150,10 +150,11 @@ def _copy_weekly(client, started, daily):
             clock.sleep(COPY_RETRY_SECONDS)
 
 
-def back_up(started=None):
+def back_up(started=None, report=None):
     """Dump, list, upload, verify, copy the weekly, write the heartbeat.
 
-    Returns the daily dump key. Raises on any failure, before the heartbeat.
+    Returns the daily dump key, and puts the dump's size in ``report`` when
+    given. Raises on any failure, before the heartbeat.
     """
     started = started or datetime.now(dt_timezone.utc)
     client = _bucket()
@@ -166,6 +167,8 @@ def back_up(started=None):
         size = os.path.getsize(path)
         if size == 0:
             raise BackupError("pg_dump wrote an empty file.")
+        if report is not None:
+            report["size"] = size
         _run(["pg_restore", "--list", path])
 
         client.upload_file(path, settings.BACKUP_BUCKET, dump_key, ExtraArgs=_extra())
@@ -210,15 +213,36 @@ def _ping(path="", body=None):
         logger.warning("Backup monitor ping to %s failed.", path or "success", exc_info=True)
 
 
-def attempt(started=None):
-    """One backup attempt: ping success, or log it, post ``/fail`` and re-raise."""
+def _record(started, ok, **fields):
+    """Keep a ``BackupRun`` for the console. Never raises: the record is a
+    convenience, the bucket and the monitor are what count."""
     try:
-        key = back_up(started)
+        from tenancy.models import BackupRun
+
+        BackupRun.objects.create(
+            started_at=started, finished_at=datetime.now(dt_timezone.utc), ok=ok, **fields
+        )
+    except Exception:
+        logger.warning("Could not record the backup run.", exc_info=True)
+
+
+def attempt(started=None):
+    """One backup attempt: ping success, or log it, post ``/fail`` and re-raise.
+
+    Either way the attempt is recorded for the console.
+    """
+    started = started or datetime.now(dt_timezone.utc)
+    report = {}
+    try:
+        key = back_up(started, report)
     except Exception:
         logger.exception("Database backup failed.")
-        _ping("/fail", traceback.format_exc().encode()[-FAIL_BODY_BYTES:])
+        failure = traceback.format_exc()
+        _ping("/fail", failure.encode()[-FAIL_BODY_BYTES:])
+        _record(started, False, error=failure[-FAIL_BODY_BYTES:])
         raise
     _ping()
+    _record(started, True, key=key, size_bytes=report.get("size"))
     return key
 
 
@@ -246,8 +270,14 @@ def run_forever(now=None, sleep=clock.sleep, rounds=None):
             failed = False
         except Exception:
             failed = True
+            error = traceback.format_exc()
         current = now()
         wake, is_retry = next_attempt(current, settings.BACKUP_TIME_UTC, failed, retries_used)
+        if failed and not is_retry:
+            # Retries used up: tell the team, the next try is a day away.
+            from tenancy import alerts
+
+            alerts.backup_failed(error, wake)
         retries_used = retries_used + 1 if is_retry else 0
         logger.info(
             "Next backup %s at %s UTC.",

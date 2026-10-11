@@ -49,6 +49,14 @@ app.conf.beat_schedule = {
         "task": "tenancy.tasks.purge_schools",
         "schedule": crontab(hour=2, minute=0),
     },
+    "index-staff": {
+        "task": "tenancy.tasks.index_staff",
+        "schedule": crontab(hour=1, minute=30),
+    },
+    "alert-renewals": {
+        "task": "tenancy.tasks.alert_renewals",
+        "schedule": crontab(hour=7, minute=0),
+    },
 }
 
 

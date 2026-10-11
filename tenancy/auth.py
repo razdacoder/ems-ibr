@@ -17,6 +17,8 @@ from rest_framework.exceptions import APIException, AuthenticationFailed
 from tenancy.models import PlatformAdmin, PlatformToken
 
 PLATFORM_TOKEN_TTL = timedelta(hours=12)
+# How stale a session's last_used_at may get before a request refreshes it.
+TOUCH_EVERY = timedelta(minutes=5)
 CHALLENGE_MAX_AGE = 300  # seconds between the password and the code
 KEYWORD = b"bearer"
 
@@ -36,13 +38,19 @@ def hash_key(key):
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-def issue_token(admin):
+def issue_token(admin, request=None):
     """Start a 12 hour session; returns ``(key, token)``. Only the hash is kept."""
+    from tenancy.audit import request_ip
+
     key = secrets.token_urlsafe(32)
+    now = timezone.now()
     token = PlatformToken.objects.create(
         key_hash=hash_key(key),
         admin=admin,
-        expires_at=timezone.now() + PLATFORM_TOKEN_TTL,
+        expires_at=now + PLATFORM_TOKEN_TTL,
+        user_agent=(request.META.get("HTTP_USER_AGENT", "") if request else "")[:255],
+        ip=request_ip(request) if request else None,
+        last_used_at=now,
     )
     admin.last_login = token.created_at
     admin.save(update_fields=["last_login"])
@@ -94,6 +102,10 @@ class PlatformTokenAuthentication(BaseAuthentication):
             raise AuthenticationFailed("Your session has expired. Sign in again.")
         if not token.admin.is_active:
             raise AuthenticationFailed("Invalid token.")
+        now = timezone.now()
+        if token.last_used_at is None or now - token.last_used_at > TOUCH_EVERY:
+            PlatformToken.objects.filter(pk=token.pk).update(last_used_at=now)
+            token.last_used_at = now
         return token.admin, token
 
     def authenticate_header(self, request):

@@ -1,7 +1,7 @@
 """``/api/platform/``: public urlconf only, never on a school host."""
 from django.urls import path
 
-from tenancy import school_views, views
+from tenancy import account_views, console_views, school_views, views
 
 urlpatterns = [
     path("auth/login/", views.LoginView.as_view()),
@@ -9,17 +9,30 @@ urlpatterns = [
     path("auth/enroll/", views.EnrollView.as_view()),
     path("auth/logout/", views.LogoutView.as_view()),
     path("me/", views.MeView.as_view()),
+    path("me/password/", account_views.ChangePasswordView.as_view()),
+    path("me/2fa/", account_views.ReenrolStartView.as_view()),
+    path("me/2fa/confirm/", account_views.ReenrolConfirmView.as_view()),
+    path("me/sessions/", account_views.SessionListView.as_view()),
+    path("me/sessions/revoke-others/", account_views.SessionRevokeOthersView.as_view()),
+    path("me/sessions/<str:session_id>/", account_views.SessionRevokeView.as_view()),
     path("admins/", views.AdminListView.as_view()),
     path("admins/accept/", views.AcceptInviteView.as_view()),
     path("admins/<int:pk>/", views.AdminDetailView.as_view()),
     path("admins/<int:pk>/reset-2fa/", views.AdminResetTwoFactorView.as_view()),
     path("admins/<int:pk>/unlock/", views.AdminUnlockView.as_view()),
+    path("admins/<int:pk>/sign-out/", account_views.AdminSignOutView.as_view()),
     path("admins/<int:pk>/resend-invite/", views.AdminResendInviteView.as_view()),
     path("audit/", views.AuditLogView.as_view()),
     path("overview/", school_views.OverviewView.as_view()),
     path("plans/", school_views.PlanListView.as_view()),
     path("plans/<int:pk>/", school_views.PlanDetailView.as_view()),
     path("schools/", school_views.SchoolListView.as_view()),
+    path("schools/export/", console_views.SchoolExportView.as_view()),
+    path("schools/<int:pk>/usage/", console_views.SchoolUsageView.as_view()),
+    path("staff/", console_views.StaffSearchView.as_view()),
+    path("staff/reindex/", console_views.StaffReindexView.as_view()),
+    path("announcements/", console_views.AnnouncementListView.as_view()),
+    path("announcements/<int:pk>/withdraw/", console_views.AnnouncementWithdrawView.as_view()),
     path("schools/<int:pk>/", school_views.SchoolDetailView.as_view()),
     path("schools/<int:pk>/retry/", school_views.SchoolRetryView.as_view()),
     path("schools/<int:pk>/resend-invite/", school_views.SchoolResendInviteView.as_view()),

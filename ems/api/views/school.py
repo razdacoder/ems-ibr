@@ -9,8 +9,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.utils import timezone
+
 from ems.models import Student
 from tenancy import limits, support
+from tenancy.models import Announcement
 
 
 class SchoolView(APIView):
@@ -35,6 +38,10 @@ class SchoolView(APIView):
                     "staff_users": limits.staff_in_use(),
                 },
                 "support": _support(request),
+                "announcements": [
+                    {"id": a.id, "message": a.message, "level": a.level, "ends_at": a.ends_at}
+                    for a in Announcement.current(timezone.now())[:3]
+                ],
             }
         )
 

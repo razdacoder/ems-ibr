@@ -211,6 +211,16 @@ class PlatformToken(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
+    # Shown on the admin's account page so they can tell their sessions apart.
+    user_agent = models.CharField(max_length=255, blank=True, default="")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    # Refreshed at most every few minutes (tenancy.auth.TOUCH_EVERY).
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def public_id(self):
+        """Names the session in the API. A prefix of the hash, never the key."""
+        return self.key_hash[:16]
 
 
 class PlatformAuditLog(models.Model):
@@ -297,3 +307,76 @@ class UsageSnapshot(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["school", "taken_on"], name="usage_snapshot_per_day")
         ]
+
+
+class BackupRun(models.Model):
+    """One attempt of the nightly whole database backup (spec 0003, child 0007).
+
+    Written by the backup service so the console can show backup health.
+    Recording never fails a backup (tenancy.backups.attempt).
+    """
+
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField()
+    ok = models.BooleanField()
+    key = models.CharField(max_length=255, blank=True, default="")
+    size_bytes = models.BigIntegerField(null=True, blank=True)
+    error = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+
+
+class StaffDirectoryEntry(models.Model):
+    """A school's staff account, copied nightly so support can find which
+    school an email belongs to without entering every schema.
+
+    Rebuilt whole per school by ``tenancy.tasks.index_staff``. Students are
+    never copied, and support shadow users are excluded.
+    """
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="staff_directory"
+    )
+    email = models.EmailField(db_index=True)
+    name = models.CharField(max_length=255, blank=True, default="")
+    role = models.CharField(max_length=50, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    indexed_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["email"]
+
+
+class Announcement(models.Model):
+    """A message every school's dashboard shows as a banner, e.g. planned
+    maintenance. Shown between ``starts_at`` and ``ends_at`` (open ended when
+    null) unless withdrawn."""
+
+    class Level(models.TextChoices):
+        INFO = "info", "Information"
+        WARNING = "warning", "Warning"
+
+    message = models.TextField(max_length=500)
+    level = models.CharField(max_length=10, choices=Level.choices, default=Level.INFO)
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField(null=True, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="announcements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-starts_at", "-id"]
+
+    @classmethod
+    def current(cls, now):
+        """Announcements showing at ``now``, newest first."""
+        return cls.objects.filter(
+            models.Q(ends_at__isnull=True) | models.Q(ends_at__gt=now),
+            starts_at__lte=now,
+            withdrawn_at__isnull=True,
+        )

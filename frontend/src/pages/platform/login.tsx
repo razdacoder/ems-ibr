@@ -253,7 +253,7 @@ function CodeStep({
 }
 
 /** The otpauth URI as a QR code, plus the secret for typing in by hand. */
-function EnrolmentCode({ uri }: { uri: string }) {
+export function EnrolmentCode({ uri }: { uri: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const secret = new URL(uri).searchParams.get("secret") ?? "";
 

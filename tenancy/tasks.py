@@ -16,8 +16,15 @@ from django.db.models import Max
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name, schema_context
 
-from tenancy import exports, limits
-from tenancy.models import Domain, PlatformAuditLog, School, SupportSession, UsageSnapshot
+from tenancy import alerts, exports, limits
+from tenancy.models import (
+    Domain,
+    PlatformAuditLog,
+    School,
+    StaffDirectoryEntry,
+    SupportSession,
+    UsageSnapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +99,7 @@ def provision_school(school_id):
                 school.provisioning_error = str(exc)[:2000]
                 school.save(update_fields=["status", "provisioning_error"])
                 _audit(school, "school_provisioning_failed", error=school.provisioning_error)
+                alerts.school_setup_failed(school, school.provisioning_error)
         return
 
     with transaction.atomic():
@@ -122,6 +130,7 @@ def fail_stale_provisioning():
             school.provisioning_error = STALE_PROVISIONING_ERROR
             school.save(update_fields=["status", "provisioning_error"])
             _audit(school, "school_provisioning_failed", error=STALE_PROVISIONING_ERROR)
+            alerts.school_setup_failed(school, STALE_PROVISIONING_ERROR)
 
 
 @shared_task(ignore_result=True)
@@ -185,6 +194,7 @@ def export_school(self, school_id):
         if self.request.retries >= EXPORT_MAX_RETRIES:
             logger.exception("Exporting %s failed", school.schema_name)
             _audit(school, "export_failed", error=str(exc)[:2000])
+            alerts.export_failed(school, str(exc))
             return
         raise self.retry(exc=exc, countdown=60 * 2**self.request.retries)
 
@@ -296,3 +306,58 @@ def _usage(school, now):
             ).count(),
             "last_activity_at": AuditLog.objects.aggregate(last=Max("created_at"))["last"],
         }
+
+
+# Days before renews_on that the renewal digest mentions a school. Lapsed
+# plans come up again every week until renewed or changed.
+RENEWAL_REMINDER_DAYS = (14, 7, 1, 0)
+
+
+@shared_task(ignore_result=True)
+def alert_renewals():
+    """Email the team the plans renewing soon or lapsed (beat, daily)."""
+    today = timezone.now().date()
+    due = [
+        school
+        for school in School.objects.filter(
+            status=School.Status.ACTIVE, renews_on__isnull=False
+        ).order_by("renews_on")
+        if (school.renews_on - today).days in RENEWAL_REMINDER_DAYS
+        or (school.renews_on < today and (today - school.renews_on).days % 7 == 0)
+    ]
+    if due:
+        alerts.renewals_due(due, today)
+
+
+@shared_task(ignore_result=True)
+def index_staff():
+    """Copy every live school's staff accounts into ``StaffDirectoryEntry``
+    (beat, nightly). One school failing never stops the rest."""
+    now = timezone.now()
+    for school in School.objects.filter(status__in=School.LIVE_STATUSES).exclude(
+        schema_name=get_public_schema_name()
+    ):
+        try:
+            with schema_context(school.schema_name):
+                from ems.models import User
+
+                # ``objects`` already leaves out support shadow users.
+                rows = [
+                    StaffDirectoryEntry(
+                        school=school,
+                        email=user.email,
+                        name=f"{user.first_name} {user.last_name}".strip(),
+                        role=user.role or "",
+                        is_active=user.is_active,
+                        last_login=user.last_login,
+                        indexed_at=now,
+                    )
+                    for user in User.objects.all()
+                ]
+            with transaction.atomic():
+                StaffDirectoryEntry.objects.filter(school=school).delete()
+                StaffDirectoryEntry.objects.bulk_create(rows)
+        except Exception:
+            logger.exception("Indexing staff of %s failed", school.schema_name)
+    # Schools no longer live drop out of the search.
+    StaffDirectoryEntry.objects.exclude(school__status__in=School.LIVE_STATUSES).delete()

@@ -74,3 +74,37 @@ def verify(admin, code):
         return False
     admin.totp_last_step = step
     return True
+
+
+def pending_secret(admin):
+    """A fresh secret for re-enrolling, not saved yet; returns ``(secret, uri)``.
+
+    The admin's current secret keeps working until ``confirm`` succeeds, so
+    abandoning the setup halfway never weakens their sign in.
+    """
+    secret = pyotp.random_base32()
+    uri = pyotp.TOTP(secret, issuer=ISSUER).provisioning_uri(admin.email, issuer_name=ISSUER)
+    return secret, uri
+
+
+def seal(secret):
+    return _fernet().encrypt(secret.encode()).decode()
+
+
+def unseal(sealed):
+    return _fernet().decrypt(sealed.encode()).decode()
+
+
+def confirm(admin, secret, code):
+    """Make ``secret`` the admin's if ``code`` matches it. False otherwise."""
+    code = (code or "").strip().replace(" ", "")
+    if not code.isdigit():
+        return False
+    step = _matching_step(secret, code)
+    if step is None:
+        return False
+    admin.totp_secret = seal(secret)
+    admin.totp_confirmed_at = timezone.now()
+    admin.totp_last_step = step
+    admin.save(update_fields=["totp_secret", "totp_confirmed_at", "totp_last_step"])
+    return True

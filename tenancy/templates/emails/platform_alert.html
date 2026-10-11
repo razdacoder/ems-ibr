@@ -1,0 +1,9 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+<p style="margin:0 0 16px;font-weight:600;">{{ headline }}</p>
+<ul style="margin:0 0 16px;padding-left:20px;">
+{% for line in lines %}<li style="margin:0 0 6px;">{{ line }}</li>{% endfor %}
+</ul>
+{% include "emails/_button.html" with label="Open the console" %}
+{% endblock %}
+{% block footer %}You're getting this as an Ordo platform Owner. Set PLATFORM_ALERT_EMAILS to send alerts somewhere else.{% endblock %}

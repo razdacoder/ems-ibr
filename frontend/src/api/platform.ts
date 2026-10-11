@@ -34,9 +34,10 @@ export type UpdateAdminInput = Partial<
 const ADMINS = ["platform", "admins"] as const;
 const AUDIT = ["platform", "audit"] as const;
 
-export function usePlatformAdmins() {
+export function usePlatformAdmins({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ADMINS,
+    enabled,
     queryFn: async () =>
       (await platformApi.get<PlatformAdminRow[]>("/admins/")).data,
   });
@@ -416,6 +417,7 @@ export interface PlatformOverview {
     expires_at: string;
   }>;
   recent_activity: PlatformAuditRow[];
+  backup: BackupSummary;
 }
 
 /** The console dashboard. Under the schools key so school changes refresh it. */
@@ -427,3 +429,175 @@ export function usePlatformOverview() {
     refetchInterval: 60_000,
   });
 }
+
+/* ------------------------------------------------------------ backups */
+
+export interface BackupSummary {
+  configured: boolean;
+  /** No verified backup in the last 26 hours. */
+  stale: boolean;
+  last_success: { started_at: string; size_bytes: number | null; key: string } | null;
+  last_run: { started_at: string; ok: boolean; error: string } | null;
+  /** Up to 14 attempts, oldest first. */
+  recent: Array<{ started_at: string; ok: boolean; size_bytes: number | null }>;
+}
+
+/* ------------------------------------------------------------ account */
+
+const SESSIONS = ["platform", "me", "sessions"] as const;
+
+export interface PlatformSession {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  last_used_at: string | null;
+  user_agent: string;
+  ip: string | null;
+  current: boolean;
+}
+
+export function useMySessions() {
+  return useQuery({
+    queryKey: SESSIONS,
+    queryFn: async () => (await platformApi.get<PlatformSession[]>("/me/sessions/")).data,
+  });
+}
+
+function useSessionMutation<TVars, TData = unknown>(fn: (vars: TVars) => Promise<TData>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: SESSIONS });
+      void qc.invalidateQueries({ queryKey: AUDIT });
+    },
+  });
+}
+
+export const useChangePassword = () =>
+  useSessionMutation((input: { current_password: string; new_password: string }) =>
+    platformApi.post("/me/password/", input),
+  );
+
+export const useRevokeSession = () =>
+  useSessionMutation((id: string) => platformApi.delete(`/me/sessions/${id}/`));
+
+export const useRevokeOtherSessions = () =>
+  useSessionMutation(async () =>
+    (await platformApi.post<{ ended: number }>("/me/sessions/revoke-others/")).data,
+  );
+
+export const useStartReenrol = () =>
+  useMutation({
+    mutationFn: async (input: { current_password: string; code: string }) =>
+      (await platformApi.post<{ challenge: string; otpauth_uri: string }>("/me/2fa/", input)).data,
+  });
+
+export const useConfirmReenrol = () =>
+  useSessionMutation((input: { challenge: string; code: string }) =>
+    platformApi.post("/me/2fa/confirm/", input),
+  );
+
+export const useSignOutAdmin = () =>
+  useAdminMutation(async (id: number) =>
+    (await platformApi.post<{ ended: number }>(`/admins/${id}/sign-out/`)).data,
+  );
+
+/* ------------------------------------------------------------ usage */
+
+export interface SchoolUsageHistory {
+  limits: { max_students: number | null; max_staff_users: number | null };
+  snapshots: Array<{
+    date: string;
+    students: number;
+    staff_users: number;
+    jobs: number;
+    last_activity_at: string | null;
+  }>;
+}
+
+export function useSchoolUsage(id: number, days = 90) {
+  return useQuery({
+    queryKey: [...SCHOOLS, "usage", id, days],
+    queryFn: async () =>
+      (await platformApi.get<SchoolUsageHistory>(`/schools/${id}/usage/`, { params: { days } })).data,
+  });
+}
+
+/* ------------------------------------------------------------ staff search */
+
+export interface StaffHit {
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+  last_login: string | null;
+  school: { id: number; name: string; slug: string; status: SchoolStatus };
+}
+
+export function useStaffSearch(q: string) {
+  const query = q.trim();
+  return useQuery({
+    queryKey: ["platform", "staff", query],
+    queryFn: async () =>
+      (
+        await platformApi.get<{ indexed_at: string | null; results: StaffHit[] }>("/staff/", {
+          params: { q: query },
+        })
+      ).data,
+    enabled: query.length >= 3,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export const useReindexStaff = () =>
+  useMutation({ mutationFn: () => platformApi.post("/staff/reindex/") });
+
+/* ------------------------------------------------------------ announcements */
+
+const ANNOUNCEMENTS = ["platform", "announcements"] as const;
+
+export type AnnouncementLevel = "info" | "warning";
+
+export interface AnnouncementRow {
+  id: number;
+  message: string;
+  level: AnnouncementLevel;
+  starts_at: string;
+  ends_at: string | null;
+  withdrawn_at: string | null;
+  created_by: { id: number; name: string } | null;
+  created_at: string;
+  state: "scheduled" | "showing" | "ended";
+}
+
+export interface AnnouncementInput {
+  message: string;
+  level: AnnouncementLevel;
+  starts_at?: string;
+  ends_at?: string | null;
+}
+
+export function useAnnouncements() {
+  return useQuery({
+    queryKey: ANNOUNCEMENTS,
+    queryFn: async () => (await platformApi.get<AnnouncementRow[]>("/announcements/")).data,
+  });
+}
+
+function useAnnouncementMutation<TVars>(fn: (vars: TVars) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ANNOUNCEMENTS });
+      void qc.invalidateQueries({ queryKey: AUDIT });
+    },
+  });
+}
+
+export const useCreateAnnouncement = () =>
+  useAnnouncementMutation((input: AnnouncementInput) => platformApi.post("/announcements/", input));
+
+export const useWithdrawAnnouncement = () =>
+  useAnnouncementMutation((id: number) => platformApi.post(`/announcements/${id}/withdraw/`));

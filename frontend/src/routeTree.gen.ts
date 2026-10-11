@@ -38,9 +38,12 @@ import { Route as AppClassesIndexRouteImport } from './routes/_app/classes.index
 import { Route as AppClassesIdRouteImport } from './routes/_app/classes.$id'
 import { Route as PlatformConsoleLoginRouteImport } from './routes/_platform/console.login'
 import { Route as PlatformConsoleConsoleIndexRouteImport } from './routes/_platform/_console/console.index'
+import { Route as PlatformConsoleConsoleAccountRouteImport } from './routes/_platform/_console/console.account'
 import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
+import { Route as PlatformConsoleConsoleAnnouncementsRouteImport } from './routes/_platform/_console/console.announcements'
 import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
 import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platform/_console/console.plans'
+import { Route as PlatformConsoleConsoleStaffRouteImport } from './routes/_platform/_console/console.staff'
 import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
 import { Route as PlatformConsoleConsoleSchoolsIdRouteImport } from './routes/_platform/_console/console.schools.$id'
 import { Route as PlatformConsoleConsoleSchoolsNewRouteImport } from './routes/_platform/_console/console.schools.new'
@@ -189,10 +192,22 @@ const PlatformConsoleConsoleIndexRoute =
     path: '/console/',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleAccountRoute =
+  PlatformConsoleConsoleAccountRouteImport.update({
+    id: '/console/account',
+    path: '/console/account',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 const PlatformConsoleConsoleAdminsRoute =
   PlatformConsoleConsoleAdminsRouteImport.update({
     id: '/console/admins',
     path: '/console/admins',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAnnouncementsRoute =
+  PlatformConsoleConsoleAnnouncementsRouteImport.update({
+    id: '/console/announcements',
+    path: '/console/announcements',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
 const PlatformConsoleConsoleAuditRoute =
@@ -205,6 +220,12 @@ const PlatformConsoleConsolePlansRoute =
   PlatformConsoleConsolePlansRouteImport.update({
     id: '/console/plans',
     path: '/console/plans',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleStaffRoute =
+  PlatformConsoleConsoleStaffRouteImport.update({
+    id: '/console/staff',
+    path: '/console/staff',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
 const PlatformConsoleConsoleSchoolsIndexRoute =
@@ -258,9 +279,12 @@ export interface FileRoutesByFullPath {
   '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation/': typeof AppAllocationIndexRoute
   '/classes/': typeof AppClassesIndexRoute
+  '/console/account': typeof PlatformConsoleConsoleAccountRoute
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console/': typeof PlatformConsoleConsoleIndexRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
@@ -293,9 +317,12 @@ export interface FileRoutesByTo {
   '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation': typeof AppAllocationIndexRoute
   '/classes': typeof AppClassesIndexRoute
+  '/console/account': typeof PlatformConsoleConsoleAccountRoute
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console': typeof PlatformConsoleConsoleIndexRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
@@ -332,9 +359,12 @@ export interface FileRoutesById {
   '/_platform/console/login': typeof PlatformConsoleLoginRoute
   '/_app/allocation/': typeof AppAllocationIndexRoute
   '/_app/classes/': typeof AppClassesIndexRoute
+  '/_platform/_console/console/account': typeof PlatformConsoleConsoleAccountRoute
   '/_platform/_console/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/_platform/_console/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/_platform/_console/console/audit': typeof PlatformConsoleConsoleAuditRoute
   '/_platform/_console/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/_platform/_console/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
   '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/_platform/_console/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
@@ -369,9 +399,12 @@ export interface FileRouteTypes {
     | '/console/login'
     | '/allocation/'
     | '/classes/'
+    | '/console/account'
     | '/console/admins'
+    | '/console/announcements'
     | '/console/audit'
     | '/console/plans'
+    | '/console/staff'
     | '/console/'
     | '/console/schools/$id'
     | '/console/schools/new'
@@ -404,9 +437,12 @@ export interface FileRouteTypes {
     | '/console/login'
     | '/allocation'
     | '/classes'
+    | '/console/account'
     | '/console/admins'
+    | '/console/announcements'
     | '/console/audit'
     | '/console/plans'
+    | '/console/staff'
     | '/console'
     | '/console/schools/$id'
     | '/console/schools/new'
@@ -442,9 +478,12 @@ export interface FileRouteTypes {
     | '/_platform/console/login'
     | '/_app/allocation/'
     | '/_app/classes/'
+    | '/_platform/_console/console/account'
     | '/_platform/_console/console/admins'
+    | '/_platform/_console/console/announcements'
     | '/_platform/_console/console/audit'
     | '/_platform/_console/console/plans'
+    | '/_platform/_console/console/staff'
     | '/_platform/_console/console/'
     | '/_platform/_console/console/schools/$id'
     | '/_platform/_console/console/schools/new'
@@ -665,11 +704,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformConsoleConsoleIndexRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
+    '/_platform/_console/console/account': {
+      id: '/_platform/_console/console/account'
+      path: '/console/account'
+      fullPath: '/console/account'
+      preLoaderRoute: typeof PlatformConsoleConsoleAccountRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
     '/_platform/_console/console/admins': {
       id: '/_platform/_console/console/admins'
       path: '/console/admins'
       fullPath: '/console/admins'
       preLoaderRoute: typeof PlatformConsoleConsoleAdminsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/announcements': {
+      id: '/_platform/_console/console/announcements'
+      path: '/console/announcements'
+      fullPath: '/console/announcements'
+      preLoaderRoute: typeof PlatformConsoleConsoleAnnouncementsRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
     '/_platform/_console/console/audit': {
@@ -684,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/console/plans'
       fullPath: '/console/plans'
       preLoaderRoute: typeof PlatformConsoleConsolePlansRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/staff': {
+      id: '/_platform/_console/console/staff'
+      path: '/console/staff'
+      fullPath: '/console/staff'
+      preLoaderRoute: typeof PlatformConsoleConsoleStaffRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
     '/_platform/_console/console/schools/': {
@@ -766,9 +826,12 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface PlatformConsoleRouteChildren {
+  PlatformConsoleConsoleAccountRoute: typeof PlatformConsoleConsoleAccountRoute
   PlatformConsoleConsoleAdminsRoute: typeof PlatformConsoleConsoleAdminsRoute
+  PlatformConsoleConsoleAnnouncementsRoute: typeof PlatformConsoleConsoleAnnouncementsRoute
   PlatformConsoleConsoleAuditRoute: typeof PlatformConsoleConsoleAuditRoute
   PlatformConsoleConsolePlansRoute: typeof PlatformConsoleConsolePlansRoute
+  PlatformConsoleConsoleStaffRoute: typeof PlatformConsoleConsoleStaffRoute
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
   PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
   PlatformConsoleConsoleSchoolsNewRoute: typeof PlatformConsoleConsoleSchoolsNewRoute
@@ -777,9 +840,13 @@ interface PlatformConsoleRouteChildren {
 }
 
 const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
+  PlatformConsoleConsoleAccountRoute: PlatformConsoleConsoleAccountRoute,
   PlatformConsoleConsoleAdminsRoute: PlatformConsoleConsoleAdminsRoute,
+  PlatformConsoleConsoleAnnouncementsRoute:
+    PlatformConsoleConsoleAnnouncementsRoute,
   PlatformConsoleConsoleAuditRoute: PlatformConsoleConsoleAuditRoute,
   PlatformConsoleConsolePlansRoute: PlatformConsoleConsolePlansRoute,
+  PlatformConsoleConsoleStaffRoute: PlatformConsoleConsoleStaffRoute,
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
   PlatformConsoleConsoleSchoolsIdRoute: PlatformConsoleConsoleSchoolsIdRoute,
   PlatformConsoleConsoleSchoolsNewRoute: PlatformConsoleConsoleSchoolsNewRoute,

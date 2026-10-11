@@ -58,7 +58,7 @@ class SignInView(APIView):
 
 
 def _signed_in(request, admin):
-    key, token = issue_token(admin)
+    key, token = issue_token(admin, request)
     audit.record(request, "login", admin=admin)
     return Response(
         {

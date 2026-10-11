@@ -32,6 +32,9 @@ PLATFORM_BASE_DOMAIN = env("PLATFORM_BASE_DOMAIN", default="localhost")
 PLATFORM_CONSOLE_SUBDOMAIN = env("PLATFORM_CONSOLE_SUBDOMAIN", default="console").lower()
 # Scheme for links Ordo emails out (platform admin and school invites).
 PLATFORM_URL_SCHEME = env("PLATFORM_URL_SCHEME", default="https")
+# Who gets platform alerts (failed setups and backups, renewals). Empty means
+# every active Owner.
+PLATFORM_ALERT_EMAILS = env.list("PLATFORM_ALERT_EMAILS", default=[])
 # Fernet key encrypting platform admins' TOTP secrets. Generate one with
 # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
 # Losing it locks every admin out of 2FA: re-enrol them with

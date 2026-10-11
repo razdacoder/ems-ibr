@@ -9,6 +9,7 @@ import {
   usePlatformAdmins,
   useResendAdminInvite,
   useResetAdmin2fa,
+  useSignOutAdmin,
   useUnlockAdmin,
   useUpdateAdmin,
 } from "@/api/platform";
@@ -154,6 +155,7 @@ function AdminActions({ row }: { row: PlatformAdminRow }) {
   const reset2fa = useResetAdmin2fa();
   const unlock = useUnlockAdmin();
   const resend = useResendAdminInvite();
+  const signOut = useSignOutAdmin();
   const isMe = me?.id === row.id;
 
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -213,6 +215,22 @@ function AdminActions({ row }: { row: PlatformAdminRow }) {
               }}
             >
               Make {PLATFORM_ROLE_LABELS[otherRole]}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Sign ${row.name} out everywhere?`,
+                  description:
+                    "Ends every session they have open, e.g. on a lost laptop. They can sign in again with their password and authenticator.",
+                  confirmLabel: "Sign out",
+                  destructive: true,
+                });
+                if (ok) {
+                  await run(() => signOut.mutateAsync(row.id), `${row.name} was signed out everywhere`);
+                }
+              }}
+            >
+              Sign out everywhere
             </DropdownMenuItem>
             {row.totp_enrolled && (
               <DropdownMenuItem

@@ -1,5 +1,19 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { ChevronsUpDown, Layers, LayoutDashboard, LogOut, type LucideIcon, Moon, School, ScrollText, ShieldCheck, Sun } from "lucide-react";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  ChevronsUpDown,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  type LucideIcon,
+  Megaphone,
+  Moon,
+  School,
+  ScrollText,
+  Search,
+  ShieldCheck,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -44,13 +58,30 @@ interface NavItem {
   requires?: (a: PlatformAdmin | null) => boolean;
 }
 
-const NAV: NavItem[] = [
-  { to: "/console", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/console/schools", label: "Schools", icon: School },
-  { to: "/console/plans", label: "Plans", icon: Layers },
-  { to: "/console/admins", label: "Admins", icon: ShieldCheck, requires: isPlatformOwner },
-  { to: "/console/audit", label: "Audit log", icon: ScrollText },
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Platform",
+    items: [
+      { to: "/console", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/console/schools", label: "Schools", icon: School },
+      { to: "/console/staff", label: "Find staff", icon: Search },
+    ],
+  },
+  {
+    label: "Manage",
+    items: [
+      { to: "/console/plans", label: "Plans", icon: Layers },
+      { to: "/console/announcements", label: "Announcements", icon: Megaphone },
+      { to: "/console/admins", label: "Admins", icon: ShieldCheck, requires: isPlatformOwner },
+      { to: "/console/audit", label: "Audit log", icon: ScrollText },
+    ],
+  },
 ];
+
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+/** Pages outside the nav that still name the header. */
+const EXTRA_TITLES: Array<[string, string]> = [["/console/account", "Your account"]];
 
 function isActive(pathname: string, { to }: NavItem) {
   // The dashboard is the console root, so only an exact match counts.
@@ -63,7 +94,11 @@ function ConsoleSidebar() {
   const { theme, toggle: toggleTheme } = useTheme();
   const { pathname } = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  const items = NAV.filter((item) => !item.requires || item.requires(admin));
+  const navigate = useNavigate();
+  const groups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => !item.requires || item.requires(admin)),
+  }));
   const isDark = theme === "dark";
   const initials =
     admin?.name
@@ -96,11 +131,12 @@ function ConsoleSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+        {groups.map((group) => (
+        <SidebarGroup key={group.label}>
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {group.items.map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
                     isActive={isActive(pathname, item)}
@@ -115,6 +151,7 @@ function ConsoleSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
@@ -156,6 +193,15 @@ function ConsoleSidebar() {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={() => {
+                    if (isMobile) setOpenMobile(false);
+                    void navigate({ to: "/console/account" });
+                  }}
+                >
+                  <UserRound className="mr-2 size-3.5" strokeWidth={2} />
+                  Your account
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={(e) => {
                     e.preventDefault();
                     toggleTheme();
@@ -186,7 +232,9 @@ function ConsoleSidebar() {
 /** The signed in console at console.<base>: sidebar nav and the page. */
 export function ConsoleLayout() {
   const { pathname } = useLocation();
-  const current = NAV.find((item) => isActive(pathname, item));
+  const current =
+    NAV.find((item) => isActive(pathname, item))?.label ??
+    EXTRA_TITLES.find(([path]) => pathname.startsWith(path))?.[1];
 
   return (
     <SidebarProvider>
@@ -195,7 +243,7 @@ export function ConsoleLayout() {
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-[color:var(--border)] bg-background/90 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-1 h-4" />
-          <span className="text-[13.5px] font-medium">{current?.label ?? "Console"}</span>
+          <span className="text-[13.5px] font-medium">{current ?? "Console"}</span>
         </header>
         <div className="mx-auto w-full max-w-screen-2xl px-4 py-10 sm:px-6 lg:px-10">
           <Outlet />

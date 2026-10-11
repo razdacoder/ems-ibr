@@ -14,7 +14,9 @@ from rest_framework.exceptions import APIException
 WINDOW = timedelta(minutes=15)
 MAX_PER_EMAIL = 5
 MAX_PER_IP = 20
-FAILURE_ACTIONS = ("login_failed", "totp_failed")
+# The account page's password checks count too, so an open session can't
+# be used to guess the password.
+FAILURE_ACTIONS = ("login_failed", "totp_failed", "account_password_wrong")
 UNLOCKED = "unlocked"
 
 

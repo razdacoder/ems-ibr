@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { Download, Loader2, MoreHorizontal, Plus } from "lucide-react";
 import {
   SCHOOL_STATUS_LABELS,
   type SchoolRow,
@@ -13,7 +13,7 @@ import {
   useSchools,
 } from "@/api/platform";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +38,8 @@ import {
 import { ListShell } from "@/components/data-table/list-shell";
 import { PaginationFooter } from "@/components/data-table/pagination";
 import { ACTIONS_HEAD_CLASS, RowActions } from "@/components/data-table/row-actions";
-import { extractErrorEnvelope } from "@/lib/api";
+import { extractErrorEnvelope, platformApi } from "@/lib/api";
+import { downloadAuthenticatedFile } from "@/lib/download";
 import { useConfirm } from "@/lib/confirm";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import { toast } from "@/lib/use-toast";
@@ -78,6 +79,7 @@ export default function ConsoleSchoolsPage() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<SchoolStatus | typeof ALL>(ALL);
+  const [exporting, setExporting] = useState(false);
   const list = useSchools({
     page,
     q: query || undefined,
@@ -90,12 +92,40 @@ export default function ConsoleSchoolsPage() {
       title="Schools"
       description="Every school on Ordo. Creating one builds its own private database and emails its first administrator an invite."
       toolbar={
-        isPlatformOwner(admin) && (
-          <Link to="/console/schools/new" className={buttonVariants({ variant: "brand" })}>
-            <Plus data-icon="inline-start" />
-            New school
-          </Link>
-        )
+        <>
+          <Button
+            variant="outline"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                await downloadAuthenticatedFile(
+                  "/schools/export/",
+                  "ordo-schools.csv",
+                  { q: query || undefined, status: status === ALL ? undefined : status },
+                  platformApi,
+                );
+              } catch (err) {
+                toast({
+                  title: "Export failed",
+                  description: extractErrorEnvelope(err).detail,
+                  variant: "destructive",
+                });
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download data-icon="inline-start" />
+            Export CSV
+          </Button>
+          {isPlatformOwner(admin) && (
+            <Link to="/console/schools/new" className={buttonVariants({ variant: "brand" })}>
+              <Plus data-icon="inline-start" />
+              New school
+            </Link>
+          )}
+        </>
       }
       query={query}
       onQueryChange={(q) => {

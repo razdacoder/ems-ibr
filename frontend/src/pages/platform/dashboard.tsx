@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -14,6 +13,8 @@ import {
   Trash2,
   UserRound,
   PauseCircle,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import {
   type AttentionKind,
@@ -22,6 +23,7 @@ import {
   usePlatformOverview,
 } from "@/api/platform";
 import { PageHeader } from "@/components/layout/page-header";
+import { TrendChart } from "@/components/trend-chart";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -125,151 +127,66 @@ function StatTile({
   );
 }
 
-/* ---------------------------------------------------------------- trend */
+/* ---------------------------------------------------------------- backup */
 
-const CHART_W = 600;
-const CHART_H = 180;
-
-/** Students across all schools per day: one line, crosshair and tooltip on hover. */
-function StudentTrend({ trend }: { trend: PlatformOverview["trend"] }) {
-  const [hover, setHover] = useState<number | null>(null);
-  if (trend.length < 2) {
-    return <Empty>The trend fills in as nightly usage snapshots are taken.</Empty>;
+function formatBytes(bytes: number | null) {
+  if (bytes == null) return "size unknown";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
   }
+  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
 
-  const values = trend.map((d) => d.students);
-  const max = Math.max(...values, 1);
-  // A rounded top so gridlines land on readable numbers.
-  const magnitude = 10 ** Math.floor(Math.log10(max));
-  const top = Math.ceil(max / magnitude) * magnitude;
-  const x = (i: number) => (i / (trend.length - 1)) * CHART_W;
-  const y = (v: number) => CHART_H - (v / top) * CHART_H;
-  const line = values.map((v, i) => `${i ? "L" : "M"}${x(i)},${y(v)}`).join(" ");
-  const area = `${line} L${CHART_W},${CHART_H} L0,${CHART_H} Z`;
-  const point = hover === null ? null : trend[hover];
-
+function BackupHealth({ backup }: { backup: PlatformOverview["backup"] }) {
+  const healthy = !backup.stale;
   return (
-    <div className="px-5 pt-4 pb-3">
-      <div className="flex gap-3">
-        {/* y axis */}
-        <div className="flex h-[180px] flex-col justify-between text-right font-mono text-[10px] tabular-nums text-muted-foreground">
-          <span>{top.toLocaleString()}</span>
-          <span>{(top / 2).toLocaleString()}</span>
-          <span>0</span>
-        </div>
-        <div
-          className="relative h-[180px] flex-1"
-          onPointerMove={(e) => {
-            const box = e.currentTarget.getBoundingClientRect();
-            const ratio = Math.min(Math.max((e.clientX - box.left) / box.width, 0), 1);
-            setHover(Math.round(ratio * (trend.length - 1)));
-          }}
-          onPointerLeave={() => setHover(null)}
-        >
-          <svg
-            viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-            preserveAspectRatio="none"
-            className="absolute inset-0 size-full overflow-visible"
-            role="img"
-            aria-label={`Students across all schools, ${shortDate(trend[0].date)} to ${shortDate(trend[trend.length - 1].date)}`}
-          >
-            {[0, 0.5, 1].map((t) => (
-              <line
-                key={t}
-                x1={0}
-                x2={CHART_W}
-                y1={CHART_H * t}
-                y2={CHART_H * t}
-                stroke="var(--border)"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-            <path d={area} fill="var(--brand-soft)" opacity={0.6} />
-            <path
-              d={line}
-              fill="none"
-              stroke="var(--brand-strong)"
-              strokeWidth={2}
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-            {hover !== null && (
-              <line
-                x1={x(hover)}
-                x2={x(hover)}
-                y1={0}
-                y2={CHART_H}
-                stroke="var(--muted-foreground)"
-                strokeDasharray="3 3"
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
-          </svg>
-          {point && hover !== null && (
-            <>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card"
-                style={{
-                  left: `${(hover / (trend.length - 1)) * 100}%`,
-                  top: `${(y(point.students) / CHART_H) * 100}%`,
-                  backgroundColor: "var(--brand-strong)",
-                }}
-              />
-              <div
-                className="pointer-events-none absolute top-0 z-10 min-w-[150px] border border-[color:var(--border)] bg-popover px-3 py-2 text-[12px] shadow-md"
-                style={
-                  hover > (trend.length - 1) / 2
-                    ? { right: `${100 - (hover / (trend.length - 1)) * 100}%`, marginRight: 10 }
-                    : { left: `${(hover / (trend.length - 1)) * 100}%`, marginLeft: 10 }
-                }
-              >
-                <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {formatDay(point.date)}
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Students</span>
-                  <span className="font-medium tabular-nums">{point.students.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Staff</span>
-                  <span className="tabular-nums">{point.staff_users.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Jobs</span>
-                  <span className="tabular-nums">{point.jobs.toLocaleString()}</span>
-                </div>
-              </div>
-            </>
+    <div className="space-y-4 px-5 py-4">
+      <div className="flex items-start gap-3">
+        {healthy ? (
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[color:var(--brand-strong)]" aria-hidden />
+        ) : (
+          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+        )}
+        <div className="text-[13px]">
+          <p className="font-medium">
+            {healthy ? "Backed up" : backup.last_success ? "Backup is overdue" : "No backup yet"}
+          </p>
+          <p className="text-muted-foreground">
+            {backup.last_success
+              ? `Last good backup ${timeAgo(backup.last_success.started_at)}, ${formatBytes(backup.last_success.size_bytes)}`
+              : backup.configured
+                ? "The backup service hasn't reported a successful run."
+                : "BACKUP_BUCKET isn't set, so backups aren't running."}
+          </p>
+          {backup.last_run && !backup.last_run.ok && (
+            <p className="mt-1 line-clamp-2 font-mono text-[11px] text-destructive">
+              Last attempt failed: {backup.last_run.error.split("\n").filter(Boolean).at(-1)}
+            </p>
           )}
         </div>
       </div>
-      <div className="mt-2 flex justify-between pl-10 font-mono text-[10px] text-muted-foreground">
-        <span>{shortDate(trend[0].date)}</span>
-        <span>{shortDate(trend[trend.length - 1].date)}</span>
-      </div>
-      {/* The same numbers for screen readers. */}
-      <table className="sr-only">
-        <caption>Daily usage across all schools</caption>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Students</th>
-            <th>Staff</th>
-            <th>Jobs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trend.map((d) => (
-            <tr key={d.date}>
-              <td>{d.date}</td>
-              <td>{d.students}</td>
-              <td>{d.staff_users}</td>
-              <td>{d.jobs}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {backup.recent.length > 0 && (
+        <div>
+          <p className={cn(LABEL, "mb-1.5")}>Last {backup.recent.length} attempts</p>
+          <ul className="flex gap-1" aria-label="Recent backup attempts, oldest first">
+            {backup.recent.map((run) => (
+              <li
+                key={run.started_at}
+                title={`${formatDay(run.started_at)}: ${run.ok ? `ok, ${formatBytes(run.size_bytes)}` : "failed"}`}
+                className={cn("h-5 flex-1", run.ok ? "bg-[color:var(--brand-strong)]" : "bg-destructive")}
+              >
+                <span className="sr-only">
+                  {formatDay(run.started_at)} {run.ok ? "succeeded" : "failed"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -488,7 +405,21 @@ export default function ConsoleDashboardPage() {
 
       <div className="grid gap-3 lg:grid-cols-3">
         <Panel title="Students across all schools" className="lg:col-span-2" action={<span className={LABEL}>30 days</span>}>
-          {loading ? <Skeleton className="m-5 h-[180px]" /> : <StudentTrend trend={data?.trend ?? []} />}
+          {loading ? (
+            <Skeleton className="m-5 h-[180px]" />
+          ) : (
+            <TrendChart
+              label="Students"
+              points={(data?.trend ?? []).map((d) => ({
+                date: d.date,
+                value: d.students,
+                details: [
+                  ["Staff", d.staff_users],
+                  ["Jobs", d.jobs],
+                ],
+              }))}
+            />
+          )}
         </Panel>
         <Panel title="Schools by status" action={<PanelLink to="/console/schools">All schools</PanelLink>}>
           {loading ? <Skeleton className="m-5 h-32" /> : data && <StatusBreakdown byStatus={data.schools.by_status} />}
@@ -512,9 +443,14 @@ export default function ConsoleDashboardPage() {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
-        <Panel title="Schools per plan" action={<PanelLink to="/console/plans">Plans</PanelLink>}>
-          {loading ? <Skeleton className="m-5 h-24" /> : <PlanBars plans={data?.plans ?? []} />}
-        </Panel>
+        <div className="grid content-start gap-3">
+          <Panel title="Database backup">
+            {loading ? <Skeleton className="m-5 h-24" /> : data && <BackupHealth backup={data.backup} />}
+          </Panel>
+          <Panel title="Schools per plan" action={<PanelLink to="/console/plans">Plans</PanelLink>}>
+            {loading ? <Skeleton className="m-5 h-24" /> : <PlanBars plans={data?.plans ?? []} />}
+          </Panel>
+        </div>
         <Panel
           title="Recent activity"
           className="lg:col-span-2"
