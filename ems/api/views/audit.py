@@ -1,7 +1,7 @@
 import csv
-from datetime import datetime
 
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 
@@ -54,7 +54,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def export(self, request):
         """Stream the (filtered) trail as CSV."""
         rows = self.get_queryset()
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = timezone.localtime().strftime("%Y%m%d-%H%M%S")
         filename = f"audit-log-{timestamp}.csv"
         response = HttpResponse(
             content_type="text/csv",
@@ -84,7 +84,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
                 )
             writer.writerow(
                 [
-                    log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    timezone.localtime(log.created_at).strftime("%Y-%m-%d %H:%M:%S"),
                     user_name,
                     log.user_email,
                     log.action,

@@ -83,7 +83,7 @@ export function ListShell({
       </div>
 
       {/* Body card */}
-      <div className="overflow-hidden rounded-[12px] border border-[color:var(--border)] bg-card">
+      <div className="overflow-hidden rounded-none border border-[color:var(--border)] bg-card">
         {error ? (
           <Alert variant="destructive" className="m-4">
             <AlertDescription>

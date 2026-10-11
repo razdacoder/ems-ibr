@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Download, Plus, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Download, MailPlus, Plus, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PlanUsage } from "@/components/plan-usage";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -58,8 +60,46 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { downloadAuthenticatedFile } from "@/lib/download";
 import { toast } from "@/lib/use-toast";
 import { formatEmail, formatName, orEmpty } from "@/lib/format";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InviteStaffDialog, InvitesList } from "./invites";
 
+type UsersTab = "users" | "invites";
+
+/** Users and Invites share the page; the tab lives in the URL. */
 export default function UsersListPage() {
+  const { tab } = useSearch({ from: "/_app/users" });
+  const navigate = useNavigate({ from: "/users" });
+  const current: UsersTab = tab ?? "users";
+  const [inviting, setInviting] = useState(false);
+  const show = (next: UsersTab) =>
+    navigate({ search: next === "invites" ? { tab: "invites" } : {}, replace: true });
+
+  const tabs = (
+    <Tabs value={current} onValueChange={(v) => show(v as UsersTab)}>
+      <TabsList variant="line">
+        <TabsTrigger value="users">Users</TabsTrigger>
+        <TabsTrigger value="invites">Invites</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+
+  return (
+    <>
+      {current === "invites" ? (
+        <InvitesList tabs={tabs} onInvite={() => setInviting(true)} />
+      ) : (
+        <UsersTable tabs={tabs} onInvite={() => setInviting(true)} />
+      )}
+      <InviteStaffDialog
+        open={inviting}
+        onOpenChange={setInviting}
+        onSent={() => show("invites")}
+      />
+    </>
+  );
+}
+
+function UsersTable({ tabs, onInvite }: { tabs: ReactNode; onInvite: () => void }) {
   const { user: me } = useAuth();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
@@ -131,10 +171,19 @@ export default function UsersListPage() {
             <Button variant="outline" onClick={() => setSeedOpen(true)}>
               <Sparkles data-icon="inline-start" /> Seed dept users
             </Button>
-            <Button onClick={() => { setEditing(null); setEditOpen(true); }}>
+            <Button variant="outline" onClick={() => { setEditing(null); setEditOpen(true); }}>
               <Plus data-icon="inline-start" /> New user
             </Button>
+            <Button variant="brand" onClick={onInvite}>
+              <MailPlus data-icon="inline-start" /> Invite staff
+            </Button>
           </div>
+        }
+        filters={
+          <>
+            {tabs}
+            <PlanUsage kind="staff_users" />
+          </>
         }
         query={query}
         onQueryChange={(q) => { setQuery(q); setPage(1); }}

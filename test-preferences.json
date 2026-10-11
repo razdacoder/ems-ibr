@@ -5,5 +5,19 @@
   "e2eTool": "none",
   "testDir": "ems/tests",
   "filePattern": "test_*.py",
-  "packageManager": "pip"
+  "packageManager": "pip",
+  "frontend": {
+    "packageRoot": "frontend",
+    "tool": "vitest",
+    "additionalTools": [
+      "@testing-library/react",
+      "@testing-library/user-event",
+      "@testing-library/jest-dom"
+    ],
+    "environment": "jsdom",
+    "testDir": "frontend/src (beside the source)",
+    "filePattern": "*.test.tsx",
+    "packageManager": "pnpm",
+    "runCommand": "pnpm exec vitest run"
+  }
 }

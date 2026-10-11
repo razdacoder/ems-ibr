@@ -1,10 +1,10 @@
 """reconcile_unplaced: the cross hall safety net for students a hall could not seat."""
 from collections import Counter
 
-from django.test import TestCase
 
 from ems.models import SeatArrangement
 from ems.utils import reconcile_unplaced
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import enrol, make_class, make_course, make_hall, no_fill_cap
 
@@ -21,7 +21,7 @@ def neighbours(seat, cols):
     }
 
 
-class ReconcileUnplacedTests(TestCase):
+class ReconcileUnplacedTests(SchoolTestCase):
     def setUp(self):
         no_fill_cap()
         self.course = make_course("ACC 121")

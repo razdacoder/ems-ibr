@@ -43,7 +43,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { SupportBanner } from "@/components/support-banner";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 import { useNotificationStream } from "@/api/notifications";
+import { type FeatureKey, useSchoolPlan } from "@/api/school";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +71,8 @@ interface NavItem {
   icon: LucideIcon;
   /** When set, the item is shown only if the predicate passes for the user. */
   requires?: (u: AuthUser | null) => boolean;
+  /** When set, the item is shown only if the school's plan includes it. */
+  feature?: FeatureKey;
 }
 
 const NAV_SECTIONS: NavSection[] = [
@@ -108,6 +113,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Allocation",
         icon: Armchair,
         requires: isCommittee,
+        feature: "seat_allocation",
       },
       {
         to: "/directory",
@@ -413,6 +419,7 @@ function SidebarContent({
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   useNotificationStream();
+  const plan = useSchoolPlan();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -425,7 +432,11 @@ export function DashboardLayout() {
 
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((i) => !i.requires || i.requires(user)),
+    items: s.items.filter(
+      (i) =>
+        (!i.requires || i.requires(user)) &&
+        (!i.feature || !plan.data || plan.data.features.includes(i.feature)),
+    ),
   })).filter((s) => s.items.length > 0);
 
   return (
@@ -479,6 +490,8 @@ export function DashboardLayout() {
 
       {/* Right column: only this area scrolls */}
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
+        <SupportBanner />
+        <AnnouncementBanner />
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--border)] bg-background/80 px-5 backdrop-blur-md lg:hidden">
           <Button
             type="button"

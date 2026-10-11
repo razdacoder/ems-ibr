@@ -18,6 +18,7 @@ from ems.models import (
     Student,
     SystemSettings,
 )
+from tenancy import limits
 
 
 def _get_or_create_settings() -> SystemSettings:
@@ -59,8 +60,29 @@ class SystemSettingsView(APIView):
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
+        if _changes_branding(instance, serializer.validated_data):
+            limits.assert_feature("branding")
         serializer.save()
         return Response(serializer.data)
+
+
+# Settings a plan without ``branding`` can't change (spec 0003, child 0005).
+BRANDING_FIELDS = ("logo", "brand_color", "exam_heading")
+
+
+def _changes_branding(instance, data):
+    """Whether this update sets or removes the logo, or changes another
+    branding field. The settings form sends every field, so an unchanged
+    value doesn't count."""
+    for field in BRANDING_FIELDS:
+        if field not in data:
+            continue
+        if field == "logo":
+            if data["logo"] is not None or instance.logo:
+                return True
+        elif (data[field] or "") != (getattr(instance, field) or ""):
+            return True
+    return False
 
 
 class BrandingView(APIView):

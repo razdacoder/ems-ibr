@@ -1,0 +1,10 @@
+{% autoescape off %}Hello,
+
+{{ inviter }} invited you to join {{ school_name }} on Ordo as {{ role }}.
+
+Set your password and sign in here:
+
+{{ url }}
+
+The link works once and expires in {{ days }} days.
+{% endautoescape %}

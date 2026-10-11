@@ -1,10 +1,10 @@
 """Timetable publication is separate from generation: a generated timetable
 is a draft that department officers cannot see until a super admin
 publishes it, and publishing notifies each department."""
-from rest_framework.test import APIClient
 
 from ems import tasks
 from ems.models import Notification, SystemSettings, TimeTable, User
+from tenancy.testcases import SchoolClient
 
 from .helpers import listed_class, make_course, make_department, make_hall, schedule
 from .test_student_lists import PipelineTestCase, allow_generation, run
@@ -28,7 +28,7 @@ class PublicationTestCase(PipelineTestCase):
         schedule(bf_class, make_course("BFN 111"), "2026-08-18", "PM")
         self.ada = officer("ada@example.com", self.ac)
         self.bola = officer("bola@example.com", self.bf)
-        self.officer_client = APIClient()
+        self.officer_client = SchoolClient()
         self.officer_client.force_authenticate(self.ada)
 
     def publish(self, **body):

@@ -1,7 +1,9 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from ems.api.exceptions import Conflict
 from ems.models import Class, SeatArrangement, Student
+from tenancy import limits
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -67,8 +69,10 @@ class StudentSerializer(serializers.ModelSerializer):
             )
         return matric
 
+    @transaction.atomic
     def create(self, validated_data):
         cls = validated_data.pop("level")
+        limits.assert_can_add_students(1, action="This")
         student = Student.objects.create(
             level=cls, department=cls.department, **validated_data
         )

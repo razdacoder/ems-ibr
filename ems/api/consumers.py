@@ -2,6 +2,8 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from ems.models import BackgroundJob
+from ems.notifications import job_group, unread_count, user_group
+from tenancy.ws import in_school
 
 
 class JobProgressConsumer(AsyncJsonWebsocketConsumer):
@@ -25,7 +27,7 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
         if not user.is_staff and snapshot["created_by_id"] != user.id:
             await self.close(code=4403)
             return
-        self.group_name = f"job_{self.job_id}"
+        self.group_name = job_group(self.scope["school"].schema_name, self.job_id)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
         await self.send_json(snapshot["payload"])
@@ -40,6 +42,9 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _fetch_snapshot(self):
+        return in_school(self.scope, self._snapshot)
+
+    def _snapshot(self):
         try:
             job = BackgroundJob.objects.only(
                 "id",
@@ -81,9 +86,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         if user is None or not user.is_authenticated:
             await self.close(code=4401)
             return
-        from ems.notifications import user_group
-
-        self.group_name = user_group(user.pk)
+        self.group_name = user_group(self.scope["school"].schema_name, user.pk)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
         await self.send_json({"type": "unread", "count": await self._unread(user)})
@@ -98,6 +101,4 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _unread(self, user):
-        from ems.notifications import unread_count
-
-        return unread_count(user)
+        return in_school(self.scope, unread_count, user)

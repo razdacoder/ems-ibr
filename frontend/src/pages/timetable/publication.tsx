@@ -5,6 +5,7 @@ import {
   useTimetablePublication,
   useUnpublishTimetable,
 } from "@/api/scheduling";
+import { useHasFeature } from "@/api/school";
 import { useUsers, type UserRow } from "@/api/users";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export function PublicationPanel() {
   const status = useTimetablePublication();
   const unpublish = useUnpublishTimetable();
+  const canPublish = useHasFeature("publication");
   const confirm = useConfirm();
   const [dialog, setDialog] = useState<"publish" | "resend" | null>(null);
 
@@ -87,7 +89,11 @@ export function PublicationPanel() {
               : "Only the exam committee can see this timetable. Publish it to show it to department officers and notify them."}
           </p>
         </div>
-        {data.published ? (
+        {!canPublish ? (
+          <p className="text-[12.5px] text-muted-foreground">
+            Publishing isn't in your school's plan.
+          </p>
+        ) : data.published ? (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setDialog("resend")}>
               <BellRing data-icon="inline-start" strokeWidth={2} />

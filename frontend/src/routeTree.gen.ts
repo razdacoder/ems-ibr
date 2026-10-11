@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as PlatformRouteImport } from './routes/_platform'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppConstraintsRouteImport } from './routes/_app/constraints'
@@ -27,18 +29,42 @@ import { Route as AppStudentsRouteImport } from './routes/_app/students'
 import { Route as AppTimetableRouteImport } from './routes/_app/timetable'
 import { Route as AppUploadsRouteImport } from './routes/_app/uploads'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as PlatformConsoleRouteImport } from './routes/_platform/_console'
+import { Route as PlatformAcceptRouteImport } from './routes/_platform/accept'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAllocationIndexRouteImport } from './routes/_app/allocation.index'
 import { Route as AppAllocationHallRouteImport } from './routes/_app/allocation.hall'
 import { Route as AppClassesIndexRouteImport } from './routes/_app/classes.index'
 import { Route as AppClassesIdRouteImport } from './routes/_app/classes.$id'
+import { Route as PlatformConsoleLoginRouteImport } from './routes/_platform/console.login'
+import { Route as PlatformConsoleConsoleIndexRouteImport } from './routes/_platform/_console/console.index'
+import { Route as PlatformConsoleConsoleAccountRouteImport } from './routes/_platform/_console/console.account'
+import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
+import { Route as PlatformConsoleConsoleAnnouncementsRouteImport } from './routes/_platform/_console/console.announcements'
+import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
+import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platform/_console/console.plans'
+import { Route as PlatformConsoleConsoleStaffRouteImport } from './routes/_platform/_console/console.staff'
+import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
+import { Route as PlatformConsoleConsoleSchoolsIdRouteImport } from './routes/_platform/_console/console.schools.$id'
+import { Route as PlatformConsoleConsoleSchoolsNewRouteImport } from './routes/_platform/_console/console.schools.new'
+import { Route as PlatformConsoleConsoleSchoolsIdEditRouteImport } from './routes/_platform/_console/console.schools.$id_.edit'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlatformRoute = PlatformRouteImport.update({
+  id: '/_platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -121,6 +147,20 @@ const AppUsersRoute = AppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AppRoute,
 } as any)
+const PlatformConsoleRoute = PlatformConsoleRouteImport.update({
+  id: '/_console',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const PlatformAcceptRoute = PlatformAcceptRouteImport.update({
+  id: '/accept',
+  path: '/accept',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAllocationIndexRoute = AppAllocationIndexRouteImport.update({
   id: '/allocation/',
   path: '/allocation/',
@@ -141,10 +181,82 @@ const AppClassesIdRoute = AppClassesIdRouteImport.update({
   path: '/classes/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const PlatformConsoleLoginRoute = PlatformConsoleLoginRouteImport.update({
+  id: '/console/login',
+  path: '/console/login',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const PlatformConsoleConsoleIndexRoute =
+  PlatformConsoleConsoleIndexRouteImport.update({
+    id: '/console/',
+    path: '/console/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAccountRoute =
+  PlatformConsoleConsoleAccountRouteImport.update({
+    id: '/console/account',
+    path: '/console/account',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAdminsRoute =
+  PlatformConsoleConsoleAdminsRouteImport.update({
+    id: '/console/admins',
+    path: '/console/admins',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAnnouncementsRoute =
+  PlatformConsoleConsoleAnnouncementsRouteImport.update({
+    id: '/console/announcements',
+    path: '/console/announcements',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleAuditRoute =
+  PlatformConsoleConsoleAuditRouteImport.update({
+    id: '/console/audit',
+    path: '/console/audit',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsolePlansRoute =
+  PlatformConsoleConsolePlansRouteImport.update({
+    id: '/console/plans',
+    path: '/console/plans',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleStaffRoute =
+  PlatformConsoleConsoleStaffRouteImport.update({
+    id: '/console/staff',
+    path: '/console/staff',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleSchoolsIndexRoute =
+  PlatformConsoleConsoleSchoolsIndexRouteImport.update({
+    id: '/console/schools/',
+    path: '/console/schools/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleSchoolsIdRoute =
+  PlatformConsoleConsoleSchoolsIdRouteImport.update({
+    id: '/console/schools/$id',
+    path: '/console/schools/$id',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleSchoolsNewRoute =
+  PlatformConsoleConsoleSchoolsNewRouteImport.update({
+    id: '/console/schools/new',
+    path: '/console/schools/new',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
+const PlatformConsoleConsoleSchoolsIdEditRoute =
+  PlatformConsoleConsoleSchoolsIdEditRouteImport.update({
+    id: '/console/schools/$id_/edit',
+    path: '/console/schools/$id/edit',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/audit': typeof AppAuditRoute
   '/constraints': typeof AppConstraintsRoute
   '/courses': typeof AppCoursesRoute
@@ -160,13 +272,29 @@ export interface FileRoutesByFullPath {
   '/timetable': typeof AppTimetableRoute
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
+  '/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
+  '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation/': typeof AppAllocationIndexRoute
   '/classes/': typeof AppClassesIndexRoute
+  '/console/account': typeof PlatformConsoleConsoleAccountRoute
+  '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
+  '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/console/staff': typeof PlatformConsoleConsoleStaffRoute
+  '/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/audit': typeof AppAuditRoute
   '/constraints': typeof AppConstraintsRoute
   '/courses': typeof AppCoursesRoute
@@ -182,16 +310,31 @@ export interface FileRoutesByTo {
   '/timetable': typeof AppTimetableRoute
   '/uploads': typeof AppUploadsRoute
   '/users': typeof AppUsersRoute
-  '/': typeof AppIndexRoute
+  '/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/allocation/hall': typeof AppAllocationHallRoute
   '/classes/$id': typeof AppClassesIdRoute
+  '/console/login': typeof PlatformConsoleLoginRoute
   '/allocation': typeof AppAllocationIndexRoute
   '/classes': typeof AppClassesIndexRoute
+  '/console/account': typeof PlatformConsoleConsoleAccountRoute
+  '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
+  '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/console/staff': typeof PlatformConsoleConsoleStaffRoute
+  '/console': typeof PlatformConsoleConsoleIndexRoute
+  '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/schools': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_platform': typeof PlatformRouteWithChildren
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/constraints': typeof AppConstraintsRoute
   '/_app/courses': typeof AppCoursesRoute
@@ -207,17 +350,33 @@ export interface FileRoutesById {
   '/_app/timetable': typeof AppTimetableRoute
   '/_app/uploads': typeof AppUploadsRoute
   '/_app/users': typeof AppUsersRoute
+  '/_platform/_console': typeof PlatformConsoleRouteWithChildren
+  '/_platform/accept': typeof PlatformAcceptRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/allocation/hall': typeof AppAllocationHallRoute
   '/_app/classes/$id': typeof AppClassesIdRoute
+  '/_platform/console/login': typeof PlatformConsoleLoginRoute
   '/_app/allocation/': typeof AppAllocationIndexRoute
   '/_app/classes/': typeof AppClassesIndexRoute
+  '/_platform/_console/console/account': typeof PlatformConsoleConsoleAccountRoute
+  '/_platform/_console/console/admins': typeof PlatformConsoleConsoleAdminsRoute
+  '/_platform/_console/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
+  '/_platform/_console/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/_platform/_console/console/plans': typeof PlatformConsoleConsolePlansRoute
+  '/_platform/_console/console/staff': typeof PlatformConsoleConsoleStaffRoute
+  '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
+  '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
+  '/_platform/_console/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/_platform/_console/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
+  '/_platform/_console/console/schools/$id_/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/support'
     | '/audit'
     | '/constraints'
     | '/courses'
@@ -233,13 +392,29 @@ export interface FileRouteTypes {
     | '/timetable'
     | '/uploads'
     | '/users'
+    | '/accept'
+    | '/invite/$token'
     | '/allocation/hall'
     | '/classes/$id'
+    | '/console/login'
     | '/allocation/'
     | '/classes/'
+    | '/console/account'
+    | '/console/admins'
+    | '/console/announcements'
+    | '/console/audit'
+    | '/console/plans'
+    | '/console/staff'
+    | '/console/'
+    | '/console/schools/$id'
+    | '/console/schools/new'
+    | '/console/schools/'
+    | '/console/schools/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/login'
+    | '/support'
     | '/audit'
     | '/constraints'
     | '/courses'
@@ -255,15 +430,30 @@ export interface FileRouteTypes {
     | '/timetable'
     | '/uploads'
     | '/users'
-    | '/'
+    | '/accept'
+    | '/invite/$token'
     | '/allocation/hall'
     | '/classes/$id'
+    | '/console/login'
     | '/allocation'
     | '/classes'
+    | '/console/account'
+    | '/console/admins'
+    | '/console/announcements'
+    | '/console/audit'
+    | '/console/plans'
+    | '/console/staff'
+    | '/console'
+    | '/console/schools/$id'
+    | '/console/schools/new'
+    | '/console/schools'
+    | '/console/schools/$id/edit'
   id:
     | '__root__'
     | '/_app'
+    | '/_platform'
     | '/login'
+    | '/support'
     | '/_app/audit'
     | '/_app/constraints'
     | '/_app/courses'
@@ -279,16 +469,34 @@ export interface FileRouteTypes {
     | '/_app/timetable'
     | '/_app/uploads'
     | '/_app/users'
+    | '/_platform/_console'
+    | '/_platform/accept'
+    | '/invite/$token'
     | '/_app/'
     | '/_app/allocation/hall'
     | '/_app/classes/$id'
+    | '/_platform/console/login'
     | '/_app/allocation/'
     | '/_app/classes/'
+    | '/_platform/_console/console/account'
+    | '/_platform/_console/console/admins'
+    | '/_platform/_console/console/announcements'
+    | '/_platform/_console/console/audit'
+    | '/_platform/_console/console/plans'
+    | '/_platform/_console/console/staff'
+    | '/_platform/_console/console/'
+    | '/_platform/_console/console/schools/$id'
+    | '/_platform/_console/console/schools/new'
+    | '/_platform/_console/console/schools/'
+    | '/_platform/_console/console/schools/$id_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  PlatformRoute: typeof PlatformRouteWithChildren
   LoginRoute: typeof LoginRoute
+  SupportRoute: typeof SupportRoute
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -300,11 +508,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_platform': {
+      id: '/_platform'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -419,6 +641,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_platform/_console': {
+      id: '/_platform/_console'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PlatformConsoleRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/_platform/accept': {
+      id: '/_platform/accept'
+      path: '/accept'
+      fullPath: '/accept'
+      preLoaderRoute: typeof PlatformAcceptRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/allocation/': {
       id: '/_app/allocation/'
       path: '/allocation'
@@ -446,6 +689,90 @@ declare module '@tanstack/react-router' {
       fullPath: '/classes/$id'
       preLoaderRoute: typeof AppClassesIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_platform/console/login': {
+      id: '/_platform/console/login'
+      path: '/console/login'
+      fullPath: '/console/login'
+      preLoaderRoute: typeof PlatformConsoleLoginRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/_platform/_console/console/': {
+      id: '/_platform/_console/console/'
+      path: '/console'
+      fullPath: '/console/'
+      preLoaderRoute: typeof PlatformConsoleConsoleIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/account': {
+      id: '/_platform/_console/console/account'
+      path: '/console/account'
+      fullPath: '/console/account'
+      preLoaderRoute: typeof PlatformConsoleConsoleAccountRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/admins': {
+      id: '/_platform/_console/console/admins'
+      path: '/console/admins'
+      fullPath: '/console/admins'
+      preLoaderRoute: typeof PlatformConsoleConsoleAdminsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/announcements': {
+      id: '/_platform/_console/console/announcements'
+      path: '/console/announcements'
+      fullPath: '/console/announcements'
+      preLoaderRoute: typeof PlatformConsoleConsoleAnnouncementsRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/audit': {
+      id: '/_platform/_console/console/audit'
+      path: '/console/audit'
+      fullPath: '/console/audit'
+      preLoaderRoute: typeof PlatformConsoleConsoleAuditRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/plans': {
+      id: '/_platform/_console/console/plans'
+      path: '/console/plans'
+      fullPath: '/console/plans'
+      preLoaderRoute: typeof PlatformConsoleConsolePlansRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/staff': {
+      id: '/_platform/_console/console/staff'
+      path: '/console/staff'
+      fullPath: '/console/staff'
+      preLoaderRoute: typeof PlatformConsoleConsoleStaffRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/': {
+      id: '/_platform/_console/console/schools/'
+      path: '/console/schools'
+      fullPath: '/console/schools/'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/$id': {
+      id: '/_platform/_console/console/schools/$id'
+      path: '/console/schools/$id'
+      fullPath: '/console/schools/$id'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsIdRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/new': {
+      id: '/_platform/_console/console/schools/new'
+      path: '/console/schools/new'
+      fullPath: '/console/schools/new'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsNewRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
+    '/_platform/_console/console/schools/$id_/edit': {
+      id: '/_platform/_console/console/schools/$id_/edit'
+      path: '/console/schools/$id/edit'
+      fullPath: '/console/schools/$id/edit'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsIdEditRouteImport
+      parentRoute: typeof PlatformConsoleRoute
     }
   }
 }
@@ -498,9 +825,63 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface PlatformConsoleRouteChildren {
+  PlatformConsoleConsoleAccountRoute: typeof PlatformConsoleConsoleAccountRoute
+  PlatformConsoleConsoleAdminsRoute: typeof PlatformConsoleConsoleAdminsRoute
+  PlatformConsoleConsoleAnnouncementsRoute: typeof PlatformConsoleConsoleAnnouncementsRoute
+  PlatformConsoleConsoleAuditRoute: typeof PlatformConsoleConsoleAuditRoute
+  PlatformConsoleConsolePlansRoute: typeof PlatformConsoleConsolePlansRoute
+  PlatformConsoleConsoleStaffRoute: typeof PlatformConsoleConsoleStaffRoute
+  PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
+  PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
+  PlatformConsoleConsoleSchoolsNewRoute: typeof PlatformConsoleConsoleSchoolsNewRoute
+  PlatformConsoleConsoleSchoolsIndexRoute: typeof PlatformConsoleConsoleSchoolsIndexRoute
+  PlatformConsoleConsoleSchoolsIdEditRoute: typeof PlatformConsoleConsoleSchoolsIdEditRoute
+}
+
+const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
+  PlatformConsoleConsoleAccountRoute: PlatformConsoleConsoleAccountRoute,
+  PlatformConsoleConsoleAdminsRoute: PlatformConsoleConsoleAdminsRoute,
+  PlatformConsoleConsoleAnnouncementsRoute:
+    PlatformConsoleConsoleAnnouncementsRoute,
+  PlatformConsoleConsoleAuditRoute: PlatformConsoleConsoleAuditRoute,
+  PlatformConsoleConsolePlansRoute: PlatformConsoleConsolePlansRoute,
+  PlatformConsoleConsoleStaffRoute: PlatformConsoleConsoleStaffRoute,
+  PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
+  PlatformConsoleConsoleSchoolsIdRoute: PlatformConsoleConsoleSchoolsIdRoute,
+  PlatformConsoleConsoleSchoolsNewRoute: PlatformConsoleConsoleSchoolsNewRoute,
+  PlatformConsoleConsoleSchoolsIndexRoute:
+    PlatformConsoleConsoleSchoolsIndexRoute,
+  PlatformConsoleConsoleSchoolsIdEditRoute:
+    PlatformConsoleConsoleSchoolsIdEditRoute,
+}
+
+const PlatformConsoleRouteWithChildren = PlatformConsoleRoute._addFileChildren(
+  PlatformConsoleRouteChildren,
+)
+
+interface PlatformRouteChildren {
+  PlatformConsoleRoute: typeof PlatformConsoleRouteWithChildren
+  PlatformAcceptRoute: typeof PlatformAcceptRoute
+  PlatformConsoleLoginRoute: typeof PlatformConsoleLoginRoute
+}
+
+const PlatformRouteChildren: PlatformRouteChildren = {
+  PlatformConsoleRoute: PlatformConsoleRouteWithChildren,
+  PlatformAcceptRoute: PlatformAcceptRoute,
+  PlatformConsoleLoginRoute: PlatformConsoleLoginRoute,
+}
+
+const PlatformRouteWithChildren = PlatformRoute._addFileChildren(
+  PlatformRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  PlatformRoute: PlatformRouteWithChildren,
   LoginRoute: LoginRoute,
+  SupportRoute: SupportRoute,
+  InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

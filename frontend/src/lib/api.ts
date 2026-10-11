@@ -12,6 +12,24 @@ export function setToken(token: string) {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SUPPORT_KEY);
+}
+
+/*
+ * When the school token is an Ordo support token, its expiry is kept beside
+ * it. It only decides what the browser shows (a suspended school still opens
+ * for support); the server enforces the expiry on every call.
+ */
+const SUPPORT_KEY = "ems.support.expires";
+
+export function setSupportExpiry(expiresAt: string) {
+  localStorage.setItem(SUPPORT_KEY, expiresAt);
+}
+
+/** Whether the stored token is a support token that hasn't run out. */
+export function hasLiveSupportToken(): boolean {
+  const expires = localStorage.getItem(SUPPORT_KEY);
+  return !!expires && !!getToken() && Date.parse(expires) > Date.now();
 }
 
 export const api = axios.create({
@@ -19,13 +37,15 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Django runs on its own origin (api.<domain>). The server works it out per
-// request and the root route hands it over here before any page renders.
+// Django answers on the page's own origin (Traefik routes /api and /ws to it).
+// The server works it out per request and the root route hands it over here
+// before any page renders.
 let apiOrigin = "";
 
 export function setApiOrigin(origin: string) {
   apiOrigin = origin;
   api.defaults.baseURL = `${origin}/api`;
+  platformApi.defaults.baseURL = `${origin}/api/platform`;
 }
 
 /** WebSocket URL on the Django origin, e.g. wsUrl("/ws/notifications/"). */
@@ -41,14 +61,67 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/** Fired when the school turns out to be closed mid session (RequireOpenSchool listens). */
+export const SCHOOL_CLOSED_EVENT = "ordo:school-closed";
+
+const CLOSED_CODES = new Set(["school_suspended", "school_not_ready"]);
+
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    const code = (error.response?.data as { code?: string } | undefined)?.code;
+    if (code && CLOSED_CODES.has(code)) {
+      window.dispatchEvent(new Event(SCHOOL_CLOSED_EVENT));
+    }
     if (error.response?.status === 401) {
       clearToken();
       if (!window.location.pathname.startsWith("/login")) {
         window.location.assign("/login");
       }
+    }
+    return Promise.reject(error);
+  },
+);
+
+/*
+ * The platform console (console.<base>) has its own token, kept apart from the
+ * school one, sent as a Bearer token. Django never accepts either on the
+ * other's host.
+ */
+const PLATFORM_TOKEN_KEY = "ordo.platform.token";
+
+export function getPlatformToken(): string | null {
+  return localStorage.getItem(PLATFORM_TOKEN_KEY);
+}
+
+export function setPlatformToken(token: string) {
+  localStorage.setItem(PLATFORM_TOKEN_KEY, token);
+}
+
+export function clearPlatformToken() {
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+}
+
+export const platformApi = axios.create({
+  baseURL: "/api/platform",
+  headers: { "Content-Type": "application/json" },
+});
+
+platformApi.interceptors.request.use((config) => {
+  const token = getPlatformToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+platformApi.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Expired or revoked session. Sign in steps answer 400/410/429, not 401.
+    if (error.response?.status === 401 && getPlatformToken()) {
+      clearPlatformToken();
+      window.location.assign("/console/login");
     }
     return Promise.reject(error);
   },

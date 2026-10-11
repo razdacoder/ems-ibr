@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RequireCommittee } from "@/components/route-guards";
+import { RequireCommittee, RequireFeature } from "@/components/route-guards";
 import { str } from "@/lib/search";
 import HallAllocationPage from "@/pages/allocation/hall";
 
@@ -11,7 +11,9 @@ export const Route = createFileRoute("/_app/allocation/hall")({
   }),
   component: () => (
     <RequireCommittee>
-      <HallAllocationPage />
+      <RequireFeature feature="seat_allocation">
+        <HallAllocationPage />
+      </RequireFeature>
     </RequireCommittee>
   ),
 });

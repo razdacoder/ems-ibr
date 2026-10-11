@@ -53,7 +53,15 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
-from ems.api.views.public import FeatureDetailView, FeaturesIndexView
+from ems.api.views.school import SchoolStatusView, SchoolView
+from ems.api.views.support import SupportEndView, SupportRedeemView
+from ems.api.views.invites import (
+    InviteAcceptView,
+    InviteDetailView,
+    InviteListView,
+    InviteResendView,
+    InviteRevokeView,
+)
 
 auth_patterns = [
     path("login/", LoginView.as_view(), name="api-login"),
@@ -215,23 +223,26 @@ directory_patterns = [
     path("export/", DirectoryExportView.as_view(), name="api-directory-export"),
 ]
 
-public_patterns = [
-    path("features/", FeaturesIndexView.as_view(), name="api-public-features"),
-    path(
-        "features/<slug:slug>/",
-        FeatureDetailView.as_view(),
-        name="api-public-feature-detail",
-    ),
+invite_patterns = [
+    path("", InviteListView.as_view(), name="api-invites"),
+    path("<int:pk>/revoke/", InviteRevokeView.as_view(), name="api-invite-revoke"),
+    path("<int:pk>/resend/", InviteResendView.as_view(), name="api-invite-resend"),
+    path("<str:token>/", InviteDetailView.as_view(), name="api-invite-detail"),
+    path("<str:token>/accept/", InviteAcceptView.as_view(), name="api-invite-accept"),
 ]
-
 
 urlpatterns = [
     path("auth/", include(auth_patterns)),
+    path("school/", SchoolView.as_view(), name="api-school"),
+    path("school/status/", SchoolStatusView.as_view(), name="api-school-status"),
+    path("support/redeem/", SupportRedeemView.as_view(), name="api-support-redeem"),
+    path("support/end/", SupportEndView.as_view(), name="api-support-end"),
+    path("invites/", include(invite_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),
     path("exports/", include(export_patterns)),
     path("directory/", include(directory_patterns)),
-    path("public/", include(public_patterns)),
+    path("public/", include("ems.api.public_urls")),
     path("", include(scheduling_patterns)),
     path("", include(router.urls)),
 ]

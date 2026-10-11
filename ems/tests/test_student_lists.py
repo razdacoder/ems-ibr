@@ -9,9 +9,8 @@ import re
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.utils import timezone
-from rest_framework.test import APIClient
 
 from ems import tasks
 from ems.models import (
@@ -26,6 +25,7 @@ from ems.models import (
     User,
 )
 from ems.upload_handlers import upload_class_students
+from tenancy.testcases import SchoolClient, SchoolTestCase
 
 from .helpers import (
     enrol,
@@ -70,18 +70,18 @@ def run(task, *args):
 
 
 @override_settings(CHANNEL_LAYERS=IN_MEMORY_LAYER)
-class PipelineTestCase(TestCase):
+class PipelineTestCase(SchoolTestCase):
     def setUp(self):
         random.seed(0)
         self.admin = super_admin()
-        self.client = APIClient()
+        self.client = SchoolClient()
         self.client.force_authenticate(self.admin)
 
     def post(self, url, data=None):
         return self.client.post(url, data or {}, format="json")
 
 
-class StudentCountTests(TestCase):
+class StudentCountTests(SchoolTestCase):
     def test_counts_only_students_of_the_class_department(self):
         cls = listed_class(3)
         stray = make_department("zz")
@@ -107,7 +107,7 @@ class StudentCountTests(TestCase):
         self.assertEqual(Class.objects.total_student_count(), 5)
 
 
-class NoDeclaredSizeInPlanningTests(TestCase):
+class NoDeclaredSizeInPlanningTests(SchoolTestCase):
     """Key invariant: no planning code reads ``Class.size``."""
 
     PLANNING = [

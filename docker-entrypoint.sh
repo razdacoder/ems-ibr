@@ -84,8 +84,34 @@ sys.exit(1)
 END
 }
 
+# An explicit command (e.g. a platform's pre-deploy command, or
+# `docker run <image> python manage.py ...`) runs as is, never the web server.
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 # Check SERVICE_TYPE and execute appropriate commands
-if [ "${SERVICE_TYPE}" = "worker" ]; then
+if [ "${SERVICE_TYPE}" = "migrate" ]; then
+    # One shot, run before every release. Web, worker and beat must only
+    # start once this exits 0 (Compose service_completed_successfully,
+    # Render pre-deploy command). set -e makes any failure exit non zero.
+    echo "Running platform migrations..."
+
+    wait_for_postgres
+
+    exec python manage.py migrate_platform
+
+elif [ "${SERVICE_TYPE}" = "backup" ]; then
+    # Whole database backup now, then daily at BACKUP_TIME_UTC, with
+    # retries (spec 0003, child 0007).
+    # Kept out of Celery so it still runs when the workers are broken.
+    echo "Starting database backup daemon..."
+
+    wait_for_postgres
+
+    exec python manage.py backup_database --daemon
+
+elif [ "${SERVICE_TYPE}" = "worker" ]; then
     echo "Starting Celery Worker..."
     
     # Wait for dependencies
@@ -123,11 +149,8 @@ else
     echo "Running deploy checks..."
     python manage.py check --deploy --fail-level ERROR
 
-    echo "Running database migrations..."
-    python manage.py migrate --noinput
-
-    echo "Creating superuser if needed..."
-    python manage.py create_superuser || true
+    # Migrations are not run here: the one shot migrate step
+    # (SERVICE_TYPE=migrate) has already applied them before this starts.
 
     echo "Starting Daphne (ASGI) on port ${PORT:-8000}..."
     exec daphne \

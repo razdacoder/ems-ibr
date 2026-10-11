@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { useTimetableDates } from "@/api/scheduling";
 import { useHalls } from "@/api/halls";
+import { useHasFeature } from "@/api/school";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,10 @@ import { PageHeader } from "@/components/layout/page-header";
 export default function ExportsPage() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_staff;
+  // Seating documents need seat allocation; the broadsheet and the all halls
+  // bundle need exports (spec 0003, child 0005).
+  const seating = useHasFeature("seat_allocation");
+  const exports = useHasFeature("exports");
   const dates = useTimetableDates();
   const halls = useHalls({ all: true });
   // Whether a timetable exists. Not ``has_timetable``: that flag is the
@@ -98,18 +103,20 @@ export default function ExportsPage() {
               <SelectItem value="PM">PM</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={hallId ?? ""} onValueChange={(v) => setHallId(v ?? undefined)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Hall (for attendance sheets)" />
-            </SelectTrigger>
-            <SelectContent>
-              {halls.data?.results.map((h) => (
-                <SelectItem key={h.id} value={String(h.id)}>
-                  {h.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {seating && (
+            <Select value={hallId ?? ""} onValueChange={(v) => setHallId(v ?? undefined)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Hall (for attendance sheets)" />
+              </SelectTrigger>
+              <SelectContent>
+                {halls.data?.results.map((h) => (
+                  <SelectItem key={h.id} value={String(h.id)}>
+                    {h.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </CardContent>
       </Card>
       )}
@@ -143,6 +150,7 @@ export default function ExportsPage() {
                 )
               }
             />
+            {seating && (
             <ExportCard
               title="Arrangement ZIP"
               description="Attendance sheets for the selected slot grouped by course (DOCX zip)."
@@ -156,6 +164,8 @@ export default function ExportsPage() {
                 )
               }
             />
+            )}
+            {seating && exports && (
             <ExportCard
               title="Attendance sheets · all halls"
               description="Every hall's attendance sheets for the selected slot, one folder per hall (DOCX zip)."
@@ -169,6 +179,8 @@ export default function ExportsPage() {
                 )
               }
             />
+            )}
+            {seating && (
             <ExportCard
               title="Attendance sheets · one hall"
               description="The selected hall's sheets, one per course and class (DOCX zip)."
@@ -182,6 +194,8 @@ export default function ExportsPage() {
                 )
               }
             />
+            )}
+            {exports && (
             <ExportCard
               title="Broadsheet"
               description="Full Excel broadsheet across the entire timetable."
@@ -191,6 +205,7 @@ export default function ExportsPage() {
                 tryDownload("/exports/broadsheet/", "broadsheet.xlsx")
               }
             />
+            )}
           </>
         )}
       </div>

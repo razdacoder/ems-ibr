@@ -2,13 +2,13 @@
 import io
 import zipfile
 
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory
 from django.urls import reverse
 from docx import Document
-from rest_framework.test import APIClient
 
 from ems.csv_gen import export_arrangements
 from ems.models import SeatArrangement, User
+from tenancy.testcases import SchoolClient, SchoolTestCase
 
 from .helpers import enrol, make_class, make_course, make_department, make_hall
 
@@ -30,7 +30,7 @@ def read_sheets(response):
     return sheets
 
 
-class AttendanceFixture(TestCase):
+class AttendanceFixture(SchoolTestCase):
     """Two classes from different departments sit the same course in one hall."""
 
     def setUp(self):
@@ -111,7 +111,7 @@ class HallAttendanceApiTests(AttendanceFixture):
         user = User.objects.create_user(
             email=f"user{is_staff}@example.com", password="x", is_staff=is_staff
         )
-        client = APIClient()
+        client = SchoolClient()
         client.force_authenticate(user)
         return client
 
@@ -142,7 +142,7 @@ class HallAttendanceApiTests(AttendanceFixture):
         self.assertEqual(response.status_code, 403)
 
     def test_refuses_an_anonymous_caller(self):
-        response = self.get(APIClient())
+        response = self.get(SchoolClient())
 
         self.assertIn(response.status_code, (401, 403))
 
@@ -180,7 +180,7 @@ class BulkHallAttendanceApiTests(AttendanceFixture):
         user = User.objects.create_user(
             email=f"bulk{is_staff}@example.com", password="x", is_staff=is_staff
         )
-        client = APIClient()
+        client = SchoolClient()
         client.force_authenticate(user)
         return client
 
@@ -234,7 +234,7 @@ class LogoTests(AttendanceFixture):
 
     def get(self):
         user = User.objects.create_user(email="logo@example.com", password="x", is_staff=True)
-        client = APIClient()
+        client = SchoolClient()
         client.force_authenticate(user)
         return client.get(
             reverse("api-export-attendance-sheets-bulk"), {"date": DATE, "period": PERIOD}

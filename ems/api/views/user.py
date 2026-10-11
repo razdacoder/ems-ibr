@@ -1,8 +1,8 @@
 import csv
-from datetime import datetime
 
 from django.db import transaction
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
@@ -16,6 +16,7 @@ from ems.api.serializers.user import (
     UserSerializer,
 )
 from ems.models import Department, User
+from tenancy import limits
 
 DEFAULT_SEED_PASSWORD = "Ems@2025"
 SEED_EMAIL_DOMAIN = "ems.com"
@@ -37,10 +38,20 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @transaction.atomic
     def perform_create(self, serializer):
         # password is required when creating a user
         if not self.request.data.get("password"):
             raise ValidationError({"password": ["Password is required."]})
+        if serializer.validated_data.get("is_active", True):
+            limits.assert_can_add_staff(1)
+        serializer.save()
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        # Reactivating an account takes a staff seat again; a role change doesn't.
+        if serializer.validated_data.get("is_active") and not serializer.instance.is_active:
+            limits.assert_can_add_staff(1)
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -63,7 +74,7 @@ class UserViewSet(viewsets.ModelViewSet):
         accounts are excluded.
         """
         users = self.get_queryset().filter(is_staff=False)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = timezone.localtime().strftime("%Y%m%d-%H%M%S")
         filename = f"departmental-staff-{timestamp}.csv"
         response = HttpResponse(
             content_type="text/csv",
@@ -91,7 +102,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     dept.name if dept else "",
                     dept.slug if dept else "",
                     "yes" if u.is_active else "no",
-                    u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
+                    timezone.localtime(u.created_at).strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
                 ]
             )
         return response
@@ -112,15 +123,25 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         overwrite = bool(request.data.get("overwrite", False))
 
-        departments = Department.objects.all().order_by("name")
+        departments = list(Department.objects.all().order_by("name"))
         created: list[str] = []
         updated: list[str] = []
         skipped: list[str] = []
 
         with transaction.atomic():
+            emails = {dept.pk: f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower() for dept in departments}
+            users = {u.email: u for u in User.objects.filter(email__in=emails.values())}
+            # New accounts take a staff seat, and so does an inactive one that
+            # overwrite turns back on.
+            seats = sum(
+                1
+                for email in emails.values()
+                if email not in users or (overwrite and not users[email].is_active)
+            )
+            limits.assert_can_add_staff(seats)
             for dept in departments:
-                email = f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower()
-                existing = User.objects.filter(email=email).first()
+                email = emails[dept.pk]
+                existing = users.get(email)
                 first_name = (dept.name or dept.slug)[:30]
                 last_name = "Staff"
                 if existing:
@@ -159,7 +180,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 "created": created,
                 "updated": updated,
                 "skipped": skipped,
-                "departments_total": departments.count(),
+                "departments_total": len(departments),
                 "password": password,
             }
         )

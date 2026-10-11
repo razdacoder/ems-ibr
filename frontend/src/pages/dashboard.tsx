@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { AppPath } from "@/lib/paths";
+import { type FeatureKey, useSchoolPlan } from "@/api/school";
 import { useDashboardStats } from "@/api/system";
 import { InstitutionName } from "@/components/institution-logo";
 import { useAuth } from "@/lib/auth";
@@ -64,7 +65,7 @@ const TILES: Array<{
   },
 ];
 
-const OPS = [
+const OPS: Array<{ to: AppPath; label: string; hint: string; feature?: FeatureKey }> = [
   {
     to: "/timetable",
     label: "Timetable",
@@ -79,6 +80,7 @@ const OPS = [
     to: "/allocation",
     label: "Allocation",
     hint: "Seat-by-seat anti-cheating placement.",
+    feature: "seat_allocation",
   },
   {
     to: "/jobs",
@@ -105,6 +107,8 @@ export default function DashboardPage() {
   });
 
   const visibleTiles = TILES.filter((t) => !t.adminOnly || user?.is_staff);
+  const plan = useSchoolPlan();
+  const ops = OPS.filter((op) => !op.feature || !plan.data || plan.data.features.includes(op.feature));
   // Static class strings so Tailwind can statically analyse them.
   const tileColsClass =
     visibleTiles.length >= 5
@@ -260,7 +264,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {OPS.map((op, i) => (
+          {ops.map((op, i) => (
             <Link
               key={op.to}
               to={op.to}

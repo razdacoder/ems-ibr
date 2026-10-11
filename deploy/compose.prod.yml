@@ -1,0 +1,167 @@
+# Ordo production on the VPS (spec 0003 slice 12, child 0002; backup: child 0007).
+#
+#   cp deploy/.env.example deploy/.env             # Compose: Traefik, Postgres
+#   cp deploy/.env.prod.example deploy/.env.prod   # Django services only
+#   docker compose -f deploy/compose.prod.yml up -d --build
+#
+# Compose reads deploy/.env on its own (it sits beside this file). Keeping
+# the two apart means the Cloudflare token never reaches Django.
+#
+# Only Traefik publishes ports. Web, worker, beat and backup start only after
+# the one shot migrate step exits 0, so no school runs on an old schema
+# (AC-8). See deploy/README.md for the first boot and the restore drill.
+
+x-django: &django
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: ${API_IMAGE:-ordo-api:latest}
+  env_file: .env.prod
+  restart: unless-stopped
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+
+services:
+  traefik:
+    image: traefik:v3.5
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    # Static config. Port 80 only redirects. One wildcard certificate for
+    # <base> and *.<base> through Cloudflare DNS-01 (the routers in
+    # dynamic.yml ask for it). trustedIPs is left empty on purpose, so
+    # Traefik rewrites X-Forwarded-For with the real client IP.
+    command:
+      - --entryPoints.web.address=:80
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.websecure.http.tls=true
+      - --certificatesResolvers.cloudflare.acme.email=${ACME_EMAIL:?set ACME_EMAIL}
+      - --certificatesResolvers.cloudflare.acme.storage=/letsencrypt/acme.json
+      - --certificatesResolvers.cloudflare.acme.dnsChallenge.provider=cloudflare
+      - --certificatesResolvers.cloudflare.acme.dnsChallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --ping=true
+      - --accessLog=true
+      - --log.level=INFO
+    environment:
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:?set CF_DNS_API_TOKEN}
+      PLATFORM_BASE_DOMAIN: ${PLATFORM_BASE_DOMAIN:?set PLATFORM_BASE_DOMAIN}
+      SITE_URL: ${SITE_URL:?set SITE_URL}
+      API_UPSTREAM: http://api:8000
+      DASHBOARD_UPSTREAM: http://dashboard:3000
+      TRAEFIK_TLS: cloudflare
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - letsencrypt:/letsencrypt
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - api
+      - dashboard
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    # DROP SCHEMA ... CASCADE on a purge locks every table in the schema.
+    command: ["postgres", "-c", "max_locks_per_transaction=256"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ordo}
+      POSTGRES_USER: ${POSTGRES_USER:-ordo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *django
+    restart: "no"
+    environment:
+      SERVICE_TYPE: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *django
+    environment:
+      SERVICE_TYPE: web
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  worker:
+    <<: *django
+    environment:
+      SERVICE_TYPE: worker
+
+  beat:
+    <<: *django
+    environment:
+      SERVICE_TYPE: beat
+
+  # Whole database backup when it starts, then daily (spec 0003, child 0007).
+  # Shows unhealthy once the last verified backup is more than 26 hours old.
+  # Informational only: the outside monitor (BACKUP_HEARTBEAT_URL) alerts.
+  backup:
+    <<: *django
+    environment:
+      SERVICE_TYPE: backup
+    healthcheck:
+      test: ["CMD-SHELL", "test -n \"$$(find \"$${BACKUP_HEARTBEAT_FILE:-/tmp/ordo-backup-ok}\" -mmin -1560 2>/dev/null)\""]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 30m
+
+  dashboard:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: ${DASHBOARD_IMAGE:-ordo-dashboard:latest}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+      PLATFORM_BASE_DOMAIN: ${PLATFORM_BASE_DOMAIN}
+      PLATFORM_CONSOLE_SUBDOMAIN: ${PLATFORM_CONSOLE_SUBDOMAIN:-console}
+      SITE_URL: ${SITE_URL}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  letsencrypt:

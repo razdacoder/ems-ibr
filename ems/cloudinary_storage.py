@@ -7,8 +7,13 @@ disappears on the next deploy and the attendance sheets lose it. When
 Without it (local development, tests) the logo stays on the local disk.
 
 A stored name is ``<public_id>.<format>``, for example
-``branding/logo_3f9a1c2e.png``: the public id locates the image on
-Cloudinary, and the format picks the delivery URL's extension.
+``school_unilag/branding/logo_3f9a1c2e.png``: the public id locates the
+image on Cloudinary, and the format picks the delivery URL's extension.
+
+Both backends keep each school's files apart (spec 0003, child 0001): the
+public id starts with the school's schema name, and the local disk keeps
+them under ``MEDIA_ROOT/<schema_name>/``. The schema is read on every call,
+never at import, because one process serves every school.
 """
 
 import os
@@ -20,7 +25,8 @@ import cloudinary.uploader
 import cloudinary.utils
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import Storage, default_storage
+from django.core.files.storage import FileSystemStorage, Storage, default_storage
+from django.db import connection
 from django.utils.deconstruct import deconstructible
 
 # Downloading the logo for a Word export must not hang a request.
@@ -51,6 +57,9 @@ class CloudinaryImageStorage(Storage):
     def _save(self, name, content):
         _configure()
         public_id, _ext = self._split(name)
+        prefix = f"{connection.schema_name}/"
+        if not public_id.startswith(prefix):
+            public_id = prefix + public_id
         if hasattr(content, "seek"):
             content.seek(0)
         result = cloudinary.uploader.upload(
@@ -89,6 +98,21 @@ class CloudinaryImageStorage(Storage):
 
     def size(self, name):
         return self._open(name).size
+
+
+@deconstructible
+class SchoolFileSystemStorage(FileSystemStorage):
+    """Local disk under ``MEDIA_ROOT/<schema_name>/`` of the current school.
+
+    Names stay relative (``branding/logo.png``), so a school host serves them
+    at ``/media/branding/logo.png`` from its own folder (``core.urls``).
+    """
+
+    @property
+    def location(self):
+        return os.path.abspath(
+            os.path.join(self.base_location, connection.schema_name)
+        )
 
 
 def select_logo_storage():

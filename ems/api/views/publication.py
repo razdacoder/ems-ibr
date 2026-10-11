@@ -18,6 +18,7 @@ from ems.notifications import (
     notify_timetable_withdrawn,
     timetable_departments,
 )
+from tenancy.permissions import requires_feature
 
 
 def _id_list(data, key):
@@ -89,7 +90,7 @@ class PublishTimetableView(APIView):
     recipients, for example a department added since.
     """
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("publication")]
 
     def post(self, request):
         department_ids = _id_list(request.data, "department_ids")
@@ -118,7 +119,7 @@ class UnpublishTimetableView(APIView):
     stop seeing it; those told it was published are told it was withdrawn
     unless ``notify`` is false."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("publication")]
 
     def post(self, request):
         with transaction.atomic():

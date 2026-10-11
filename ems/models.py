@@ -181,7 +181,13 @@ class GenerationConstraints(models.Model):
         )
 
 
-class UserManager(BaseUserManager):
+class AllUsersManager(BaseUserManager):
+    """Every user, Ordo support's shadow users included (``User.all_objects``)."""
+
+    # Historical models in migrations get a plain manager; this one's
+    # filtered sibling would break on tables older than its column.
+    use_in_migrations = False
+
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("The Email field must be set")
@@ -197,6 +203,14 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("role", User.Role.SUPER_ADMIN)
 
         return self.create_user(email, password, **extra_fields)
+
+
+class UserManager(AllUsersManager):
+    """The school's own users. Support shadow users are hidden from every
+    query that doesn't ask for them by name (spec 0003, child 0006)."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(support_expires_at__isnull=True)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -219,14 +233,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Set only on an Ordo support shadow user: its access ends at this time.
+    support_expires_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 
     objects = UserManager()
+    all_objects = AllUsersManager()
+
+    class Meta:
+        # Foreign keys (an AuditLog row, a job) still reach a support user.
+        base_manager_name = "all_objects"
 
     def __str__(self):
         return self.email
+
+    @property
+    def is_support(self) -> bool:
+        return self.support_expires_at is not None
 
     @property
     def is_super_admin(self) -> bool:
@@ -250,6 +275,50 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.Role.FACULTY_OFFICER,
             self.Role.EXAM_COMMITTEE,
         }
+
+
+class Invite(models.Model):
+    """An emailed link that lets someone join this school and set a password.
+
+    Only the SHA-256 of the token is stored; the raw token is in the email
+    alone (spec 0003, child 0004). Open means neither accepted nor revoked,
+    and only one open invite may exist per email.
+    """
+
+    email = models.EmailField()
+    # Same meaning as ``User.role``: null is a department officer.
+    role = models.CharField(
+        max_length=4, choices=User.Role.choices, null=True, blank=True
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, null=True, blank=True
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    # Null when Ordo sent it (the first admin, made at provisioning).
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invites_sent",
+    )
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["email"],
+                condition=models.Q(accepted_at__isnull=True, revoked_at__isnull=True),
+                name="one_open_invite_per_email",
+            )
+        ]
+
+    def __str__(self):
+        return self.email
 
 
 class Course(models.Model):

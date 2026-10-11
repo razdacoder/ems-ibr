@@ -10,9 +10,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Postgres client for the entrypoint healthcheck; build toolchain for wheels.
+# Postgres client for the entrypoint healthcheck and the final export of a
+# deleted school. pg_dump refuses a server newer than itself, so it comes
+# from the PGDG repo at the server's major version; bump PG_MAJOR with it.
+# Build toolchain for wheels.
+ARG PG_MAJOR=16
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        postgresql-client \
+        postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get install -y --no-install-recommends \
+        postgresql-client-${PG_MAJOR} \
         gcc \
         python3-dev \
         libpq-dev \

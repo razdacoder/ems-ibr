@@ -39,7 +39,7 @@ from .models import (
     User,
 )
 from .seating_rules import RELAXED_SHEET_LINE
-from .utils import handle_uploaded_file, slot_relaxed_course_id
+from .utils import slot_relaxed_course_id
 
 
 def back_view(request):
@@ -1170,53 +1170,6 @@ def manage_users(request):
     return render(request, template_name=template_name, context=context)
 
 
-@require_POST
-@login_required(login_url="login")
-@admin_required
-def add_user(request):
-    first_name = request.POST.get("first_name")
-    last_name = request.POST.get("last_name")
-    email = request.POST.get("email")
-    department_slug = request.POST.get("department")
-    password = request.POST.get("password")
-    password_confirm = request.POST.get("password-confirm")
-
-    if password != password_confirm:
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={"message": "Passwords do not match"},
-        )
-    if not Department.objects.filter(slug=department_slug).exists():
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={
-                "message": f"Department with code {department_slug} does not exists"
-            },
-        )
-    if User.objects.filter(email=email).exists():
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={"message": "Email already exists"},
-        )
-
-    user = User.objects.create_user(
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        department=get_object_or_404(Department, slug=department_slug),
-        password=password,
-    )
-    user.save()
-    return render(
-        request,
-        template_name="dashboard/partials/alert-success.html",
-        context={"message": "User created successfully"},
-    )
-
-
 @login_required(login_url="login")
 @admin_required
 def reset_system(request: HttpRequest) -> HttpResponse:
@@ -1358,7 +1311,7 @@ def generate_timetable(request: HttpRequest) -> HttpResponse:
         params={"start_date": startDate, "end_date": endDate},
     )
 
-    # Force commit to database before triggering task (important for SQLite)
+    # Queue the task only after the job row is committed, so the worker can read it
     from django.db import transaction
 
     transaction.on_commit(
@@ -1397,7 +1350,7 @@ def generate_distribution(request: HttpRequest) -> HttpResponse:
             params={"date": date, "period": period},
         )
 
-        # Force commit to database before triggering task (important for SQLite)
+        # Queue the task only after the job row is committed, so the worker can read it
         from django.db import transaction
 
         transaction.on_commit(
@@ -1459,7 +1412,7 @@ def generate_allocation(request: HttpRequest) -> HttpResponse:
             params={"date": date, "period": period},
         )
 
-        # Force commit to database before triggering task (important for SQLite)
+        # Queue the task only after the job row is committed, so the worker can read it
         from django.db import transaction
 
         transaction.on_commit(
@@ -1895,203 +1848,6 @@ def upload_class_courses(request, id):
 
 @require_POST
 @login_required(login_url="login")
-def upload_class_students(request, id):
-    from django.db import transaction
-
-    print(f"Uploading students for class {id}")
-
-    settings = SystemSettings.objects.first()
-    if settings.has_timetable:
-        return HttpResponse(
-            '<div class="alert alert-danger">Class students upload not allowed again!</div>'
-        )
-
-    cls = get_object_or_404(Class, id=id)
-    data = request.FILES.get("file")
-
-    try:
-        # Read CSV efficiently with optimized settings
-        students_df = pd.read_csv(
-            data,
-            dtype={
-                "MATRIC NUMBER": "string",
-                "FIRSTNAME": "string",
-                "LASTNAME": "string",
-                "EMAIL": "string",
-                "PHONE NUMBER": "string",
-            },
-            engine="c",  # Use C engine for faster parsing
-        )
-        print(f"Uploading students for class {id}")
-
-        # Remove any whitespace and convert to string
-        students_df = students_df.astype(str).apply(lambda x: x.str.strip())
-        # Strip spreadsheet float tails ("2530710047.0").
-        students_df = students_df.assign(**{
-            col: students_df[col].map(clean_number_text)
-            for col in ("MATRIC NUMBER", "PHONE NUMBER")
-            if col in students_df.columns
-        })
-
-        # Validation: Check if number of students matches class size
-        total_students_in_file = len(students_df)
-        print(f"Uploading students for class {id}")
-
-        # if total_students_in_file != cls.size:
-        #     return render(
-        #         request,
-        #         template_name="dashboard/partials/alert-error.html",
-        #         context={
-        #             "message": f"Student count mismatch. Class size is {cls.size} but you are uploading {total_students_in_file} students. Please ensure the number of students matches the class size."
-        #         },
-        #     )
-
-        # Validate required columns
-        required_columns = [
-            "MATRIC NUMBER",
-            "FIRSTNAME",
-            "LASTNAME",
-            "EMAIL",
-            "PHONE NUMBER",
-        ]
-        missing_columns = [
-            col for col in required_columns if col not in students_df.columns
-        ]
-        if missing_columns:
-            return render(
-                request,
-                template_name="dashboard/partials/alert-error.html",
-                context={
-                    "message": f"Missing required columns: {', '.join(missing_columns)}"
-                },
-            )
-        print(f"Uploading {total_students_in_file} students for class {cls.name}")
-        # Check for duplicate matric numbers in the file
-        duplicate_matrics = students_df[
-            students_df.duplicated(subset=["MATRIC NUMBER"], keep=False)
-        ]["MATRIC NUMBER"].tolist()
-        if duplicate_matrics:
-            return render(
-                request,
-                template_name="dashboard/partials/alert-error.html",
-                context={
-                    "message": f"Duplicate matric numbers found in file: {', '.join(duplicate_matrics[:5])}{'...' if len(duplicate_matrics) > 5 else ''}"
-                },
-            )
-
-        # Convert DataFrame to records for faster processing
-        student_records = students_df.to_dict("records")
-        matric_numbers = [record["MATRIC NUMBER"] for record in student_records]
-
-        # Get existing students in one optimized query
-        print(f"Checking for {len(matric_numbers)} existing students")
-
-        existing_students = {}
-        for student in Student.objects.filter(matric_no__in=matric_numbers).only(
-            "id",
-            "matric_no",
-            "first_name",
-            "last_name",
-            "email",
-            "phone",
-            "department_id",
-            "level_id",
-        ):
-            existing_students[student.matric_no] = student
-
-        # Process in chunks for better memory management
-        chunk_size = 250
-        total_created = 0
-        total_updated = 0
-
-        with transaction.atomic():
-            for i in range(0, len(student_records), chunk_size):
-                chunk = student_records[i : i + chunk_size]
-                students_to_create = []
-                students_to_update = []
-
-                for record in chunk:
-                    matric_no = record["MATRIC NUMBER"]
-
-                    if matric_no in existing_students:
-                        # Prepare for bulk update
-                        student = existing_students[matric_no]
-                        student.first_name = record["FIRSTNAME"]
-                        student.last_name = record["LASTNAME"]
-                        student.email = record["EMAIL"]
-                        student.phone = record["PHONE NUMBER"]
-                        student.department = cls.department
-                        student.level = cls
-                        students_to_update.append(student)
-                    else:
-                        # Prepare for bulk create
-                        students_to_create.append(
-                            Student(
-                                matric_no=matric_no,
-                                first_name=record["FIRSTNAME"],
-                                last_name=record["LASTNAME"],
-                                email=record["EMAIL"],
-                                phone=record["PHONE NUMBER"],
-                                department=cls.department,
-                                level=cls,
-                            )
-                        )
-
-                # Bulk create new students for this chunk
-                if students_to_create:
-                    Student.objects.bulk_create(students_to_create, batch_size=250)
-                    total_created += len(students_to_create)
-
-                # Bulk update existing students for this chunk
-                if students_to_update:
-                    Student.objects.bulk_update(
-                        students_to_update,
-                        [
-                            "first_name",
-                            "last_name",
-                            "email",
-                            "phone",
-                            "department",
-                            "level",
-                        ],
-                        batch_size=250,
-                    )
-                    total_updated += len(students_to_update)
-
-            created_count = total_created
-            updated_count = total_updated
-            print(f"Processed chunk: Created {created_count}, Updated {updated_count}")
-
-            if created_count > 0 or updated_count > 0:
-                message = f"Students processed successfully! Created: {created_count}, Updated: {updated_count}"
-                return render(
-                    request,
-                    template_name="dashboard/partials/alert-success.html",
-                    context={"message": message},
-                )
-            else:
-                return render(
-                    request,
-                    template_name="dashboard/partials/alert-error.html",
-                    context={
-                        "message": "No students were processed. Please check your data."
-                    },
-                )
-
-    except Exception as e:
-        print(f"Error in upload_students: {str(e)}")
-
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={
-                "message": f"Upload error: {str(e)}. Please check your file format and try again."
-            },
-        )
-
-
-@require_POST
-@login_required(login_url="login")
 @admin_required
 def upload_halls(request):
     from django.db import transaction
@@ -2200,79 +1956,6 @@ def enable_bulk_upload(request):
     return redirect("bulk-upload")
 
 
-def bulk_upload(request):
-    settings = SystemSettings.objects.first()
-    if settings.has_timetable:
-        messages.warning(
-            request,
-            "Bulk upload is currently disabled because a timetable has been generated. "
-            '<br><small class="text-muted">To enable bulk upload again, you can either:</small><br>'
-            '<a href="#" onclick="enableBulkUpload()" class="btn btn-sm btn-primary mt-2">Enable Bulk Upload</a> '
-            '<a href="/reset/" class="btn btn-sm btn-danger mt-2" onclick="return confirm(\'This will reset the entire system. Are you sure?\')">Reset System</a>'
-            "<br><br><script>function enableBulkUpload(){fetch('/enable-bulk-upload/', {method: 'POST', headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}}).then(response => response.text()).then(data => {location.reload();});}</script>",
-        )
-        return render(request, template_name="dashboard/upload.html")
-
-    if request.method == "POST":
-        try:
-            file = request.FILES["file"]
-            upload_type = request.POST["upload_type"]
-            result = handle_uploaded_file(file, upload_type)
-
-            # Dynamic success messages based on upload type
-            success_messages = {
-                "courses": "Course files uploaded and processed successfully!",
-                "classes": "Class files uploaded and processed successfully!",
-                "students": "Student files uploaded and processed successfully!",
-                "halls": "Hall files uploaded and processed successfully!",
-            }
-
-            message = success_messages.get(upload_type, "Files uploaded successfully!")
-
-            # If result contains detailed information (like from student processing)
-            if isinstance(result, dict) and "message" in result:
-                message = result["message"]
-
-            messages.success(request, message)
-            return redirect("bulk-upload")
-
-        except ValueError as e:
-            # Handle validation errors with detailed formatting
-            error_message = str(e)
-
-            # Check if it's a multi-line error message
-            if "\n" in error_message:
-                # Split into main message and details
-                lines = error_message.split("\n")
-                main_message = lines[0]
-                details = "\n".join(lines[1:]) if len(lines) > 1 else ""
-
-                formatted_message = f"<strong>{main_message}</strong>"
-                if details.strip():
-                    # Convert newlines to HTML breaks and preserve formatting
-                    formatted_details = details.replace("\n", "<br>").replace(
-                        "  •", "&nbsp;&nbsp;•"
-                    )
-                    formatted_message += f'<br><br><div style="font-family: monospace; font-size: 0.9em; background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 8px;">{formatted_details}</div>'
-
-                messages.error(request, formatted_message)
-            else:
-                messages.error(
-                    request, f"<strong>Validation Error:</strong><br>{error_message}"
-                )
-            return render(request, template_name="dashboard/upload.html")
-
-        except Exception as e:
-            # Handle unexpected errors
-            messages.error(
-                request,
-                f'<strong>Upload Error:</strong><br>An unexpected error occurred: {str(e)}<br><small class="text-muted">Please check your file format and try again.</small>',
-            )
-            return render(request, template_name="dashboard/upload.html")
-    else:
-        return render(request, template_name="dashboard/upload.html")
-
-
 @login_required(login_url="login")
 @admin_required
 def job_monitor_view(request):
@@ -2368,84 +2051,6 @@ def job_delete_view(request, job_id):
         messages.error(request, "Cannot delete a running job.")
 
     return redirect("job_monitor")
-
-
-@login_required(login_url="login")
-@admin_required
-@require_POST
-def job_retry_view(request, job_id):
-    """
-    Retry a failed background job
-    """
-    # Get the job - if staff, can retry any job; otherwise, only own jobs
-    if request.user.is_staff:
-        job = get_object_or_404(BackgroundJob, job_id=job_id)
-    else:
-        job = get_object_or_404(BackgroundJob, job_id=job_id, created_by=request.user)
-
-    # Only allow retry of failed jobs
-    if job.status != "failed":
-        messages.error(request, "Can only retry failed jobs.")
-        return redirect("job_monitor")
-
-    # Import tasks
-    # Create a new job
-    import uuid
-
-    from django.db import transaction
-
-    from .tasks import (
-        generate_allocation_task,
-        generate_distribution_task,
-        generate_timetable_task,
-    )
-
-    new_job_id = str(uuid.uuid4())
-    new_job = BackgroundJob.objects.create(
-        job_id=new_job_id,
-        job_type=job.job_type,
-        status="pending",
-        created_by=request.user,
-        params=job.params,
-    )
-
-    # Trigger the appropriate task based on job type (after commit)
-    def trigger_retry_task():
-        if job.job_type == "timetable":
-            params = job.params
-            generate_timetable_task.apply_async(
-                args=[
-                    new_job_id,
-                    request.user.id,
-                    params.get("start_date"),
-                    params.get("end_date"),
-                ]
-            )
-        elif job.job_type == "distribution":
-            params = job.params
-            generate_distribution_task.apply_async(
-                args=[
-                    new_job_id,
-                    request.user.id,
-                    params.get("date"),
-                    params.get("period"),
-                ]
-            )
-        elif job.job_type == "allocation":
-            params = job.params
-            generate_allocation_task.apply_async(
-                args=[
-                    new_job_id,
-                    request.user.id,
-                    params.get("date"),
-                    params.get("period"),
-                ]
-            )
-
-    transaction.on_commit(trigger_retry_task)
-
-    messages.success(request, f"Job retried successfully. New job ID: {new_job_id}")
-    return redirect("job_detail", job_id=new_job_id)
 
 
 # --------------------------
@@ -3146,56 +2751,6 @@ def delete_course(request, course_id):
 # --------------------------
 #  Student CRUD Views (within Class context)
 # --------------------------
-
-
-@require_POST
-@login_required(login_url="login")
-@admin_required
-def create_student(request, class_id):
-    """Create a new student in a class"""
-    cls = get_object_or_404(Class, id=class_id)
-
-    first_name = request.POST.get("first_name", "").strip()
-    last_name = request.POST.get("last_name", "").strip()
-    matric_no = request.POST.get("matric_no", "").strip().upper()
-    email = request.POST.get("email", "").strip()
-    phone = request.POST.get("phone", "").strip()
-
-    if not first_name or not last_name or not matric_no:
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={"message": "First name, last name and matric number are required"},
-        )
-
-    if Student.objects.filter(matric_no=matric_no).exists():
-        return render(
-            request,
-            template_name="dashboard/partials/alert-error.html",
-            context={
-                "message": f"Student with matric number '{matric_no}' already exists"
-            },
-        )
-
-    Student.objects.create(
-        first_name=first_name,
-        last_name=last_name,
-        matric_no=matric_no,
-        email=email,
-        phone=phone,
-        level=cls,
-        department=cls.department,
-    )
-
-    # Update class size
-    cls.size = Student.objects.filter(level=cls, department=cls.department).count()
-    cls.save()
-
-    return render(
-        request,
-        template_name="dashboard/partials/alert-success.html",
-        context={"message": "Student created successfully"},
-    )
 
 
 @login_required(login_url="login")

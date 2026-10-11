@@ -24,6 +24,7 @@ from ems.views import (
     generate_broadsheet as legacy_generate_broadsheet,
     write_hall_attendance_sheets,
 )
+from tenancy.permissions import requires_feature
 
 
 def _slot_params(request):
@@ -59,7 +60,7 @@ class DistributionExportView(APIView):
 
 
 class ArrangementExportView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation")]
 
     def get(self, request):
         return csv_gen.export_arrangements(request)
@@ -70,7 +71,7 @@ class AttendanceSheetsView(APIView):
     # ``bool(role)`` — i.e. every admin-side role (super admin, data officer,
     # faculty officer, exam committee) but not department officers, who have a
     # null role. That is exactly the intended audience for attendance sheets.
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation")]
 
     def get(self, request):
         params = request.query_params
@@ -118,7 +119,7 @@ class BulkAttendanceSheetsView(APIView):
     folder per hall. Same sheets, and the same audience, as the per hall
     export (:class:`AttendanceSheetsView`)."""
 
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation"), requires_feature("exports")]
 
     def get(self, request):
         date, period = _slot_params(request)
@@ -165,7 +166,7 @@ class BulkAttendanceSheetsView(APIView):
 
 
 class BroadsheetView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("exports")]
 
     def get(self, request):
         return legacy_generate_broadsheet(request)

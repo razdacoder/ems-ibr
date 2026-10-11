@@ -1,7 +1,6 @@
 import environ
 from pathlib import Path
 import os
-import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,8 +22,35 @@ SECRET_KEY = env(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS",
-                         default=['ems-ibr.onrender.com', 'localhost', '127.0.0.1'])
+# Every hostname derives from this: <slug>.<base> for schools, <console>.<base>
+# for the console and api.<base> for the marketing site (spec 0003).
+# `ordo.app` in production, `staging.ordo.app` on Render, `localhost` locally.
+PLATFORM_BASE_DOMAIN = env("PLATFORM_BASE_DOMAIN", default="localhost")
+# The console's subdomain. Not `admin`, which is the first name anyone tries;
+# set something less obvious per deploy if wanted. The dashboard server reads
+# the same variable, so set it on both.
+PLATFORM_CONSOLE_SUBDOMAIN = env("PLATFORM_CONSOLE_SUBDOMAIN", default="console").lower()
+# Scheme for links Ordo emails out (platform admin and school invites).
+PLATFORM_URL_SCHEME = env("PLATFORM_URL_SCHEME", default="https")
+# Who gets platform alerts (failed setups and backups, renewals). Empty means
+# every active Owner.
+PLATFORM_ALERT_EMAILS = env.list("PLATFORM_ALERT_EMAILS", default=[])
+# Fernet key encrypting platform admins' TOTP secrets. Generate one with
+# `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+# Losing it locks every admin out of 2FA: re-enrol them with
+# `manage.py create_platform_admin --reset-2fa --email <e>`.
+PLATFORM_TOTP_KEY = env("PLATFORM_TOTP_KEY", default="")
+
+# The leading dot admits every subdomain. Any other host gets Django's 400,
+# which says nothing about which schools exist. USE_X_FORWARDED_HOST stays
+# off: the school always comes from the real Host header.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[f".{PLATFORM_BASE_DOMAIN}"])
+if DEBUG or env.bool("ORDO_TESTING", default=False):
+    ALLOWED_HOSTS.append(".localhost")
+
+# Django only ever sits behind Traefik (or the dashboard server's own calls),
+# which says whether the browser used https. Absolute URLs (the logo) follow.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # CSRF Configuration for production
 CSRF_TRUSTED_ORIGINS = env.list(
@@ -35,7 +61,7 @@ CSRF_TRUSTED_ORIGINS = env.list(
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = False  # Railway handles SSL
+    SECURE_SSL_REDIRECT = False  # Traefik (VPS) or Render terminates TLS
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
@@ -44,23 +70,41 @@ if not DEBUG:
 
 # Application definition
 
-INSTALLED_APPS = [
+# One Postgres schema per school (django-tenants). Shared apps live in the
+# public schema; tenant apps get their own tables in every school's schema,
+# so school data never shares a table with another school's.
+SHARED_APPS = [
+    "django_tenants",
     "daphne",
-    "django.contrib.admin",
-    "django.contrib.auth",
+    "tenancy",
     "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
     "django.contrib.staticfiles",
     "channels",
     "rest_framework",
-    "rest_framework.authtoken",
     "corsheaders",
     "django_celery_results",
+]
+
+TENANT_APPS = [
+    "django.contrib.contenttypes",
+    "django.contrib.auth",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "rest_framework.authtoken",
     "ems",
 ]
 
+INSTALLED_APPS = SHARED_APPS + [a for a in TENANT_APPS if a not in SHARED_APPS]
+
+TENANT_MODEL = "tenancy.School"
+TENANT_DOMAIN_MODEL = "tenancy.Domain"
+# Sequential, and only schools in a live status (tenancy.migration_executor).
+GET_EXECUTOR_FUNCTION = "tenancy.migration_executor.get_executor"
+
 MIDDLEWARE = [
+    # /healthz first: probes may send any Host header.
+    "tenancy.middleware.HealthzMiddleware",
+    "tenancy.middleware.SchoolMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -76,7 +120,9 @@ MIDDLEWARE = [
 AUTH_USER_MODEL = "ems.User"
 
 
+# School hosts get core.urls; console.<base> and api.<base> get the public one.
 ROOT_URLCONF = "core.urls"
+PUBLIC_SCHEMA_URLCONF = "core.urls_public"
 
 TEMPLATES = [
     {
@@ -102,21 +148,54 @@ ASGI_APPLICATION = "core.asgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 # Database configuration
-# Use PostgreSQL if DATABASE_URL is provided, otherwise fallback to SQLite
-if env("DATABASE_URL", default=None):
-    # PostgreSQL Database Configuration (for production)
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.parse(env("DATABASE_URL"))
-    }
-else:
-    # Fallback to SQLite for development
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+# Postgres is required everywhere, including tests and local dev: each school
+# will live in its own Postgres schema (spec 0003), which SQLite can't do.
+import dj_database_url
+DATABASES = {
+    'default': dj_database_url.parse(env("DATABASE_URL"))
+}
+DATABASES["default"]["ENGINE"] = "django_tenants.postgresql_backend"
+DATABASE_ROUTERS = ["django_tenants.routers.TenantSyncRouter"]
+
+# Final exports of deleted schools (spec 0003, child 0004): a private S3
+# compatible bucket (Cloudflare R2), never Cloudinary or the app's disk.
+# pg_dump needs a direct connection, never a transaction pooler.
+EXPORT_BUCKET = env("EXPORT_BUCKET", default="")
+EXPORT_S3_ENDPOINT = env("EXPORT_S3_ENDPOINT", default="")
+EXPORT_S3_ACCESS_KEY_ID = env("EXPORT_S3_ACCESS_KEY_ID", default="")
+EXPORT_S3_SECRET_ACCESS_KEY = env("EXPORT_S3_SECRET_ACCESS_KEY", default="")
+# R2 signs with "auto"; set a real region for AWS S3.
+EXPORT_S3_REGION = env("EXPORT_S3_REGION", default="auto")
+# Sent as x-amz-server-side-encryption. Blank leaves it to the bucket (R2
+# encrypts every object at rest).
+EXPORT_S3_SSE = env("EXPORT_S3_SSE", default="AES256")
+EXPORT_DATABASE_URL = env("EXPORT_DATABASE_URL", default=env("DATABASE_URL"))
+
+# Nightly backup of the whole database (spec 0003, child 0007): its own bucket,
+# since EXPORT_BUCKET only holds a school's export until purge or restore.
+# Endpoint and keys default to the export ones (same R2 account).
+BACKUP_BUCKET = env("BACKUP_BUCKET", default="")
+BACKUP_S3_ENDPOINT = env("BACKUP_S3_ENDPOINT", default=EXPORT_S3_ENDPOINT)
+BACKUP_S3_ACCESS_KEY_ID = env("BACKUP_S3_ACCESS_KEY_ID", default=EXPORT_S3_ACCESS_KEY_ID)
+BACKUP_S3_SECRET_ACCESS_KEY = env(
+    "BACKUP_S3_SECRET_ACCESS_KEY", default=EXPORT_S3_SECRET_ACCESS_KEY
+)
+BACKUP_S3_REGION = env("BACKUP_S3_REGION", default=EXPORT_S3_REGION)
+# Blank by default: R2 encrypts at rest and may reject the header.
+BACKUP_S3_SSE = env("BACKUP_S3_SSE", default="")
+BACKUP_DATABASE_URL = env("BACKUP_DATABASE_URL", default=EXPORT_DATABASE_URL)
+BACKUP_TIME_UTC = env("BACKUP_TIME_UTC", default="01:00")
+# The outside monitor (a dead man's switch). Blank sends no pings.
+BACKUP_HEARTBEAT_URL = env("BACKUP_HEARTBEAT_URL", default="")
+BACKUP_HEARTBEAT_FILE = env("BACKUP_HEARTBEAT_FILE", default="/tmp/ordo-backup-ok")
+
+# Cache keys carry the schema name, so one school never reads another's.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "KEY_FUNCTION": "django_tenants.cache.make_key",
+    },
+}
 
 
 # Password validation
@@ -169,7 +248,8 @@ STATICFILES_DIRS = [
 # Use standard FileSystemStorage - WhiteNoise middleware will handle serving and compression
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        # MEDIA_ROOT/<schema_name>/, resolved on every call.
+        "BACKEND": "ems.cloudinary_storage.SchoolFileSystemStorage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -206,8 +286,17 @@ CELERY_CACHE_BACKEND = "default"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
+# Beat schedules in UTC; school tasks activate the school's own zone.
+CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
+# django_celery_results would store every school's task arguments in the
+# public schema, outside isolation. BackgroundJob already records outcomes.
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_EXPIRES = 24 * 60 * 60  # cleans up anything that opts back in
+# One message per worker process, acked when done: jobs from different
+# schools start in arrival order instead of queueing behind a prefetch.
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes (hard: worker SIGKILL, uncatchable)
 # Soft limit fires ~5 min earlier as a catchable SoftTimeLimitExceeded so a
 # task can mark its BackgroundJob 'failed' with a useful message instead of
@@ -218,7 +307,7 @@ CELERY_RESULT_EXTENDED = True
 # Django REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "ems.api.auth.SchoolTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -260,11 +349,28 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Outgoing email (invites), always sent from a Celery task so no request
+# waits on SMTP. Locally, with no EMAIL_HOST, messages print to the console.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = 30
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Ordo <no-reply@ordo.app>")
+if DEBUG and not EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # The test suite runs without Redis (CI has none), so job-progress and
 # notification pushes go through an in-process layer there. A fast hasher
-# keeps the many test users cheap.
-if len(sys.argv) > 1 and sys.argv[1] == "test":
+# keeps the many test users cheap. ORDO_TESTING is set by whatever runs the
+# tests (CI, or `ORDO_TESTING=1 python manage.py test`), so it holds under
+# any runner rather than depending on argv.
+TESTING = env.bool("ORDO_TESTING", default=False)
+if TESTING:
     CHANNEL_LAYERS = {
         "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
     }
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    PLATFORM_TOTP_KEY = PLATFORM_TOTP_KEY or "nA0rJ8bFrYBqf6ZYpAgTEmCgwQqP_3ZD2Pz0F2Gm1Wc="
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

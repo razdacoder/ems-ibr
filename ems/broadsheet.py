@@ -2,6 +2,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
 from datetime import datetime
+
+from django.utils import timezone
 from collections import defaultdict
 
 
@@ -60,7 +62,7 @@ class TimetableBroadSheet:
         # Generated date
         self.ws.merge_cells(f'A{start_row + 1}:H{start_row + 1}')
         date_cell = self.ws[f'A{start_row + 1}']
-        date_cell.value = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+        date_cell.value = f"Generated on: {timezone.localtime().strftime('%B %d, %Y at %I:%M %p')}"
         date_cell.alignment = self.center_alignment
 
         return start_row + 3  # Return next available row
@@ -235,7 +237,7 @@ class TimetableBroadSheet:
         # Generated date
         day_period_ws.merge_cells(f'A{current_row + 1}:G{current_row + 1}')
         date_cell = day_period_ws[f'A{current_row + 1}']
-        date_cell.value = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+        date_cell.value = f"Generated on: {timezone.localtime().strftime('%B %d, %Y at %I:%M %p')}"
         date_cell.alignment = self.center_alignment
         
         current_row += 3
