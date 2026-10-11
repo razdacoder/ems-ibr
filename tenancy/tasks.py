@@ -1,5 +1,6 @@
 """Platform background work: email, building a school's schema, the final
-export and purge of a deleted one, and closing expired support sessions.
+export and purge of a deleted one, closing expired support sessions, and the
+nightly usage snapshot.
 
 Every task here is queued from the public schema and stays there, entering a
 school's schema with ``schema_context`` (spec 0003, child 0004).
@@ -11,11 +12,12 @@ from celery import shared_task
 from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.db.models import Max
 from django.utils import timezone
-from django_tenants.utils import schema_context
+from django_tenants.utils import get_public_schema_name, schema_context
 
-from tenancy import exports
-from tenancy.models import Domain, PlatformAuditLog, School, SupportSession
+from tenancy import exports, limits
+from tenancy.models import Domain, PlatformAuditLog, School, SupportSession, UsageSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -247,3 +249,50 @@ def _purge(school_id):
             school.schema_name,
             school.final_export_ref,
         )
+
+
+# Schools whose schema is live: everything between provisioning and purge.
+SNAPSHOT_STATUSES = (
+    School.Status.ACTIVE,
+    School.Status.SUSPENDED,
+    School.Status.PENDING_DELETION,
+)
+SNAPSHOT_KEEP_DAYS = 400
+
+
+@shared_task(ignore_result=True)
+def snapshot_usage():
+    """Record each live school's usage for the console (beat, daily 01:00 UTC).
+
+    One row per school per UTC day; running twice in a day updates it. A
+    school that fails is logged and skipped, never stopping the rest.
+    """
+    now = timezone.now()
+    today = now.date()
+    schools = School.objects.filter(status__in=SNAPSHOT_STATUSES).exclude(
+        schema_name=get_public_schema_name()
+    )
+    for school in schools:
+        try:
+            # A savepoint, so a database error here can't spoil the others.
+            with transaction.atomic():
+                UsageSnapshot.objects.update_or_create(
+                    school=school, taken_on=today, defaults=_usage(school, now)
+                )
+        except Exception:
+            logger.exception("Snapshotting usage of %s failed", school.schema_name)
+    UsageSnapshot.objects.filter(taken_on__lt=today - timedelta(days=SNAPSHOT_KEEP_DAYS)).delete()
+
+
+def _usage(school, now):
+    with schema_context(school.schema_name):
+        from ems.models import AuditLog, BackgroundJob, Student
+
+        return {
+            "students": Student.objects.count(),
+            "staff_users": limits.staff_in_use(),
+            "jobs_last_24h": BackgroundJob.objects.filter(
+                started_at__gte=now - timedelta(hours=24)
+            ).count(),
+            "last_activity_at": AuditLog.objects.aggregate(last=Max("created_at"))["last"],
+        }

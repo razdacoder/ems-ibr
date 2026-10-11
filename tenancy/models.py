@@ -274,3 +274,26 @@ class SupportSession(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["school", "-created_at"])]
+
+
+class UsageSnapshot(models.Model):
+    """One day's usage of a school, taken nightly by ``snapshot_usage``.
+
+    The console's school list shows the latest one, so listing schools never
+    has to enter every schema. Kept 400 days (spec 0003, child 0005).
+    """
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, related_name="usage_snapshots"
+    )
+    taken_on = models.DateField()
+    students = models.PositiveIntegerField()
+    staff_users = models.PositiveIntegerField()
+    jobs_last_24h = models.PositiveIntegerField()
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-taken_on"]
+        constraints = [
+            models.UniqueConstraint(fields=["school", "taken_on"], name="usage_snapshot_per_day")
+        ]

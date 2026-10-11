@@ -41,6 +41,10 @@ app.conf.beat_schedule = {
         "task": "tenancy.tasks.close_expired_support_sessions",
         "schedule": 10 * 60,
     },
+    "snapshot-usage": {
+        "task": "tenancy.tasks.snapshot_usage",
+        "schedule": crontab(hour=1, minute=0),
+    },
     "purge-schools": {
         "task": "tenancy.tasks.purge_schools",
         "schedule": crontab(hour=2, minute=0),

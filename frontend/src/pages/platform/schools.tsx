@@ -5,6 +5,7 @@ import {
   SCHOOL_STATUS_LABELS,
   type SchoolRow,
   type SchoolStatus,
+  type SchoolUsage,
   useReactivateSchool,
   useResendSchoolInvite,
   useRestoreSchool,
@@ -146,6 +147,8 @@ export default function ConsoleSchoolsPage() {
             <TableHead>Status</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>First admin</TableHead>
+            <TableHead>Usage</TableHead>
+            <TableHead>Last active</TableHead>
             <TableHead>Created</TableHead>
             <TableHead className={ACTIONS_HEAD_CLASS}>
               <span className="sr-only">Actions</span>
@@ -183,6 +186,16 @@ export default function ConsoleSchoolsPage() {
                 <span className="block">{row.first_admin_name}</span>
                 <span className="block text-[12px] text-muted-foreground">{row.first_admin_email}</span>
               </TableCell>
+              <TableCell>
+                <SchoolUsageCell usage={row.usage} />
+              </TableCell>
+              <TableCell className="whitespace-nowrap font-mono text-[12px] text-muted-foreground">
+                {!row.usage
+                  ? "No data yet"
+                  : row.usage.last_activity_at
+                    ? formatDay(row.usage.last_activity_at)
+                    : "Never"}
+              </TableCell>
               <TableCell className="whitespace-nowrap font-mono text-[12px] text-muted-foreground">
                 {formatDay(row.created_at)}
               </TableCell>
@@ -196,6 +209,23 @@ export default function ConsoleSchoolsPage() {
         </TableBody>
       </Table>
     </ListShell>
+  );
+}
+
+/** Counts from the latest nightly snapshot, so up to a day old. */
+function SchoolUsageCell({ usage }: { usage: SchoolUsage | null }) {
+  if (!usage) {
+    return <span className="text-[12px] text-muted-foreground">No data yet</span>;
+  }
+  return (
+    <span className="block whitespace-nowrap" title={`Snapshot of ${usage.taken_on} (UTC)`}>
+      <span className="block">
+        {usage.students.toLocaleString()} students · {usage.staff_users.toLocaleString()} staff
+      </span>
+      <span className="block text-[12px] text-muted-foreground">
+        {usage.jobs_last_24h.toLocaleString()} {usage.jobs_last_24h === 1 ? "job" : "jobs"} in 24h
+      </span>
+    </span>
   );
 }
 

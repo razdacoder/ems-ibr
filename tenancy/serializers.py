@@ -12,6 +12,7 @@ from tenancy.models import (
     PlatformAuditLog,
     School,
     SupportSession,
+    UsageSnapshot,
 )
 from tenancy.slugs import RESERVED, SLUG_RE
 
@@ -158,11 +159,21 @@ class _PlanRefSerializer(serializers.ModelSerializer):
         fields = ["id", "code", "name"]
 
 
+class _UsageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsageSnapshot
+        fields = ["taken_on", "students", "staff_users", "jobs_last_24h", "last_activity_at"]
+
+
 class SchoolListSerializer(serializers.ModelSerializer):
-    """A school as the console's list shows it."""
+    """A school as the console's list shows it.
+
+    ``usage`` is the latest nightly snapshot, or None before the first one.
+    """
 
     plan = _PlanRefSerializer(read_only=True)
     domain = serializers.SerializerMethodField()
+    usage = serializers.SerializerMethodField()
 
     class Meta:
         model = School
@@ -178,12 +189,20 @@ class SchoolListSerializer(serializers.ModelSerializer):
             "country",
             "provisioning_error",
             "created_at",
+            "usage",
         ]
 
     def get_domain(self, obj):
         # Prefetched, so filter in Python rather than query per row.
         primary = [d.domain for d in obj.domains.all() if d.is_primary]
         return primary[0] if primary else None
+
+    def get_usage(self, obj):
+        if hasattr(obj, "latest_usage"):
+            latest = obj.latest_usage[0] if obj.latest_usage else None
+        else:
+            latest = obj.usage_snapshots.first()
+        return _UsageSerializer(latest).data if latest else None
 
 
 class SchoolDetailSerializer(SchoolListSerializer):

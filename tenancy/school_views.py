@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -22,7 +22,7 @@ from ems.api.exceptions import Conflict
 from ems.api.pagination import DefaultPagination
 from tenancy import audit, exports, support
 from tenancy.auth import PlatformTokenAuthentication
-from tenancy.models import Domain, Plan, School, SupportSession
+from tenancy.models import Domain, Plan, School, SupportSession, UsageSnapshot
 from tenancy.permissions import IsPlatformOwner, IsPlatformStaff
 from tenancy.serializers import (
     CreateSchoolSerializer,
@@ -92,7 +92,11 @@ class SchoolListView(generics.ListAPIView):
         return [IsPlatformStaff()]
 
     def get_queryset(self):
-        queryset = schools().order_by("-created_at", "-id")
+        # Each school's latest snapshot only: one DISTINCT ON query per page.
+        latest = UsageSnapshot.objects.order_by("school_id", "-taken_on").distinct("school_id")
+        queryset = schools().prefetch_related(
+            Prefetch("usage_snapshots", queryset=latest, to_attr="latest_usage")
+        ).order_by("-created_at", "-id")
         params = self.request.query_params
         if params.get("status") in School.Status.values:
             queryset = queryset.filter(status=params["status"])

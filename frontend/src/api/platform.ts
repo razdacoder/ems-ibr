@@ -177,6 +177,15 @@ export const SCHOOL_STATUS_LABELS: Record<SchoolStatus, string> = {
   purged: "Purged",
 };
 
+/** A school's usage as of its latest nightly snapshot. */
+export interface SchoolUsage {
+  taken_on: string;
+  students: number;
+  staff_users: number;
+  jobs_last_24h: number;
+  last_activity_at: string | null;
+}
+
 export interface SchoolRow {
   id: number;
   name: string;
@@ -189,6 +198,8 @@ export interface SchoolRow {
   country: string;
   provisioning_error: string;
   created_at: string;
+  /** Null until the first nightly snapshot. */
+  usage: SchoolUsage | null;
 }
 
 export interface SchoolDetail extends SchoolRow {
