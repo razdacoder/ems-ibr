@@ -16,7 +16,7 @@ import {
   useSchoolPlan,
   useSchoolStatus,
 } from "@/api/school";
-import { SCHOOL_CLOSED_EVENT } from "@/lib/api";
+import { SCHOOL_CLOSED_EVENT, hasLiveSupportToken } from "@/lib/api";
 import { useHostKind } from "@/lib/config";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import type { HostKind } from "@/lib/origins.server";
@@ -85,7 +85,7 @@ function RedirectTo({ to, from }: { to: "/console" | "/console/login"; from?: st
  * School pages only while the school is open. A suspended (or pending
  * deletion) school shows the suspended page, one still being set up shows
  * that; an API call refused mid session (school_suspended, school_not_ready)
- * checks again at once.
+ * checks again at once. Ordo support still gets into a suspended school.
  */
 export function RequireOpenSchool({ children }: { children: ReactNode }) {
   const status = useSchoolStatus();
@@ -103,6 +103,7 @@ export function RequireOpenSchool({ children }: { children: ReactNode }) {
   switch (status.data.status) {
     case "suspended":
     case "pending_deletion":
+      if (hasLiveSupportToken()) return <>{children}</>;
       return <SchoolSuspendedPage name={name} />;
     case "provisioning":
     case "failed":

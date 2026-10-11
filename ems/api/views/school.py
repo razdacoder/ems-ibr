@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems.models import Student
-from tenancy import limits
+from tenancy import limits, support
 
 
 class SchoolView(APIView):
@@ -34,10 +34,21 @@ class SchoolView(APIView):
                     "students": Student.objects.count(),
                     "staff_users": limits.staff_in_use(),
                 },
-                # Support sessions arrive with build slice 10.
-                "support": None,
+                "support": _support(request),
             }
         )
+
+
+def _support(request):
+    """The banner's details, for an Ordo support token only (child 0006)."""
+    session = support.current_session(request.user, request.tenant)
+    if session is None:
+        return None
+    return {
+        "active": True,
+        "expires_at": request.user.support_expires_at,
+        "admin_name": session.admin.name,
+    }
 
 
 class SchoolStatusView(APIView):

@@ -244,3 +244,33 @@ class PlatformAuditLog(models.Model):
             models.Index(fields=["school", "-created_at"]),
             models.Index(fields=["action", "-created_at"]),
         ]
+
+
+class SupportSession(models.Model):
+    """A platform admin's visit to a school as its Ordo support user.
+
+    The ticket is the one time credential in the link the console opens;
+    only its SHA-256 is stored. Redeeming it starts the session, which
+    lasts at most an hour (spec 0003, child 0006). ``tenant_user_id`` is the
+    shadow user's id in the school's schema; no foreign key crosses schemas.
+    """
+
+    admin = models.ForeignKey(
+        PlatformAdmin, on_delete=models.PROTECT, related_name="support_sessions"
+    )
+    school = models.ForeignKey(
+        School, on_delete=models.PROTECT, related_name="support_sessions"
+    )
+    reason = models.TextField()
+    ticket_hash = models.CharField(max_length=64, unique=True)
+    ticket_expires_at = models.DateTimeField()
+    ticket_used_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    tenant_user_id = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["school", "-created_at"])]

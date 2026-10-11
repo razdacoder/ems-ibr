@@ -26,4 +26,12 @@ urlpatterns = [
     path("schools/<int:pk>/reactivate/", school_views.SchoolReactivateView.as_view()),
     path("schools/<int:pk>/delete/", school_views.SchoolDeleteView.as_view()),
     path("schools/<int:pk>/restore/", school_views.SchoolRestoreView.as_view()),
+    path(
+        "schools/<int:pk>/support-sessions/",
+        school_views.SchoolSupportSessionsView.as_view(),
+    ),
+    path(
+        "support-sessions/<int:pk>/end/",
+        school_views.SupportSessionEndView.as_view(),
+    ),
 ]

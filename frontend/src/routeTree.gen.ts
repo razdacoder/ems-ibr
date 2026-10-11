@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as PlatformRouteImport } from './routes/_platform'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAuditRouteImport } from './routes/_app/audit'
 import { Route as AppConstraintsRouteImport } from './routes/_app/constraints'
@@ -55,6 +56,11 @@ const PlatformRoute = PlatformRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -222,6 +228,7 @@ const PlatformConsoleConsoleSchoolsIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/audit': typeof AppAuditRoute
   '/constraints': typeof AppConstraintsRoute
   '/courses': typeof AppCoursesRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/audit': typeof AppAuditRoute
   '/constraints': typeof AppConstraintsRoute
   '/courses': typeof AppCoursesRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/_platform': typeof PlatformRouteWithChildren
   '/login': typeof LoginRoute
+  '/support': typeof SupportRoute
   '/_app/audit': typeof AppAuditRoute
   '/_app/constraints': typeof AppConstraintsRoute
   '/_app/courses': typeof AppCoursesRoute
@@ -327,6 +336,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/support'
     | '/audit'
     | '/constraints'
     | '/courses'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/support'
     | '/audit'
     | '/constraints'
     | '/courses'
@@ -394,6 +405,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_platform'
     | '/login'
+    | '/support'
     | '/_app/audit'
     | '/_app/constraints'
     | '/_app/courses'
@@ -431,6 +443,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   PlatformRoute: typeof PlatformRouteWithChildren
   LoginRoute: typeof LoginRoute
+  SupportRoute: typeof SupportRoute
   InviteTokenRoute: typeof InviteTokenRoute
 }
 
@@ -455,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -770,6 +790,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   PlatformRoute: PlatformRouteWithChildren,
   LoginRoute: LoginRoute,
+  SupportRoute: SupportRoute,
   InviteTokenRoute: InviteTokenRoute,
 }
 export const routeTree = rootRouteImport

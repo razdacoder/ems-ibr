@@ -6,7 +6,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from tenancy.features import KEYS
-from tenancy.models import Plan, PlatformAdmin, PlatformAuditLog, School
+from tenancy.models import (
+    Plan,
+    PlatformAdmin,
+    PlatformAuditLog,
+    School,
+    SupportSession,
+)
 from tenancy.slugs import RESERVED, SLUG_RE
 
 DEFAULT_TIMEZONE = School._meta.get_field("timezone").default
@@ -313,3 +319,26 @@ class UpdateSchoolSerializer(CreateSchoolSerializer):
             attrs.get("renews_on", self.instance.renews_on),
         )
         return attrs
+
+
+class SupportSessionSerializer(serializers.ModelSerializer):
+    admin = _AdminRefSerializer(read_only=True)
+    state = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupportSession
+        fields = [
+            "id", "admin", "reason", "state", "created_at", "ticket_expires_at",
+            "started_at", "expires_at", "ended_at",
+        ]
+
+    def get_state(self, obj):
+        """``waiting`` for the link, ``active``, ``ended``, or ``unused``."""
+        from django.utils import timezone
+
+        now = timezone.now()
+        if obj.ended_at is not None or (obj.expires_at and obj.expires_at <= now):
+            return "ended"
+        if obj.started_at is not None:
+            return "active"
+        return "waiting" if obj.ticket_expires_at > now else "unused"

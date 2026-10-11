@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Ban,
+  LifeBuoy,
   Loader2,
   Pencil,
   PlayCircle,
@@ -22,6 +23,7 @@ import { extractErrorEnvelope } from "@/lib/api";
 import { orEmpty } from "@/lib/format";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
+import { StartSupportDialog, SupportSessionsCard } from "./school-support";
 import { SchoolStatusBadge, formatDay, useSchoolActions } from "./schools";
 
 function BackToSchools() {
@@ -70,6 +72,8 @@ function SchoolView({ school }: { school: SchoolDetail }) {
   const owner = isPlatformOwner(admin);
   const [suspending, setSuspending] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [supporting, setSupporting] = useState(false);
+  const canSupport = school.status === "active" || school.status === "suspended";
   const canDelete = owner && ["active", "suspended", "failed"].includes(school.status);
   const firstAdmin = school.first_admin;
   const canResend = school.status === "active" && firstAdmin !== null && !firstAdmin.joined;
@@ -105,6 +109,12 @@ function SchoolView({ school }: { school: SchoolDetail }) {
               <Button variant="outline" disabled={actions.pending} onClick={() => void actions.resend(school)}>
                 <Send data-icon="inline-start" />
                 Resend invite
+              </Button>
+            )}
+            {canSupport && (
+              <Button variant="outline" onClick={() => setSupporting(true)}>
+                <LifeBuoy data-icon="inline-start" />
+                Support session
               </Button>
             )}
             {school.status === "active" && (
@@ -208,6 +218,7 @@ function SchoolView({ school }: { school: SchoolDetail }) {
 
       <SuspendSchoolDialog school={school} open={suspending} onOpenChange={setSuspending} />
       <DeleteSchoolDialog school={school} open={deleting} onOpenChange={setDeleting} />
+      <StartSupportDialog school={school} open={supporting} onOpenChange={setSupporting} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Section title="First administrator">
@@ -278,6 +289,8 @@ function SchoolView({ school }: { school: SchoolDetail }) {
           </Row>
         </Section>
       </div>
+
+      <SupportSessionsCard schoolId={school.id} />
     </div>
   );
 }

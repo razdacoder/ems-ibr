@@ -15,19 +15,21 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name, schema_context
 from rest_framework import generics, serializers, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
 from ems.api.pagination import DefaultPagination
-from tenancy import audit, exports
+from tenancy import audit, exports, support
 from tenancy.auth import PlatformTokenAuthentication
-from tenancy.models import Domain, Plan, School
+from tenancy.models import Domain, Plan, School, SupportSession
 from tenancy.permissions import IsPlatformOwner, IsPlatformStaff
 from tenancy.serializers import (
     CreateSchoolSerializer,
     PlanSerializer,
     SchoolDetailSerializer,
     SchoolListSerializer,
+    SupportSessionSerializer,
     UpdateSchoolSerializer,
 )
 from tenancy.slugs import schema_name_for
@@ -363,6 +365,48 @@ class SchoolResendInviteView(PlatformView):
                 request, "school_invite_resent", school, email=school.first_admin_email
             )
         return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class _StartSupportSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=2000)
+
+
+class SchoolSupportSessionsView(PlatformView):
+    """Start a support session (a one time link), or list the school's sessions."""
+
+    def get(self, request, pk):
+        school = get_object_or_404(schools(), pk=pk)
+        sessions = school.support_sessions.select_related("admin")[:50]
+        return Response(SupportSessionSerializer(sessions, many=True).data)
+
+    def post(self, request, pk):
+        serializer = _StartSupportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            school = _locked(pk)
+            session, url = support.start(
+                request, school, serializer.validated_data["reason"]
+            )
+        return Response(
+            {
+                "session_id": session.pk,
+                "url": url,
+                "ticket_expires_at": session.ticket_expires_at,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SupportSessionEndView(PlatformView):
+    """End a session early: an Owner, or the admin who started it."""
+
+    def post(self, request, pk):
+        session = get_object_or_404(SupportSession, pk=pk)
+        if not (request.user.is_owner or session.admin_id == request.user.pk):
+            raise PermissionDenied("Only an Owner or the admin who started it can end it.")
+        with transaction.atomic():
+            support.end(request, session)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def plans():

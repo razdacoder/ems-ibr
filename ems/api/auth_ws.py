@@ -6,7 +6,8 @@ middleware parses that parameter and attaches the corresponding user to
 ``scope`` before the consumer accepts the connection. The token is looked
 up in the socket's own school (``scope["school"]``, set by
 ``tenancy.ws.SchoolScopeMiddleware``), so a token from another school
-finds nobody.
+finds nobody. A support user past its ``support_expires_at`` is nobody
+too, as in ``ems.api.auth.SchoolTokenAuthentication``.
 """
 
 from urllib.parse import parse_qs
@@ -22,10 +23,15 @@ def _user_for(token_key: str):
     # Imported lazily so AppRegistryNotReady is not a concern.
     from rest_framework.authtoken.models import Token
 
+    from ems.api.auth import support_expired
+
     try:
-        return Token.objects.select_related("user").get(key=token_key).user
+        user = Token.objects.select_related("user").get(key=token_key).user
     except Token.DoesNotExist:
         return AnonymousUser()
+    if not user.is_active or support_expired(user):
+        return AnonymousUser()
+    return user
 
 
 @database_sync_to_async

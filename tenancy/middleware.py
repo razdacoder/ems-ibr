@@ -42,6 +42,7 @@ def school_not_found(request):
 
 STATUS_PATH = "/api/school/status/"
 BRANDING_PATH = "/api/system/branding/"
+SUPPORT_REDEEM_PATH = "/api/support/redeem/"
 
 SUSPENDED_DETAIL = "This school's access is suspended. Contact Ordo."
 NOT_READY_DETAIL = "This school is still being set up."
@@ -61,11 +62,38 @@ def status_gate(request, school):
         # The schema is live, so the suspended page can stay branded.
         if request.method == "GET" and request.path == BRANDING_PATH:
             return None
+        # Ordo support may still come in to help (spec 0003, child 0006).
+        if (
+            school.status == School.Status.SUSPENDED
+            and request.method == "POST"
+            and request.path == SUPPORT_REDEEM_PATH
+        ):
+            return None
+        if _has_live_support_token(request):
+            return None
         return JsonResponse(
             {"detail": SUSPENDED_DETAIL, "code": "school_suspended"}, status=403
         )
     # Provisioning or failed: there may be no tables to read yet.
     return JsonResponse({"detail": NOT_READY_DETAIL, "code": "school_not_ready"}, status=503)
+
+
+def _has_live_support_token(request):
+    """Whether the request carries an unexpired Ordo support token.
+
+    The one place outside DRF that reads ``Authorization`` itself: DRF only
+    authenticates inside the view, after this gate.
+    """
+    from rest_framework.authtoken.models import Token
+
+    keyword, _, key = request.META.get("HTTP_AUTHORIZATION", "").partition(" ")
+    if keyword != "Token" or not key.strip():
+        return False
+    return Token.objects.filter(
+        key=key.strip(),
+        user__is_active=True,
+        user__support_expires_at__gt=timezone.now(),
+    ).exists()
 
 
 class SchoolMiddleware(TenantMainMiddleware):

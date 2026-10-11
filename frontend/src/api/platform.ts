@@ -322,3 +322,48 @@ export const useDeleteSchool = () =>
 
 export const useRestoreSchool = () =>
   useSchoolMutation((id: number) => platformApi.post(`/schools/${id}/restore/`));
+
+/** An Ordo support visit to a school (spec 0003, child 0006). */
+export type SupportSessionState = "waiting" | "active" | "ended" | "unused";
+
+export interface SupportSessionRow {
+  id: number;
+  admin: { id: number; name: string; email: string };
+  reason: string;
+  state: SupportSessionState;
+  created_at: string;
+  ticket_expires_at: string;
+  started_at: string | null;
+  expires_at: string | null;
+  ended_at: string | null;
+}
+
+export interface StartedSupportSession {
+  session_id: number;
+  /** One time link to the school's /support page, valid for 60 seconds. */
+  url: string;
+  ticket_expires_at: string;
+}
+
+export function useSupportSessions(schoolId: number) {
+  return useQuery({
+    queryKey: [...SCHOOLS, "support", schoolId],
+    queryFn: async () =>
+      (await platformApi.get<SupportSessionRow[]>(`/schools/${schoolId}/support-sessions/`)).data,
+  });
+}
+
+export const useStartSupportSession = () =>
+  useSchoolMutation(
+    async ({ id, reason }: { id: number; reason: string }) =>
+      (
+        await platformApi.post<StartedSupportSession>(`/schools/${id}/support-sessions/`, {
+          reason,
+        })
+      ).data,
+  );
+
+export const useEndSupportSession = () =>
+  useSchoolMutation((sessionId: number) =>
+    platformApi.post(`/support-sessions/${sessionId}/end/`),
+  );

@@ -1,6 +1,5 @@
 from rest_framework import status
 from rest_framework.exceptions import APIException
-from rest_framework.views import exception_handler as drf_exception_handler
 
 
 class Conflict(APIException):
@@ -20,6 +19,10 @@ def handler(exc, context):
     `detail` is a single human-readable message, `errors` (optional) is a
     field -> list[message] map suitable for react-hook-form `setError`.
     """
+    # Imported here: DRF imports the auth classes (which use this module)
+    # while rest_framework.views is still loading.
+    from rest_framework.views import exception_handler as drf_exception_handler
+
     response = drf_exception_handler(exc, context)
     if response is None:
         return None

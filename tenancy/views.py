@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 
 from ems.api.exceptions import Conflict
 from ems.api.pagination import DefaultPagination
-from tenancy import admin_invites, audit, lockout, totp
+from tenancy import admin_invites, audit, lockout, support, totp
 from tenancy.auth import (
     STEP_ENROLL,
     STEP_TOTP,
@@ -221,6 +221,10 @@ class AdminDetailView(PlatformView):
 
         for field, (_old, new) in changes.items():
             setattr(target, field, new)
+        if not target.is_active:
+            # Their support visits end first (spec 0003, child 0006).
+            for session in support.open_sessions().filter(admin=target):
+                support.end(request, session, reason="admin_deactivated")
         target.save(update_fields=list(changes))
         if not target.is_active:
             target.tokens.all().delete()

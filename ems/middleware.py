@@ -35,6 +35,7 @@ _ACTION_VERBS = {
     "unpublish": "Withdrew",
     "revoke": "Revoked",
     "resend": "Resent",
+    "end": "Ended",
 }
 
 # A user's own inbox housekeeping (marking notifications read) is not
@@ -59,6 +60,7 @@ _RESOURCE_LABELS = {
     "settings": "system settings",
     "branding": "branding",
     "constraints": "generation constraints",
+    "support": "support session",
 }
 
 _METHOD_VERBS = {
@@ -291,6 +293,9 @@ class AuditLogMiddleware:
         metadata=None,
     ):
         status_code = getattr(response, "status_code", None)
+        # Everything Ordo support does is marked (spec 0003, child 0006).
+        if getattr(user, "support_expires_at", None) is not None:
+            action = f"[Ordo support] {action}"
         AuditLog.objects.create(
             user=user,
             user_email=(email or "")[:254],

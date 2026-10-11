@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, screen } from "@testing-library/react";
 import type { SchoolStatusInfo } from "@/api/school";
-import { api, SCHOOL_CLOSED_EVENT } from "@/lib/api";
+import { api, clearToken, SCHOOL_CLOSED_EVENT, setSupportExpiry, setToken } from "@/lib/api";
 import { RequireOpenSchool } from "@/components/route-guards";
 import { ok, renderWithQuery } from "@/test/render";
 
@@ -55,6 +55,20 @@ describe("RequireOpenSchool", () => {
 
     expect(await screen.findByRole("heading", { name: "Access is suspended" })).toBeInTheDocument();
     expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets Ordo support into a suspended school until its time is up", async () => {
+    vi.spyOn(api, "get").mockResolvedValue(ok(status("suspended")));
+    setToken("support-token");
+    setSupportExpiry(new Date(Date.now() + 60_000).toISOString());
+    const live = renderGate();
+    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
+    live.unmount();
+
+    setSupportExpiry(new Date(Date.now() - 1_000).toISOString());
+    renderGate();
+    expect(await screen.findByRole("heading", { name: "Access is suspended" })).toBeInTheDocument();
+    clearToken();
   });
 
   it("lets the pages try when the status can't be loaded", async () => {

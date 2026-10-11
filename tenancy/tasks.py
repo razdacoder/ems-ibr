@@ -1,5 +1,5 @@
-"""Platform background work: email, building a school's schema, and the
-final export and purge of a deleted one.
+"""Platform background work: email, building a school's schema, the final
+export and purge of a deleted one, and closing expired support sessions.
 
 Every task here is queued from the public schema and stays there, entering a
 school's schema with ``schema_context`` (spec 0003, child 0004).
@@ -15,7 +15,7 @@ from django.utils import timezone
 from django_tenants.utils import schema_context
 
 from tenancy import exports
-from tenancy.models import Domain, PlatformAuditLog, School
+from tenancy.models import Domain, PlatformAuditLog, School, SupportSession
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,30 @@ def fail_stale_provisioning():
             school.provisioning_error = STALE_PROVISIONING_ERROR
             school.save(update_fields=["status", "provisioning_error"])
             _audit(school, "school_provisioning_failed", error=STALE_PROVISIONING_ERROR)
+
+
+@shared_task(ignore_result=True)
+def close_expired_support_sessions():
+    """Record the end of support sessions that ran out (beat, 10 min).
+
+    Bookkeeping only: the token already stopped working at ``expires_at``
+    (spec 0003, child 0006).
+    """
+    with transaction.atomic():
+        expired = SupportSession.objects.select_for_update(skip_locked=True).filter(
+            started_at__isnull=False,
+            ended_at__isnull=True,
+            expires_at__lt=timezone.now(),
+        )
+        for session in expired:
+            session.ended_at = session.expires_at
+            session.save(update_fields=["ended_at"])
+            PlatformAuditLog.objects.create(
+                admin_id=session.admin_id,
+                school_id=session.school_id,
+                action="support_ended",
+                detail={"session_id": session.pk, "reason": "expired"},
+            )
 
 
 EXPORT_MAX_RETRIES = 3

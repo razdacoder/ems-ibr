@@ -20,7 +20,8 @@ export interface SchoolPlan {
   features: FeatureKey[];
   limits: { max_students: number | null; max_staff_users: number | null };
   usage: { students: number; staff_users: number };
-  support: { active: boolean; expires_at: string } | null;
+  /** Set only for an Ordo support token: drives the support banner. */
+  support: { active: boolean; expires_at: string; admin_name: string } | null;
 }
 
 export const SCHOOL_PLAN_KEY = ["school"] as const;
@@ -66,4 +67,16 @@ export function useSchoolStatus() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+}
+
+/** Swap a console support ticket for a support token: POST /api/support/redeem/. */
+export async function redeemSupportTicket(ticket: string) {
+  return (
+    await api.post<{ token: string; expires_at: string }>("/support/redeem/", { ticket })
+  ).data;
+}
+
+/** End this support session now; the token stops working at once. */
+export async function endSupportSession() {
+  await api.post("/support/end/");
 }

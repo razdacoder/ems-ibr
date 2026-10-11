@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { SupportBanner } from "@/components/support-banner";
 import { useNotificationStream } from "@/api/notifications";
 import { type FeatureKey, useSchoolPlan } from "@/api/school";
 import {
@@ -488,6 +489,7 @@ export function DashboardLayout() {
 
       {/* Right column: only this area scrolls */}
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
+        <SupportBanner />
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--border)] bg-background/80 px-5 backdrop-blur-md lg:hidden">
           <Button
             type="button"

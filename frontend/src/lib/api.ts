@@ -12,6 +12,24 @@ export function setToken(token: string) {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SUPPORT_KEY);
+}
+
+/*
+ * When the school token is an Ordo support token, its expiry is kept beside
+ * it. It only decides what the browser shows (a suspended school still opens
+ * for support); the server enforces the expiry on every call.
+ */
+const SUPPORT_KEY = "ems.support.expires";
+
+export function setSupportExpiry(expiresAt: string) {
+  localStorage.setItem(SUPPORT_KEY, expiresAt);
+}
+
+/** Whether the stored token is a support token that hasn't run out. */
+export function hasLiveSupportToken(): boolean {
+  const expires = localStorage.getItem(SUPPORT_KEY);
+  return !!expires && !!getToken() && Date.parse(expires) > Date.now();
 }
 
 export const api = axios.create({

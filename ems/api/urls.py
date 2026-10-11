@@ -54,6 +54,7 @@ from ems.api.views.publication import (
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
 from ems.api.views.school import SchoolStatusView, SchoolView
+from ems.api.views.support import SupportEndView, SupportRedeemView
 from ems.api.views.invites import (
     InviteAcceptView,
     InviteDetailView,
@@ -234,6 +235,8 @@ urlpatterns = [
     path("auth/", include(auth_patterns)),
     path("school/", SchoolView.as_view(), name="api-school"),
     path("school/status/", SchoolStatusView.as_view(), name="api-school-status"),
+    path("support/redeem/", SupportRedeemView.as_view(), name="api-support-redeem"),
+    path("support/end/", SupportEndView.as_view(), name="api-support-end"),
     path("invites/", include(invite_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),
