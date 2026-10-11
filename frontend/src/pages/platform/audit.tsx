@@ -13,7 +13,7 @@ import { PaginationFooter } from "@/components/data-table/pagination";
 import { orEmpty } from "@/lib/format";
 
 /** Readable names for the actions the console records. */
-const ACTION_LABELS: Record<string, string> = {
+export const ACTION_LABELS: Record<string, string> = {
   login: "Signed in",
   logout: "Signed out",
   login_failed: "Wrong password",

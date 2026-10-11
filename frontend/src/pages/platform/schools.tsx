@@ -72,7 +72,7 @@ export function formatDay(iso: string | null): string {
 
 const ALL = "all";
 
-/** The console's home: every school on the platform. */
+/** Every school on the platform. */
 export default function ConsoleSchoolsPage() {
   const { admin } = usePlatformAuth();
   const [page, setPage] = useState(1);

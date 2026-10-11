@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { ChevronsUpDown, Layers, LogOut, type LucideIcon, Moon, School, ScrollText, ShieldCheck, Sun } from "lucide-react";
+import { ChevronsUpDown, Layers, LayoutDashboard, LogOut, type LucideIcon, Moon, School, ScrollText, ShieldCheck, Sun } from "lucide-react";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -42,19 +42,19 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   requires?: (a: PlatformAdmin | null) => boolean;
-  /** Also active on these sub paths (the console home is /console itself). */
-  also?: string;
 }
 
 const NAV: NavItem[] = [
-  { to: "/console", label: "Schools", icon: School, also: "/console/schools" },
+  { to: "/console", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/console/schools", label: "Schools", icon: School },
   { to: "/console/plans", label: "Plans", icon: Layers },
   { to: "/console/admins", label: "Admins", icon: ShieldCheck, requires: isPlatformOwner },
   { to: "/console/audit", label: "Audit log", icon: ScrollText },
 ];
 
-function isActive(pathname: string, { to, also }: NavItem) {
-  if (to === "/console") return pathname === "/console" || pathname === "/console/" || (!!also && pathname.startsWith(also));
+function isActive(pathname: string, { to }: NavItem) {
+  // The dashboard is the console root, so only an exact match counts.
+  if (to === "/console") return pathname === "/console" || pathname === "/console/";
   return pathname.startsWith(to);
 }
 
@@ -80,8 +80,8 @@ function ConsoleSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              tooltip="Schools"
-              render={<Link to="/console" aria-label="Schools" />}
+              tooltip="Dashboard"
+              render={<Link to="/console" aria-label="Dashboard" />}
             >
               <Logo size={22} />
               <span className="flex flex-col gap-0.5 leading-none">

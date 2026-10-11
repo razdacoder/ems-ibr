@@ -378,3 +378,52 @@ export const useEndSupportSession = () =>
   useSchoolMutation((sessionId: number) =>
     platformApi.post(`/support-sessions/${sessionId}/end/`),
   );
+
+export type AttentionKind =
+  | "failed"
+  | "pending_deletion"
+  | "suspended"
+  | "renewal_overdue"
+  | "renewal_due";
+
+export interface PlatformOverview {
+  schools: {
+    /** Every school but purged ones. */
+    total: number;
+    by_status: Record<SchoolStatus, number>;
+    new_last_30_days: number;
+  };
+  /** Each live school's latest nightly snapshot, added up. */
+  usage: {
+    students: number;
+    staff_users: number;
+    jobs_last_24h: number;
+    as_of: string | null;
+  };
+  /** Daily totals over the last 30 days, oldest first. */
+  trend: Array<{ date: string; students: number; staff_users: number; jobs: number }>;
+  plans: Array<{ id: number; code: string; name: string; schools: number }>;
+  attention: Array<{
+    school: { id: number; name: string; slug: string };
+    kind: AttentionKind;
+    at: string | null;
+  }>;
+  support: Array<{
+    id: number;
+    school: { id: number; name: string; slug: string };
+    admin: { id: number; name: string };
+    reason: string;
+    expires_at: string;
+  }>;
+  recent_activity: PlatformAuditRow[];
+}
+
+/** The console dashboard. Under the schools key so school changes refresh it. */
+export function usePlatformOverview() {
+  return useQuery({
+    queryKey: [...SCHOOLS, "overview"],
+    queryFn: async () =>
+      (await platformApi.get<PlatformOverview>("/overview/")).data,
+    refetchInterval: 60_000,
+  });
+}

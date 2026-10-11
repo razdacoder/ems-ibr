@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -22,11 +22,19 @@ from ems.api.exceptions import Conflict
 from ems.api.pagination import DefaultPagination
 from tenancy import audit, exports, support
 from tenancy.auth import PlatformTokenAuthentication
-from tenancy.models import Domain, Plan, School, SupportSession, UsageSnapshot
+from tenancy.models import (
+    Domain,
+    Plan,
+    PlatformAuditLog,
+    School,
+    SupportSession,
+    UsageSnapshot,
+)
 from tenancy.permissions import IsPlatformOwner, IsPlatformStaff
 from tenancy.serializers import (
     CreateSchoolSerializer,
     PlanSerializer,
+    PlatformAuditLogSerializer,
     SchoolDetailSerializer,
     SchoolListSerializer,
     SupportSessionSerializer,
@@ -462,3 +470,127 @@ class PlanDetailView(PlatformView):
                 plan.save(update_fields=list(changes))
                 audit.record(request, "plan_updated", code=plan.code, changes=changes)
         return Response(PlanSerializer(plans().get(pk=pk)).data)
+
+
+# How far ahead the dashboard warns about renewals, and how much usage
+# history its trend covers.
+RENEWAL_WARNING_DAYS = 30
+TREND_DAYS = 30
+
+
+def _school_ref(school):
+    return {"id": school.id, "name": school.name, "slug": school.slug}
+
+
+def _attention(today):
+    """Schools an admin should look at, most urgent first.
+
+    Failed setups, closures counting down to a purge, suspensions, and plans
+    that lapsed or renew within ``RENEWAL_WARNING_DAYS``.
+    """
+    items = []
+    for school in schools().filter(status=School.Status.FAILED):
+        items.append({"school": _school_ref(school), "kind": "failed", "at": school.provisioning_started_at})
+    for school in schools().filter(status=School.Status.PENDING_DELETION).order_by("purge_after"):
+        items.append({"school": _school_ref(school), "kind": "pending_deletion", "at": school.purge_after})
+    for school in schools().filter(status=School.Status.SUSPENDED).order_by("-suspended_at"):
+        items.append({"school": _school_ref(school), "kind": "suspended", "at": school.suspended_at})
+    renewing = schools().filter(
+        status=School.Status.ACTIVE,
+        renews_on__lte=today + timedelta(days=RENEWAL_WARNING_DAYS),
+    ).order_by("renews_on")
+    for school in renewing:
+        kind = "renewal_overdue" if school.renews_on < today else "renewal_due"
+        items.append({"school": _school_ref(school), "kind": kind, "at": school.renews_on})
+    return items
+
+
+class OverviewView(PlatformView):
+    """The console dashboard, read from the public schema only.
+
+    Usage totals add up each school's latest nightly snapshot; the trend adds
+    up every school's snapshot per day. Neither enters a school's schema.
+    """
+
+    def get(self, request):
+        now = timezone.now()
+        today = now.date()
+        everything = School.objects.exclude(schema_name=get_public_schema_name())
+
+        by_status = dict.fromkeys(School.Status.values, 0)
+        for row in everything.values("status").annotate(n=Count("id")):
+            by_status[row["status"]] = row["n"]
+
+        live = everything.filter(status__in=School.LIVE_STATUSES)
+        latest = list(
+            UsageSnapshot.objects.filter(school__in=live)
+            .order_by("school_id", "-taken_on")
+            .distinct("school_id")
+        )
+        totals = {
+            "students": sum(u.students for u in latest),
+            "staff_users": sum(u.staff_users for u in latest),
+            "jobs_last_24h": sum(u.jobs_last_24h for u in latest),
+            "as_of": max((u.taken_on for u in latest), default=None),
+        }
+
+        trend = (
+            UsageSnapshot.objects.filter(taken_on__gt=today - timedelta(days=TREND_DAYS))
+            .values("taken_on")
+            .annotate(
+                students=Sum("students"),
+                staff_users=Sum("staff_users"),
+                jobs=Sum("jobs_last_24h"),
+            )
+            .order_by("taken_on")
+        )
+
+        support = (
+            SupportSession.objects.filter(
+                started_at__isnull=False, ended_at__isnull=True, expires_at__gt=now
+            )
+            .select_related("admin", "school")
+            .order_by("expires_at")
+        )
+
+        recent = PlatformAuditLog.objects.select_related("admin", "school")[:8]
+
+        return Response(
+            {
+                "schools": {
+                    "total": sum(by_status.values()) - by_status[School.Status.PURGED],
+                    "by_status": by_status,
+                    "new_last_30_days": everything.filter(
+                        created_at__gte=now - timedelta(days=30)
+                    ).count(),
+                },
+                "usage": totals,
+                "trend": [
+                    {
+                        "date": row["taken_on"],
+                        "students": row["students"],
+                        "staff_users": row["staff_users"],
+                        "jobs": row["jobs"],
+                    }
+                    for row in trend
+                ],
+                "plans": [
+                    {"id": p.id, "code": p.code, "name": p.name, "schools": p.school_count}
+                    for p in plans().filter(Q(is_active=True) | Q(school_count__gt=0)).order_by(
+                        "-school_count", "name"
+                    )
+                ],
+                "attention": _attention(today),
+                "support": [
+                    {
+                        "id": s.id,
+                        "school": _school_ref(s.school),
+                        "admin": {"id": s.admin.id, "name": s.admin.name},
+                        "reason": s.reason,
+                        "expires_at": s.expires_at,
+                    }
+                    for s in support
+                ],
+                "recent_activity": PlatformAuditLogSerializer(recent, many=True).data,
+            }
+        )

@@ -41,6 +41,7 @@ import { Route as PlatformConsoleConsoleIndexRouteImport } from './routes/_platf
 import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
 import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
 import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platform/_console/console.plans'
+import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
 import { Route as PlatformConsoleConsoleSchoolsIdRouteImport } from './routes/_platform/_console/console.schools.$id'
 import { Route as PlatformConsoleConsoleSchoolsNewRouteImport } from './routes/_platform/_console/console.schools.new'
 import { Route as PlatformConsoleConsoleSchoolsIdEditRouteImport } from './routes/_platform/_console/console.schools.$id_.edit'
@@ -206,6 +207,12 @@ const PlatformConsoleConsolePlansRoute =
     path: '/console/plans',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleSchoolsIndexRoute =
+  PlatformConsoleConsoleSchoolsIndexRouteImport.update({
+    id: '/console/schools/',
+    path: '/console/schools/',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 const PlatformConsoleConsoleSchoolsIdRoute =
   PlatformConsoleConsoleSchoolsIdRouteImport.update({
     id: '/console/schools/$id',
@@ -257,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/console/': typeof PlatformConsoleConsoleIndexRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
   '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -291,6 +299,7 @@ export interface FileRoutesByTo {
   '/console': typeof PlatformConsoleConsoleIndexRoute
   '/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/console/schools': typeof PlatformConsoleConsoleSchoolsIndexRoute
   '/console/schools/$id/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRoutesById {
@@ -329,6 +338,7 @@ export interface FileRoutesById {
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
   '/_platform/_console/console/schools/$id': typeof PlatformConsoleConsoleSchoolsIdRoute
   '/_platform/_console/console/schools/new': typeof PlatformConsoleConsoleSchoolsNewRoute
+  '/_platform/_console/console/schools/': typeof PlatformConsoleConsoleSchoolsIndexRoute
   '/_platform/_console/console/schools/$id_/edit': typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 export interface FileRouteTypes {
@@ -365,6 +375,7 @@ export interface FileRouteTypes {
     | '/console/'
     | '/console/schools/$id'
     | '/console/schools/new'
+    | '/console/schools/'
     | '/console/schools/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/console'
     | '/console/schools/$id'
     | '/console/schools/new'
+    | '/console/schools'
     | '/console/schools/$id/edit'
   id:
     | '__root__'
@@ -436,6 +448,7 @@ export interface FileRouteTypes {
     | '/_platform/_console/console/'
     | '/_platform/_console/console/schools/$id'
     | '/_platform/_console/console/schools/new'
+    | '/_platform/_console/console/schools/'
     | '/_platform/_console/console/schools/$id_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -673,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformConsoleConsolePlansRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
+    '/_platform/_console/console/schools/': {
+      id: '/_platform/_console/console/schools/'
+      path: '/console/schools'
+      fullPath: '/console/schools/'
+      preLoaderRoute: typeof PlatformConsoleConsoleSchoolsIndexRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
     '/_platform/_console/console/schools/$id': {
       id: '/_platform/_console/console/schools/$id'
       path: '/console/schools/$id'
@@ -752,6 +772,7 @@ interface PlatformConsoleRouteChildren {
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
   PlatformConsoleConsoleSchoolsIdRoute: typeof PlatformConsoleConsoleSchoolsIdRoute
   PlatformConsoleConsoleSchoolsNewRoute: typeof PlatformConsoleConsoleSchoolsNewRoute
+  PlatformConsoleConsoleSchoolsIndexRoute: typeof PlatformConsoleConsoleSchoolsIndexRoute
   PlatformConsoleConsoleSchoolsIdEditRoute: typeof PlatformConsoleConsoleSchoolsIdEditRoute
 }
 
@@ -762,6 +783,8 @@ const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
   PlatformConsoleConsoleSchoolsIdRoute: PlatformConsoleConsoleSchoolsIdRoute,
   PlatformConsoleConsoleSchoolsNewRoute: PlatformConsoleConsoleSchoolsNewRoute,
+  PlatformConsoleConsoleSchoolsIndexRoute:
+    PlatformConsoleConsoleSchoolsIndexRoute,
   PlatformConsoleConsoleSchoolsIdEditRoute:
     PlatformConsoleConsoleSchoolsIdEditRoute,
 }

@@ -260,7 +260,7 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
         </Link>
       ) : (
         <Link
-          to="/console"
+          to="/console/schools"
           className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" aria-hidden />
@@ -587,7 +587,7 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
                   Cancel
                 </Link>
               ) : (
-                <Link to="/console" className={buttonVariants({ variant: "outline" })}>
+                <Link to="/console/schools" className={buttonVariants({ variant: "outline" })}>
                   Cancel
                 </Link>
               )}
