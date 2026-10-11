@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { Layers, LogOut, type LucideIcon, School, ScrollText, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, Layers, LogOut, type LucideIcon, Moon, School, ScrollText, ShieldCheck, Sun } from "lucide-react";
 import type { AppPath } from "@/lib/paths";
 import {
   isPlatformOwner,
@@ -7,17 +7,35 @@ import {
   usePlatformAuth,
   type PlatformAdmin,
 } from "@/lib/platform-auth";
-import { cn } from "@/lib/utils";
-import { Wordmark } from "@/components/logo";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/lib/theme";
+import { Logo } from "@/components/logo";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 interface NavItem {
   to: AppPath;
@@ -28,7 +46,6 @@ interface NavItem {
   also?: string;
 }
 
-// Support sessions join when their build slice lands.
 const NAV: NavItem[] = [
   { to: "/console", label: "Schools", icon: School, also: "/console/schools" },
   { to: "/console/plans", label: "Plans", icon: Layers },
@@ -36,11 +53,18 @@ const NAV: NavItem[] = [
   { to: "/console/audit", label: "Audit log", icon: ScrollText },
 ];
 
-/** The signed in console at admin.<base>: top bar, nav and the page. */
-export function ConsoleLayout() {
+function isActive(pathname: string, { to, also }: NavItem) {
+  if (to === "/console") return pathname === "/console" || pathname === "/console/" || (!!also && pathname.startsWith(also));
+  return pathname.startsWith(to);
+}
+
+function ConsoleSidebar() {
   const { admin, logout } = usePlatformAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const { pathname } = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
   const items = NAV.filter((item) => !item.requires || item.requires(admin));
+  const isDark = theme === "dark";
   const initials =
     admin?.name
       .split(/\s+/)
@@ -50,67 +74,133 @@ export function ConsoleLayout() {
       .toUpperCase() || "?";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-[color:var(--border)] bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-          <Link to="/console" className="inline-flex items-center gap-3" aria-label="Schools">
-            <Wordmark />
-            <span className="hidden rounded-full border border-[color:var(--border)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground sm:inline">
-              Console
-            </span>
-          </Link>
-          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Console">
-            {items.map(({ to, label, icon: Icon, also }) => (
-              <Link
-                key={to}
-                to={to}
-                activeOptions={{ exact: to === "/console" }}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-[13.5px] font-medium transition-colors",
-                  also && pathname.startsWith(also) && "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]",
-                )}
-                activeProps={{ className: "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]" }}
-                inactiveProps={{
-                  className:
-                    also && pathname.startsWith(also) ? "" : "text-muted-foreground hover:text-foreground",
-                }}
-              >
-                <Icon className="size-3.5" strokeWidth={2} aria-hidden />
-                <span className="hidden md:inline">{label}</span>
-                <span className="sr-only md:hidden">{label}</span>
-              </Link>
-            ))}
-          </nav>
-          <ThemeToggle size="sm" iconOnly />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-              )}
-              style={{ backgroundColor: "var(--brand)", color: "var(--brand-foreground)" }}
-              aria-label="Account menu"
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="Schools"
+              render={<Link to="/console" aria-label="Schools" />}
             >
-              {initials}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={8} className="min-w-[220px]">
-              <DropdownMenuLabel>
-                <span className="block truncate text-[13px] font-medium">{admin?.name}</span>
-                <span className="block truncate text-[12px] font-normal text-muted-foreground">
-                  {admin?.email} · {admin ? PLATFORM_ROLE_LABELS[admin.role] : ""}
+              <Logo size={22} />
+              <span className="flex flex-col gap-0.5 leading-none">
+                <span className="font-heading text-[15px] font-semibold tracking-[-0.03em]">Ordo</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Console
                 </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void logout()}>
-                <LogOut className="mr-2 size-3.5" strokeWidth={2} />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {items.map((item) => (
+                <SidebarMenuItem key={item.to}>
+                  <SidebarMenuButton
+                    isActive={isActive(pathname, item)}
+                    tooltip={item.label}
+                    render={<Link to={item.to} onClick={() => isMobile && setOpenMobile(false)} />}
+                  >
+                    <item.icon strokeWidth={2} />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton size="lg" aria-label="Account menu" className="data-popup-open:bg-sidebar-accent" />
+                }
+              >
+                <span
+                  className="grid size-8 shrink-0 place-items-center rounded-full font-mono text-[11px] font-medium"
+                  style={{ backgroundColor: "var(--brand)", color: "var(--brand-foreground)" }}
+                >
+                  {initials}
+                </span>
+                <span className="grid flex-1 text-left leading-tight">
+                  <span className="truncate text-[13px] font-medium">{admin?.name}</span>
+                  <span className="truncate font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {admin ? PLATFORM_ROLE_LABELS[admin.role] : ""}
+                  </span>
+                </span>
+                <ChevronsUpDown className="ml-auto" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side={isMobile ? "bottom" : "right"}
+                align="end"
+                sideOffset={8}
+                className="min-w-[220px]"
+              >
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>
+                    <span className="block truncate text-[13px] font-medium">{admin?.name}</span>
+                    <span className="block truncate text-[12px] font-normal text-muted-foreground">
+                      {admin?.email}
+                    </span>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleTheme();
+                  }}
+                >
+                  {isDark ? (
+                    <Sun className="mr-2 size-3.5" strokeWidth={2} />
+                  ) : (
+                    <Moon className="mr-2 size-3.5" strokeWidth={2} />
+                  )}
+                  {isDark ? "Light mode" : "Dark mode"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => void logout()}>
+                  <LogOut className="mr-2 size-3.5" strokeWidth={2} />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
+/** The signed in console at admin.<base>: sidebar nav and the page. */
+export function ConsoleLayout() {
+  const { pathname } = useLocation();
+  const current = NAV.find((item) => isActive(pathname, item));
+
+  return (
+    <SidebarProvider>
+      <ConsoleSidebar />
+      <SidebarInset>
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-[color:var(--border)] bg-background/90 px-4 backdrop-blur">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-1 h-4" />
+          <span className="text-[13.5px] font-medium">{current?.label ?? "Console"}</span>
+        </header>
+        <div className="mx-auto w-full max-w-screen-2xl px-4 py-10 sm:px-6 lg:px-10">
+          <Outlet />
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <Outlet />
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

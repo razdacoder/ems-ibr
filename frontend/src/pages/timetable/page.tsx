@@ -41,7 +41,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -587,7 +587,7 @@ function GenerateTimetableDialog({
                     <FormItem>
                       <FormLabel>Start date</FormLabel>
                       <FormControl>
-                        <Input type="date" min={minStart} {...field} />
+                        <DatePicker min={minStart} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -600,8 +600,7 @@ function GenerateTimetableDialog({
                     <FormItem>
                       <FormLabel>End date</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
+                        <DatePicker
                           min={form.watch("start_date") || minStart}
                           {...field}
                         />

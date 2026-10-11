@@ -33,6 +33,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -479,7 +480,7 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
                     <FormItem>
                       <FormLabel>Plan starts</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker clearable {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -492,7 +493,7 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
                     <FormItem>
                       <FormLabel>Renews</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker clearable {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
