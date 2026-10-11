@@ -2,8 +2,10 @@
 
 The effective features and limits decide what the dashboard shows, and the
 live counts drive the "N of M used" lines (spec 0003, child 0005).
+``GET /api/school/status/`` says whether the school is open at all, and is
+the one call the status gate always lets through (child 0004).
 """
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -36,3 +38,18 @@ class SchoolView(APIView):
                 "support": None,
             }
         )
+
+
+class SchoolStatusView(APIView):
+    """Name and status, for the suspended and "being set up" pages.
+
+    No authentication, so a stale token can't turn it into a 401. The reason
+    for a suspension stays in the console.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        school = request.tenant
+        return Response({"name": school.name, "status": school.status})

@@ -22,4 +22,8 @@ urlpatterns = [
     path("schools/<int:pk>/", school_views.SchoolDetailView.as_view()),
     path("schools/<int:pk>/retry/", school_views.SchoolRetryView.as_view()),
     path("schools/<int:pk>/resend-invite/", school_views.SchoolResendInviteView.as_view()),
+    path("schools/<int:pk>/suspend/", school_views.SchoolSuspendView.as_view()),
+    path("schools/<int:pk>/reactivate/", school_views.SchoolReactivateView.as_view()),
+    path("schools/<int:pk>/delete/", school_views.SchoolDeleteView.as_view()),
+    path("schools/<int:pk>/restore/", school_views.SchoolRestoreView.as_view()),
 ]

@@ -205,6 +205,12 @@ class SchoolDetailSerializer(SchoolListSerializer):
             "renews_on",
             "provisioning_started_at",
             "was_ever_active",
+            "suspended_at",
+            "suspended_reason",
+            "deletion_requested_at",
+            "purge_after",
+            "final_export_ref",
+            "purged_at",
             "created_by",
             "first_admin",
         ]

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RequireHost } from "@/components/route-guards";
+import { RequireHost, RequireOpenSchool } from "@/components/route-guards";
 import InvitePage from "@/pages/invite";
 
 // The emailed invite to join a school: <slug>.<base>/invite/<token>.
@@ -13,7 +13,9 @@ function InviteRoute() {
   const { token } = Route.useParams();
   return (
     <RequireHost kind="school">
-      <InvitePage token={token} />
+      <RequireOpenSchool>
+        <InvitePage token={token} />
+      </RequireOpenSchool>
     </RequireHost>
   );
 }

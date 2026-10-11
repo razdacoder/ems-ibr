@@ -1,4 +1,5 @@
-"""Request side of tenancy: health checks, then picking the school by host."""
+"""Request side of tenancy: health checks, picking the school by host, and
+refusing API calls while a school isn't open for use."""
 from django.db import connection
 from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.http.request import split_domain_port
@@ -39,6 +40,34 @@ def school_not_found(request):
     return HttpResponseNotFound("School not found.", content_type="text/plain")
 
 
+STATUS_PATH = "/api/school/status/"
+BRANDING_PATH = "/api/system/branding/"
+
+SUSPENDED_DETAIL = "This school's access is suspended. Contact Ordo."
+NOT_READY_DETAIL = "This school is still being set up."
+
+
+def status_gate(request, school):
+    """The refusal for a school that isn't ``active``, or None to go on.
+
+    Only ``/api/*`` is gated. Celery tasks never pass through here, so a job
+    already running finishes (spec 0003, child 0004).
+    """
+    if school.status == School.Status.ACTIVE or not request.path.startswith("/api/"):
+        return None
+    if request.method == "GET" and request.path == STATUS_PATH:
+        return None
+    if school.status in (School.Status.SUSPENDED, School.Status.PENDING_DELETION):
+        # The schema is live, so the suspended page can stay branded.
+        if request.method == "GET" and request.path == BRANDING_PATH:
+            return None
+        return JsonResponse(
+            {"detail": SUSPENDED_DETAIL, "code": "school_suspended"}, status=403
+        )
+    # Provisioning or failed: there may be no tables to read yet.
+    return JsonResponse({"detail": NOT_READY_DETAIL, "code": "school_not_ready"}, status=503)
+
+
 class SchoolMiddleware(TenantMainMiddleware):
     """Point the connection at the school the Host header names.
 
@@ -74,3 +103,4 @@ class SchoolMiddleware(TenantMainMiddleware):
         self.setup_url_routing(request)
         if school.schema_name != get_public_schema_name():
             timezone.activate(school.timezone)
+            return status_gate(request, school)

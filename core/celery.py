@@ -1,6 +1,7 @@
 import os
 import threading
 
+from celery.schedules import crontab
 from celery.signals import task_postrun, task_prerun
 from tenant_schemas_celery.app import CeleryApp
 
@@ -29,12 +30,16 @@ app.conf.task_send_sent_event = True
 # Platform beat tasks, times in UTC. Each runs in the public schema and enters
 # school schemas itself with ``schema_context``. Entries land with their tasks
 # in later build slices: tenancy.tasks.snapshot_usage (daily 01:00),
-# purge_schools (daily 02:00), close_expired_support_sessions (every 10 min),
-# prune_usage_snapshots (daily 03:00).
+# close_expired_support_sessions (every 10 min), prune_usage_snapshots
+# (daily 03:00).
 app.conf.beat_schedule = {
     "fail-stale-provisioning": {
         "task": "tenancy.tasks.fail_stale_provisioning",
         "schedule": 10 * 60,
+    },
+    "purge-schools": {
+        "task": "tenancy.tasks.purge_schools",
+        "schedule": crontab(hour=2, minute=0),
     },
 }
 

@@ -4,7 +4,8 @@ Creating a school saves it with its primary domain and queues provisioning,
 which builds the schema in the background. Every transition locks the
 ``School`` row and records a ``PlatformAuditLog`` row.
 """
-from datetime import date
+import logging
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -13,12 +14,12 @@ from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_tenants.utils import get_public_schema_name, schema_context
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
 from ems.api.pagination import DefaultPagination
-from tenancy import audit
+from tenancy import audit, exports
 from tenancy.auth import PlatformTokenAuthentication
 from tenancy.models import Domain, Plan, School
 from tenancy.permissions import IsPlatformOwner, IsPlatformStaff
@@ -30,8 +31,10 @@ from tenancy.serializers import (
     UpdateSchoolSerializer,
 )
 from tenancy.slugs import schema_name_for
-from tenancy.tasks import provision_school
+from tenancy.tasks import export_school, provision_school
 from tenancy.views import PlatformView
+
+logger = logging.getLogger(__name__)
 
 
 def schools():
@@ -196,6 +199,141 @@ class SchoolRetryView(PlatformView):
             )
             _queue_provisioning(school)
         return _detail(school, status.HTTP_202_ACCEPTED)
+
+
+PURGE_GRACE_DAYS = 30
+
+
+def _locked(pk):
+    return get_object_or_404(schools().select_for_update(of=("self",)), pk=pk)
+
+
+class _SuspendSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=2000)
+
+
+class SchoolSuspendView(PlatformView):
+    """Block the school's users; their data stays as it is."""
+
+    permission_classes = [IsPlatformStaff]
+
+    def post(self, request, pk):
+        serializer = _SuspendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reason = serializer.validated_data["reason"]
+        with transaction.atomic():
+            school = _locked(pk)
+            if school.status != School.Status.ACTIVE:
+                raise _cannot("suspend", school)
+            school.status = School.Status.SUSPENDED
+            school.suspended_at = timezone.now()
+            school.suspended_reason = reason
+            school.save(update_fields=["status", "suspended_at", "suspended_reason"])
+            audit.record(request, "school_suspended", school, reason=reason)
+        return _detail(schools().get(pk=pk))
+
+
+class SchoolReactivateView(PlatformView):
+    permission_classes = [IsPlatformStaff]
+
+    def post(self, request, pk):
+        with transaction.atomic():
+            school = _locked(pk)
+            if school.status != School.Status.SUSPENDED:
+                raise _cannot("reactivate", school)
+            reason = school.suspended_reason
+            school.status = School.Status.ACTIVE
+            school.suspended_at = None
+            school.suspended_reason = ""
+            school.save(update_fields=["status", "suspended_at", "suspended_reason"])
+            audit.record(request, "school_reactivated", school, suspended_reason=reason)
+        return _detail(schools().get(pk=pk))
+
+
+class _DeleteSerializer(serializers.Serializer):
+    confirm_slug = serializers.CharField()
+
+
+class SchoolDeleteView(PlatformView):
+    """Block the school, export it, and purge it once the grace period ends."""
+
+    permission_classes = [IsPlatformOwner]
+
+    def post(self, request, pk):
+        serializer = _DeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            school = _locked(pk)
+            if school.status not in (
+                School.Status.ACTIVE,
+                School.Status.SUSPENDED,
+                School.Status.FAILED,
+            ):
+                raise _cannot("delete", school)
+            if serializer.validated_data["confirm_slug"].strip() != school.slug:
+                raise serializers.ValidationError(
+                    {"confirm_slug": ["Type the school's address exactly to confirm."]}
+                )
+            now = timezone.now()
+            school.status = School.Status.PENDING_DELETION
+            school.deletion_requested_at = now
+            school.purge_after = now + timedelta(days=PURGE_GRACE_DAYS)
+            # A school that never went live holds no data worth keeping.
+            school.final_export_ref = "" if school.was_ever_active else exports.NEVER_ACTIVE
+            school.save(
+                update_fields=[
+                    "status", "deletion_requested_at", "purge_after", "final_export_ref"
+                ]
+            )
+            audit.record(
+                request, "school_deletion_requested", school,
+                purge_after=school.purge_after.isoformat(),
+            )
+            if school.was_ever_active:
+                school_id = school.pk
+                transaction.on_commit(lambda: export_school.delay(school_id))
+        return _detail(schools().get(pk=pk))
+
+
+class SchoolRestoreView(PlatformView):
+    """Undo a deletion before the purge. The export is no longer needed."""
+
+    permission_classes = [IsPlatformOwner]
+
+    def post(self, request, pk):
+        with transaction.atomic():
+            school = _locked(pk)
+            if school.status != School.Status.PENDING_DELETION:
+                raise _cannot("restore", school)
+            if timezone.now() >= school.purge_after:
+                raise Conflict("The grace period has ended; this school is being purged.")
+            export_ref = school.final_export_ref
+            # A school deleted before it ever went live has a half built
+            # schema: back to failed, where Retry rebuilds it.
+            school.status = (
+                School.Status.ACTIVE if school.was_ever_active else School.Status.FAILED
+            )
+            school.deletion_requested_at = None
+            school.purge_after = None
+            school.final_export_ref = ""
+            school.suspended_at = None
+            school.suspended_reason = ""
+            school.save(
+                update_fields=[
+                    "status", "deletion_requested_at", "purge_after",
+                    "final_export_ref", "suspended_at", "suspended_reason",
+                ]
+            )
+            audit.record(request, "school_restored", school, status=school.status)
+            transaction.on_commit(lambda: _forget_export(school, export_ref))
+        return _detail(schools().get(pk=pk))
+
+
+def _forget_export(school, ref):
+    try:
+        exports.delete_export(ref)
+    except Exception:
+        logger.exception("Restored %s but could not delete its export %r", school.schema_name, ref)
 
 
 class SchoolResendInviteView(PlatformView):

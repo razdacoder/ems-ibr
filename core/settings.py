@@ -150,6 +150,20 @@ DATABASES = {
 DATABASES["default"]["ENGINE"] = "django_tenants.postgresql_backend"
 DATABASE_ROUTERS = ["django_tenants.routers.TenantSyncRouter"]
 
+# Final exports of deleted schools (spec 0003, child 0004): a private S3
+# compatible bucket (Cloudflare R2), never Cloudinary or the app's disk.
+# pg_dump needs a direct connection, never a transaction pooler.
+EXPORT_BUCKET = env("EXPORT_BUCKET", default="")
+EXPORT_S3_ENDPOINT = env("EXPORT_S3_ENDPOINT", default="")
+EXPORT_S3_ACCESS_KEY_ID = env("EXPORT_S3_ACCESS_KEY_ID", default="")
+EXPORT_S3_SECRET_ACCESS_KEY = env("EXPORT_S3_SECRET_ACCESS_KEY", default="")
+# R2 signs with "auto"; set a real region for AWS S3.
+EXPORT_S3_REGION = env("EXPORT_S3_REGION", default="auto")
+# Sent as x-amz-server-side-encryption. Blank leaves it to the bucket (R2
+# encrypts every object at rest).
+EXPORT_S3_SSE = env("EXPORT_S3_SSE", default="AES256")
+EXPORT_DATABASE_URL = env("EXPORT_DATABASE_URL", default=env("DATABASE_URL"))
+
 # Cache keys carry the schema name, so one school never reads another's.
 CACHES = {
     "default": {

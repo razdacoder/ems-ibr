@@ -1,6 +1,16 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  Ban,
+  Loader2,
+  Pencil,
+  PlayCircle,
+  RotateCcw,
+  Send,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { FEATURE_LABELS, type SchoolDetail, useSchool } from "@/api/platform";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { extractErrorEnvelope } from "@/lib/api";
 import { orEmpty } from "@/lib/format";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
+import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
 import { SchoolStatusBadge, formatDay, useSchoolActions } from "./schools";
 
 function BackToSchools() {
@@ -57,6 +68,9 @@ function SchoolView({ school }: { school: SchoolDetail }) {
   const { admin } = usePlatformAuth();
   const actions = useSchoolActions();
   const owner = isPlatformOwner(admin);
+  const [suspending, setSuspending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = owner && ["active", "suspended", "failed"].includes(school.status);
   const firstAdmin = school.first_admin;
   const canResend = school.status === "active" && firstAdmin !== null && !firstAdmin.joined;
   const features = school.features_override;
@@ -93,6 +107,30 @@ function SchoolView({ school }: { school: SchoolDetail }) {
                 Resend invite
               </Button>
             )}
+            {school.status === "active" && (
+              <Button variant="outline" onClick={() => setSuspending(true)}>
+                <Ban data-icon="inline-start" />
+                Suspend
+              </Button>
+            )}
+            {school.status === "suspended" && (
+              <Button variant="brand" disabled={actions.pending} onClick={() => void actions.reactivate(school)}>
+                <PlayCircle data-icon="inline-start" />
+                Reactivate
+              </Button>
+            )}
+            {owner && school.status === "pending_deletion" && (
+              <Button variant="brand" disabled={actions.pending} onClick={() => void actions.restore(school)}>
+                <Undo2 data-icon="inline-start" />
+                Restore
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="destructive" onClick={() => setDeleting(true)}>
+                <Trash2 data-icon="inline-start" />
+                Delete
+              </Button>
+            )}
           </>
         }
       />
@@ -124,6 +162,52 @@ function SchoolView({ school }: { school: SchoolDetail }) {
           </AlertDescription>
         </Alert>
       )}
+
+      {school.status === "suspended" && (
+        <Alert variant="destructive">
+          <AlertTitle>Suspended {school.suspended_at && `since ${formatDay(school.suspended_at)}`}</AlertTitle>
+          <AlertDescription>
+            <p>
+              The school's users see a suspended page until it's reactivated. They aren't told the
+              reason.
+            </p>
+            {school.suspended_reason && (
+              <p className="mt-2 whitespace-pre-wrap">Reason: {school.suspended_reason}</p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+      {school.status === "pending_deletion" && (
+        <Alert variant="destructive">
+          <AlertTitle>Pending deletion</AlertTitle>
+          <AlertDescription>
+            <p>
+              Users are blocked. The school is removed for good on or after{" "}
+              {formatDay(school.purge_after)}
+              {owner ? ", unless you restore it before then." : "."}
+            </p>
+            <p className="mt-2">
+              {school.final_export_ref === "never_active"
+                ? "It never finished setting up, so there is no data to back up."
+                : school.final_export_ref
+                  ? "Final backup taken."
+                  : "Final backup in progress. It waits for any running job to finish first."}
+            </p>
+          </AlertDescription>
+        </Alert>
+      )}
+      {school.status === "purged" && (
+        <Alert>
+          <AlertTitle>Purged {school.purged_at && `on ${formatDay(school.purged_at)}`}</AlertTitle>
+          <AlertDescription>
+            The school's data, files and address are gone. Its address stays reserved, so it can't
+            be given to another school.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <SuspendSchoolDialog school={school} open={suspending} onOpenChange={setSuspending} />
+      <DeleteSchoolDialog school={school} open={deleting} onOpenChange={setDeleting} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Section title="First administrator">

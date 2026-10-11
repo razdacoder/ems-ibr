@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RequireHost } from "@/components/route-guards";
+import { RequireHost, RequireOpenSchool } from "@/components/route-guards";
 import { str } from "@/lib/search";
 import LoginPage from "@/pages/login";
 
@@ -13,7 +13,9 @@ export const Route = createFileRoute("/login")({
   // A school's sign in; the console gets its own.
   component: () => (
     <RequireHost kind="school">
-      <LoginPage />
+      <RequireOpenSchool>
+        <LoginPage />
+      </RequireOpenSchool>
     </RequireHost>
   ),
 });

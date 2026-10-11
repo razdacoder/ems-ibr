@@ -17,6 +17,9 @@ from tenancy.models import Domain, School
 
 # Close code for an unknown or purged school, mirroring the HTTP 404.
 CLOSE_SCHOOL_NOT_FOUND = 4404
+# Close code for a school that isn't active, mirroring the API's refusal
+# (403 school_suspended, 503 school_not_ready).
+CLOSE_SCHOOL_CLOSED = 4403
 
 
 def _host(scope):
@@ -49,10 +52,15 @@ class SchoolScopeMiddleware:
 
     async def __call__(self, scope, receive, send):
         school = await _resolve_school(_host(scope))
+        refusal = None
         if school is None:
+            refusal = CLOSE_SCHOOL_NOT_FOUND
+        elif school.status != School.Status.ACTIVE:
+            refusal = CLOSE_SCHOOL_CLOSED
+        if refusal:
             # The handshake has to be read before it can be refused.
             await receive()
-            await send({"type": "websocket.close", "code": CLOSE_SCHOOL_NOT_FOUND})
+            await send({"type": "websocket.close", "code": refusal})
             return
         scope = dict(scope, school=school)
         return await self.app(scope, receive, send)

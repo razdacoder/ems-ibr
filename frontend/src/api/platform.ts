@@ -204,6 +204,14 @@ export interface SchoolDetail extends SchoolRow {
   renews_on: string | null;
   provisioning_started_at: string | null;
   was_ever_active: boolean;
+  suspended_at: string | null;
+  suspended_reason: string;
+  deletion_requested_at: string | null;
+  /** The school is purged (and can no longer be restored) after this. */
+  purge_after: string | null;
+  /** Bucket key of the final export, "never_active", or blank while exporting. */
+  final_export_ref: string;
+  purged_at: string | null;
   created_by: { id: number; name: string; email: string } | null;
   /** Null while the school has no live schema yet. */
   first_admin: { joined: boolean; invite_expires_at: string | null } | null;
@@ -298,3 +306,19 @@ export const useResendSchoolInvite = () =>
   useSchoolMutation((id: number) =>
     platformApi.post(`/schools/${id}/resend-invite/`),
   );
+
+export const useSuspendSchool = () =>
+  useSchoolMutation(({ id, reason }: { id: number; reason: string }) =>
+    platformApi.post(`/schools/${id}/suspend/`, { reason }),
+  );
+
+export const useReactivateSchool = () =>
+  useSchoolMutation((id: number) => platformApi.post(`/schools/${id}/reactivate/`));
+
+export const useDeleteSchool = () =>
+  useSchoolMutation(({ id, confirm_slug }: { id: number; confirm_slug: string }) =>
+    platformApi.post(`/schools/${id}/delete/`, { confirm_slug }),
+  );
+
+export const useRestoreSchool = () =>
+  useSchoolMutation((id: number) => platformApi.post(`/schools/${id}/restore/`));

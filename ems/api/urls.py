@@ -53,7 +53,7 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
-from ems.api.views.school import SchoolView
+from ems.api.views.school import SchoolStatusView, SchoolView
 from ems.api.views.invites import (
     InviteAcceptView,
     InviteDetailView,
@@ -233,6 +233,7 @@ invite_patterns = [
 urlpatterns = [
     path("auth/", include(auth_patterns)),
     path("school/", SchoolView.as_view(), name="api-school"),
+    path("school/status/", SchoolStatusView.as_view(), name="api-school-status"),
     path("invites/", include(invite_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),

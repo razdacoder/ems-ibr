@@ -12,7 +12,7 @@ from django.contrib.auth.hashers import (
     make_password,
 )
 from django.core.exceptions import ValidationError
-from django.db import connection, models
+from django.db import connection, models, transaction
 from django_tenants.models import DomainMixin, TenantMixin
 from django_tenants.utils import get_public_schema_name
 
@@ -109,14 +109,33 @@ class School(TenantMixin):
     def __str__(self):
         return self.name
 
-    def drop_schema(self):
-        """Drop this school's schema and every table in it, if it exists."""
+    def drop_schema(self, batch_size=None):
+        """Drop this school's schema and every table in it, if it exists.
+
+        With ``batch_size``, tables go first in batches, each in its own
+        transaction: one ``DROP SCHEMA ... CASCADE`` takes a lock per object
+        and runs out of ``max_locks_per_transaction`` on a big schema. Call
+        it that way only outside ``atomic()``.
+        """
         if self.schema_name == get_public_schema_name():
             raise ValueError("The public schema is never dropped.")
+        quote = connection.ops.quote_name
+        schema = quote(self.schema_name)
+        if batch_size:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = %s",
+                    [self.schema_name],
+                )
+                tables = [row[0] for row in cursor.fetchall()]
+            for start in range(0, len(tables), batch_size):
+                names = ", ".join(
+                    f"{schema}.{quote(t)}" for t in tables[start : start + batch_size]
+                )
+                with transaction.atomic(), connection.cursor() as cursor:
+                    cursor.execute(f"DROP TABLE IF EXISTS {names} CASCADE")
         with connection.cursor() as cursor:
-            cursor.execute(
-                f"DROP SCHEMA IF EXISTS {connection.ops.quote_name(self.schema_name)} CASCADE"
-            )
+            cursor.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
 
 
 class Domain(DomainMixin):

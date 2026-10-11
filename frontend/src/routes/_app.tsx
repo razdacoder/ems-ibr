@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { RequireAuth, RequireHost } from "@/components/route-guards";
+import { RequireAuth, RequireHost, RequireOpenSchool } from "@/components/route-guards";
 
 // School dashboard (<slug>.<base> only). Pathless layout for every signed-in page: auth gate + sidebar shell.
 // Role-gated pages add their own guard in their route file.
@@ -10,9 +10,11 @@ export const Route = createFileRoute("/_app")({
   head: () => ({ meta: [{ title: "Ordo" }] }),
   component: () => (
     <RequireHost kind="school">
-      <RequireAuth>
-        <DashboardLayout />
-      </RequireAuth>
+      <RequireOpenSchool>
+        <RequireAuth>
+          <DashboardLayout />
+        </RequireAuth>
+      </RequireOpenSchool>
     </RequireHost>
   ),
 });

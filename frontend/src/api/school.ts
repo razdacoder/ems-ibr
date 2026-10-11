@@ -42,3 +42,28 @@ export function useHasFeature(key: FeatureKey): boolean {
   const plan = useSchoolPlan();
   return plan.data ? plan.data.features.includes(key) : true;
 }
+
+/** Whether the school is open: GET /api/school/status/, never refused by the status gate. */
+export type SchoolStatus =
+  | "provisioning"
+  | "active"
+  | "failed"
+  | "suspended"
+  | "pending_deletion"
+  | "purged";
+
+export interface SchoolStatusInfo {
+  name: string;
+  status: SchoolStatus;
+}
+
+export const SCHOOL_STATUS_KEY = ["school", "status"] as const;
+
+export function useSchoolStatus() {
+  return useQuery({
+    queryKey: SCHOOL_STATUS_KEY,
+    queryFn: async () => (await api.get<SchoolStatusInfo>("/school/status/")).data,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}

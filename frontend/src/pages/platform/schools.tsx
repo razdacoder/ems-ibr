@@ -5,7 +5,9 @@ import {
   SCHOOL_STATUS_LABELS,
   type SchoolRow,
   type SchoolStatus,
+  useReactivateSchool,
   useResendSchoolInvite,
+  useRestoreSchool,
   useRetrySchool,
   useSchools,
 } from "@/api/platform";
@@ -227,16 +229,27 @@ function SchoolActions({ row }: { row: SchoolRow }) {
             Resend first admin invite
           </DropdownMenuItem>
         )}
+        {row.status === "suspended" && (
+          <DropdownMenuItem onClick={() => void actions.reactivate(row)}>Reactivate</DropdownMenuItem>
+        )}
+        {isPlatformOwner(admin) && row.status === "pending_deletion" && (
+          <DropdownMenuItem onClick={() => void actions.restore(row)}>Restore</DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** Retry and resend, with their confirmations and toasts, for list and detail. */
+/**
+ * Retry, resend, reactivate and restore, with their confirmations and toasts,
+ * for list and detail. Suspend and delete take typed input: see school-closure.
+ */
 export function useSchoolActions() {
   const confirm = useConfirm();
   const retry = useRetrySchool();
   const resend = useResendSchoolInvite();
+  const reactivateSchool = useReactivateSchool();
+  const restoreSchool = useRestoreSchool();
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     try {
@@ -252,7 +265,8 @@ export function useSchoolActions() {
   };
 
   return {
-    pending: retry.isPending || resend.isPending,
+    pending:
+      retry.isPending || resend.isPending || reactivateSchool.isPending || restoreSchool.isPending,
     retry: async (school: Pick<SchoolRow, "id" | "name">) => {
       const ok = await confirm({
         title: `Retry setting up ${school.name}?`,
@@ -274,6 +288,23 @@ export function useSchoolActions() {
           `New invite sent to ${school.first_admin_email}`,
         );
       }
+    },
+    reactivate: async (school: Pick<SchoolRow, "id" | "name">) => {
+      const ok = await confirm({
+        title: `Reactivate ${school.name}?`,
+        description: "Its users can sign in and work again straight away.",
+        confirmLabel: "Reactivate",
+      });
+      if (ok) await run(() => reactivateSchool.mutateAsync(school.id), `${school.name} is active again`);
+    },
+    restore: async (school: Pick<SchoolRow, "id" | "name">) => {
+      const ok = await confirm({
+        title: `Restore ${school.name}?`,
+        description:
+          "The deletion is cancelled and the final backup is removed. A school that never finished setting up goes back to Setup failed, so you can retry it.",
+        confirmLabel: "Restore",
+      });
+      if (ok) await run(() => restoreSchool.mutateAsync(school.id), `${school.name} is restored`);
     },
   };
 }

@@ -43,9 +43,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/** Fired when the school turns out to be closed mid session (RequireOpenSchool listens). */
+export const SCHOOL_CLOSED_EVENT = "ordo:school-closed";
+
+const CLOSED_CODES = new Set(["school_suspended", "school_not_ready"]);
+
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    const code = (error.response?.data as { code?: string } | undefined)?.code;
+    if (code && CLOSED_CODES.has(code)) {
+      window.dispatchEvent(new Event(SCHOOL_CLOSED_EVENT));
+    }
     if (error.response?.status === 401) {
       clearToken();
       if (!window.location.pathname.startsWith("/login")) {

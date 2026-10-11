@@ -8,13 +8,22 @@ import {
   useAuth,
   type AuthUser,
 } from "@/lib/auth";
-import { FEATURE_LABELS, type FeatureKey, useSchoolPlan } from "@/api/school";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  FEATURE_LABELS,
+  type FeatureKey,
+  SCHOOL_STATUS_KEY,
+  useSchoolPlan,
+  useSchoolStatus,
+} from "@/api/school";
+import { SCHOOL_CLOSED_EVENT } from "@/lib/api";
 import { useHostKind } from "@/lib/config";
 import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import type { HostKind } from "@/lib/origins.server";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFoundPage from "@/pages/not-found";
+import { SchoolSettingUpPage, SchoolSuspendedPage } from "@/pages/school-closed";
 
 /*
  * Redirects fire once, from an effect. TanStack's <Navigate> re-navigates
@@ -70,6 +79,37 @@ function RedirectTo({ to, from }: { to: "/console" | "/console/login"; from?: st
     } as Parameters<typeof navigate>[0]);
   }, [navigate, to, from]);
   return <FullPageSkeleton />;
+}
+
+/**
+ * School pages only while the school is open. A suspended (or pending
+ * deletion) school shows the suspended page, one still being set up shows
+ * that; an API call refused mid session (school_suspended, school_not_ready)
+ * checks again at once.
+ */
+export function RequireOpenSchool({ children }: { children: ReactNode }) {
+  const status = useSchoolStatus();
+  const qc = useQueryClient();
+  useEffect(() => {
+    const recheck = () => void qc.invalidateQueries({ queryKey: SCHOOL_STATUS_KEY });
+    window.addEventListener(SCHOOL_CLOSED_EVENT, recheck);
+    return () => window.removeEventListener(SCHOOL_CLOSED_EVENT, recheck);
+  }, [qc]);
+
+  if (status.isLoading) return <FullPageSkeleton />;
+  // Unreachable status: let the pages try, and refuse on their own.
+  if (!status.data) return <>{children}</>;
+  const { name } = status.data;
+  switch (status.data.status) {
+    case "suspended":
+    case "pending_deletion":
+      return <SchoolSuspendedPage name={name} />;
+    case "provisioning":
+    case "failed":
+      return <SchoolSettingUpPage name={name} />;
+    default:
+      return <>{children}</>;
+  }
 }
 
 /** Signed in platform admins only; others go to the console sign in. */

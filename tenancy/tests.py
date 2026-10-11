@@ -466,6 +466,18 @@ class SocketTests(SocketTestMixin, TwoSchoolsTestCase):
 
         self.run_async(scenario)
 
+    def test_a_suspended_school_is_refused(self):
+        # covers: AC-24
+        School.objects.filter(pk=self.other.pk).update(status=School.Status.SUSPENDED)
+
+        async def scenario():
+            ws = self.connect("/ws/notifications/?token=x", host=OTHER_HOST)
+            connected, code = await ws.connect()
+            self.assertFalse(connected)
+            self.assertEqual(code, 4403)
+
+        self.run_async(scenario)
+
     def assert_refused(self, path, code, **kwargs):
         async def scenario():
             ws = self.connect(path, **kwargs)
