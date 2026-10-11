@@ -46,3 +46,6 @@ htmlcov/
 
 # Logs
 logs/*.log
+
+# Production secrets on the VPS (deploy/README.md)
+deploy/.env.prod

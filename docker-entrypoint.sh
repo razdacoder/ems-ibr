@@ -101,6 +101,15 @@ if [ "${SERVICE_TYPE}" = "migrate" ]; then
 
     exec python manage.py migrate_platform
 
+elif [ "${SERVICE_TYPE}" = "backup" ]; then
+    # Whole database backup now, then daily at BACKUP_TIME_UTC (spec 0004).
+    # Kept out of Celery so it still runs when the workers are broken.
+    echo "Starting database backup daemon..."
+
+    wait_for_postgres
+
+    exec python manage.py backup_database --daemon
+
 elif [ "${SERVICE_TYPE}" = "worker" ]; then
     echo "Starting Celery Worker..."
     

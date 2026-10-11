@@ -164,6 +164,23 @@ EXPORT_S3_REGION = env("EXPORT_S3_REGION", default="auto")
 EXPORT_S3_SSE = env("EXPORT_S3_SSE", default="AES256")
 EXPORT_DATABASE_URL = env("EXPORT_DATABASE_URL", default=env("DATABASE_URL"))
 
+# Nightly backup of the whole database (spec 0004, assumed): its own bucket,
+# since EXPORT_BUCKET only holds a school's export until purge or restore.
+# Endpoint and keys default to the export ones (same R2 account).
+BACKUP_BUCKET = env("BACKUP_BUCKET", default="")
+BACKUP_S3_ENDPOINT = env("BACKUP_S3_ENDPOINT", default=EXPORT_S3_ENDPOINT)
+BACKUP_S3_ACCESS_KEY_ID = env("BACKUP_S3_ACCESS_KEY_ID", default=EXPORT_S3_ACCESS_KEY_ID)
+BACKUP_S3_SECRET_ACCESS_KEY = env(
+    "BACKUP_S3_SECRET_ACCESS_KEY", default=EXPORT_S3_SECRET_ACCESS_KEY
+)
+BACKUP_S3_REGION = env("BACKUP_S3_REGION", default=EXPORT_S3_REGION)
+BACKUP_S3_SSE = env("BACKUP_S3_SSE", default=EXPORT_S3_SSE)
+BACKUP_DATABASE_URL = env("BACKUP_DATABASE_URL", default=EXPORT_DATABASE_URL)
+BACKUP_TIME_UTC = env("BACKUP_TIME_UTC", default="01:00")
+BACKUP_KEEP_DAILY = env.int("BACKUP_KEEP_DAILY", default=14)
+BACKUP_KEEP_WEEKLY = env.int("BACKUP_KEEP_WEEKLY", default=8)
+BACKUP_HEARTBEAT_FILE = env("BACKUP_HEARTBEAT_FILE", default="/tmp/ordo-backup-ok")
+
 # Cache keys carry the schema name, so one school never reads another's.
 CACHES = {
     "default": {
