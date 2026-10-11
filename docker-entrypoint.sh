@@ -102,7 +102,8 @@ if [ "${SERVICE_TYPE}" = "migrate" ]; then
     exec python manage.py migrate_platform
 
 elif [ "${SERVICE_TYPE}" = "backup" ]; then
-    # Whole database backup now, then daily at BACKUP_TIME_UTC (spec 0004).
+    # Whole database backup now, then daily at BACKUP_TIME_UTC, with
+    # retries (spec 0003, child 0007).
     # Kept out of Celery so it still runs when the workers are broken.
     echo "Starting database backup daemon..."
 

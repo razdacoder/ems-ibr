@@ -1,4 +1,4 @@
-# Ordo production on the VPS (spec 0003 slice 12, child 0002; backup: spec 0004).
+# Ordo production on the VPS (spec 0003 slice 12, child 0002; backup: child 0007).
 #
 #   cp deploy/.env.example deploy/.env             # Compose: Traefik, Postgres
 #   cp deploy/.env.prod.example deploy/.env.prod   # Django services only
@@ -127,8 +127,9 @@ services:
     environment:
       SERVICE_TYPE: beat
 
-  # Whole database backup when it starts, then daily (spec 0004). Turns
-  # unhealthy once the last verified backup is more than 26 hours old.
+  # Whole database backup when it starts, then daily (spec 0003, child 0007).
+  # Shows unhealthy once the last verified backup is more than 26 hours old.
+  # Informational only: the outside monitor (BACKUP_HEARTBEAT_URL) alerts.
   backup:
     <<: *django
     environment:
