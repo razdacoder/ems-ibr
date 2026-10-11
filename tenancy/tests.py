@@ -166,8 +166,13 @@ class HostResolutionTests(TwoSchoolsTestCase):
         self.assertEqual(api.get("/api/public/features/").status_code, 200)
         self.assertEqual(api.get("/api/auth/me/").status_code, 404)
         self.assertEqual(
-            SchoolClient(HTTP_HOST="admin.localhost").get("/api/auth/me/").status_code, 404
+            SchoolClient(HTTP_HOST="console.localhost").get("/api/auth/me/").status_code, 404
         )
+
+    def test_the_old_admin_host_no_longer_serves_the_console(self):
+        call_command("ensure_public_domains", stdout=StringIO())
+        response = SchoolClient(HTTP_HOST="admin.localhost").get("/api/platform/me/")
+        self.assertEqual(response.status_code, 404)
 
 
 class TimezoneTests(TwoSchoolsTestCase):
@@ -194,7 +199,16 @@ class PublicDomainsTests(SchoolTestCase):
 
         self.assertEqual(
             dict(Domain.objects.filter(tenant=public).values_list("domain", "is_primary")),
-            {"admin.staging.ordo.app": True, "api.staging.ordo.app": False},
+            {"console.staging.ordo.app": True, "api.staging.ordo.app": False},
+        )
+
+    @override_settings(PLATFORM_CONSOLE_SUBDOMAIN="ops-7f3k")
+    def test_the_console_subdomain_is_configurable(self):
+        call_command("ensure_public_domains", stdout=StringIO())
+        public = School.objects.get(schema_name=get_public_schema_name())
+        self.assertEqual(
+            set(Domain.objects.filter(tenant=public).values_list("domain", flat=True)),
+            {"ops-7f3k.staging.ordo.app", "api.staging.ordo.app"},
         )
 
 

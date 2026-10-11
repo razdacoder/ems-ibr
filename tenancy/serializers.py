@@ -1,5 +1,6 @@
 from zoneinfo import available_timezones
 
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -277,7 +278,8 @@ class CreateSchoolSerializer(serializers.Serializer):
                 "Use 3 to 30 lowercase letters, digits or hyphens, starting and "
                 "ending with a letter or digit."
             )
-        if value in RESERVED:
+        # The console's own subdomain too, whatever this deploy calls it.
+        if value in RESERVED or value == settings.PLATFORM_CONSOLE_SUBDOMAIN:
             raise serializers.ValidationError("This address is reserved.")
         # Any status counts, purged too: a slug is never reused.
         if School.objects.filter(slug=value).exists():

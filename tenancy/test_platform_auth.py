@@ -17,7 +17,7 @@ from tenancy.tasks import send_email
 from tenancy.models import PlatformAdmin, PlatformAuditLog, PlatformToken
 from tenancy.testcases import SchoolClient, SchoolTestCase
 
-CONSOLE = "admin.localhost"
+CONSOLE = "console.localhost"
 PASSWORD = "correct horse battery"
 
 

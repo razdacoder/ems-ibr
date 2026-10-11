@@ -46,7 +46,7 @@ This runbook covers bringing up `deploy/compose.prod.yml` (spec 0003 slice 12), 
    docker compose -f deploy/compose.prod.yml run --rm api \
      python manage.py create_platform_admin --email you@ordo.app --name "Your Name"
    ```
-   Then sign in at `https://admin.ordo.app` and enrol your authenticator.
+   Then sign in at `https://console.ordo.app` (or whatever `PLATFORM_CONSOLE_SUBDOMAIN` is set to) and enrol your authenticator.
 8. **Run the restore drill below before you onboard the first school.** It's the launch blocker.
 
 ## Deploying a new release

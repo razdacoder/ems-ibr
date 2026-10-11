@@ -22,10 +22,14 @@ SECRET_KEY = env(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
-# Every hostname derives from this: <slug>.<base> for schools, admin.<base>
+# Every hostname derives from this: <slug>.<base> for schools, <console>.<base>
 # for the console and api.<base> for the marketing site (spec 0003).
 # `ordo.app` in production, `staging.ordo.app` on Render, `localhost` locally.
 PLATFORM_BASE_DOMAIN = env("PLATFORM_BASE_DOMAIN", default="localhost")
+# The console's subdomain. Not `admin`, which is the first name anyone tries;
+# set something less obvious per deploy if wanted. The dashboard server reads
+# the same variable, so set it on both.
+PLATFORM_CONSOLE_SUBDOMAIN = env("PLATFORM_CONSOLE_SUBDOMAIN", default="console").lower()
 # Scheme for links Ordo emails out (platform admin and school invites).
 PLATFORM_URL_SCHEME = env("PLATFORM_URL_SCHEME", default="https")
 # Fernet key encrypting platform admins' TOTP secrets. Generate one with
@@ -113,7 +117,7 @@ MIDDLEWARE = [
 AUTH_USER_MODEL = "ems.User"
 
 
-# School hosts get core.urls; admin.<base> and api.<base> get the public one.
+# School hosts get core.urls; console.<base> and api.<base> get the public one.
 ROOT_URLCONF = "core.urls"
 PUBLIC_SCHEMA_URLCONF = "core.urls_public"
 

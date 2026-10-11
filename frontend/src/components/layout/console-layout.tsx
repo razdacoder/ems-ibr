@@ -183,7 +183,7 @@ function ConsoleSidebar() {
   );
 }
 
-/** The signed in console at admin.<base>: sidebar nav and the page. */
+/** The signed in console at console.<base>: sidebar nav and the page. */
 export function ConsoleLayout() {
   const { pathname } = useLocation();
   const current = NAV.find((item) => isActive(pathname, item));

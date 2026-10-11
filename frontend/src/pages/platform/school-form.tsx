@@ -210,8 +210,8 @@ export function SchoolForm({ school }: { school?: SchoolDetail }) {
       return [DEFAULT_TIMEZONE];
     }
   }, []);
-  // The console lives at admin.<base>; schools at <slug>.<base>.
-  const base = typeof window === "undefined" ? "" : window.location.hostname.replace(/^admin\./, "");
+  // The console lives at <console>.<base>; schools at <slug>.<base>.
+  const base = typeof window === "undefined" ? "" : window.location.hostname.replace(/^[^.]+\./, "");
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),

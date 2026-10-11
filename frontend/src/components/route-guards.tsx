@@ -52,7 +52,7 @@ export function RedirectHome() {
 
 /**
  * Render children only on the right kind of host: school pages on a school,
- * console pages on admin.<base>. Anywhere else is the not found page.
+ * console pages on console.<base>. Anywhere else is the not found page.
  */
 export function RequireHost({
   kind,

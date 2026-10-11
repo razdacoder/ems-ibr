@@ -6,7 +6,7 @@ import { useOrigins } from "@/lib/config";
 
 /**
  * Shown on a host that isn't a live school (unknown or purged), and on the
- * wrong host for a route (school pages on admin.<base>, console pages on a
+ * wrong host for a route (school pages on console.<base>, console pages on a
  * school). Says the same thing every time, so it reveals nothing about which
  * schools exist.
  */

@@ -153,7 +153,7 @@ class PlanAccessTests(SchoolConsoleTestCase):
         self.assertEqual(self.console.get("/api/platform/plans/").status_code, 401)
 
     def test_a_school_host_has_no_plan_endpoints(self):
-        # The console API lives only on admin.<base>. Checked on the school
+        # The console API lives only on console.<base>. Checked on the school
         # urlconf directly: rendering Django's 404 page breaks on Python 3.14
         # with Django 5.0.
         with self.assertRaises(Resolver404):

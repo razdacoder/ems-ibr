@@ -198,7 +198,7 @@ class AuditLogMiddleware:
         path = request.path or ""
         if not path.startswith("/api/"):
             return
-        # admin.<base> and api.<base> have no school, so no AuditLog table.
+        # console.<base> and api.<base> have no school, so no AuditLog table.
         if connection.schema_name == get_public_schema_name():
             return
 

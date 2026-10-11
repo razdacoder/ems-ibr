@@ -3,7 +3,7 @@
  * host under PLATFORM_BASE_DOMAIN (spec 0003, child 0002):
  *
  *   <slug>.<base>  — a school's dashboard
- *   admin.<base>   — the platform console
+ *   console.<base>   — the platform console
  *   anything else  — not found
  *
  * Traefik sends /api, /ws and /media on the same host to Django, so the API
@@ -53,8 +53,9 @@ export function origins(request: Request): Origins {
  */
 export function hostKind(host: string): HostKind {
   const base = (process.env.PLATFORM_BASE_DOMAIN ?? "localhost").toLowerCase();
+  const consoleLabel = (process.env.PLATFORM_CONSOLE_SUBDOMAIN ?? "console").toLowerCase();
   const name = host.toLowerCase().replace(/:\d+$/, "");
-  if (name === `admin.${base}`) return "console";
+  if (name === `${consoleLabel}.${base}`) return "console";
   const label = name.endsWith(`.${base}`) ? name.slice(0, -base.length - 1) : "";
   return /^[a-z0-9-]+$/.test(label) ? "school" : "unknown";
 }

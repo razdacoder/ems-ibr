@@ -5,7 +5,7 @@ from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
 
 # School hosts (<slug>.<base>). API-only: the dashboard is a separate
-# TanStack Start service (frontend/). admin.<base> and api.<base> use
+# TanStack Start service (frontend/). console.<base> and api.<base> use
 # core.urls_public instead.
 
 # Serve uploaded media (e.g. the institution logo). Served regardless of

@@ -3,7 +3,7 @@
 Each ``School`` is a Postgres schema holding its own ``ems`` tables, picked
 per request from the Host header (``tenancy.middleware.SchoolMiddleware``).
 The public schema is a ``School`` row too, ``schema_name="public"``, serving
-``admin.<base>`` and ``api.<base>`` (spec 0003). Platform admins, their
+``console.<base>`` and ``api.<base>`` (spec 0003). Platform admins, their
 tokens and the console audit log live here as well.
 """
 from django.contrib.auth.hashers import (
@@ -143,7 +143,7 @@ class Domain(DomainMixin):
 
 
 class PlatformAdmin(models.Model):
-    """A member of the Ordo team, signing in at ``admin.<base>``.
+    """A member of the Ordo team, signing in at ``console.<base>``.
 
     Deliberately not ``AUTH_USER_MODEL``: it only exists in the public schema,
     so a platform account can never turn up as a user inside a school.

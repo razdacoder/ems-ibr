@@ -150,6 +150,7 @@ services:
     environment:
       API_URL: http://api:8000
       PLATFORM_BASE_DOMAIN: ${PLATFORM_BASE_DOMAIN}
+      PLATFORM_CONSOLE_SUBDOMAIN: ${PLATFORM_CONSOLE_SUBDOMAIN:-console}
       SITE_URL: ${SITE_URL}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]

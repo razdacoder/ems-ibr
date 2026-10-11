@@ -17,7 +17,7 @@
 http:
   routers:
     # /api, /ws and /media on any <label>.<base>: schools get the school
-    # urlconf, admin. and api. the public one (Django decides by host).
+    # urlconf, the console and api. the public one (Django decides by host).
     django:
       rule: '{{ $hosts }} && (PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/media`))'
       priority: 100

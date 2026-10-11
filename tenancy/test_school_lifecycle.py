@@ -7,6 +7,7 @@ from unittest import mock
 from django.conf import settings
 from django.core import mail
 from django.db import connection
+from django.test import override_settings
 from django.utils import timezone
 from django_tenants.utils import schema_context
 
@@ -108,12 +109,18 @@ class CreateSchoolTests(SchoolConsoleTestCase):
             plan=Plan.objects.get(code="starter"), status=School.Status.PURGED,
             first_admin_name="X", first_admin_email="x@gone.test",
         )
-        for slug in ("Bad_Slug", "ab", "-lead", "admin", "test", "gone"):
+        for slug in ("Bad_Slug", "ab", "-lead", "admin", "console", "test", "gone"):
             with self.subTest(slug=slug):
                 response = self.create(slug=slug)
                 self.assertEqual(response.status_code, 400)
                 self.assertIn("slug", response.data["errors"])
         self.assertFalse(School.objects.filter(status=School.Status.PROVISIONING).exists())
+
+    def test_a_custom_console_subdomain_is_reserved_too(self):
+        with override_settings(PLATFORM_CONSOLE_SUBDOMAIN="ops-7f3k"):
+            response = self.create(slug="ops-7f3k")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("slug", response.data["errors"])
 
     def test_an_inactive_plan_or_unknown_zone_is_a_field_error(self):
         # covers: AC-19

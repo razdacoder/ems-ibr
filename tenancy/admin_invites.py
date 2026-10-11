@@ -42,7 +42,7 @@ def read_token(token):
 
 
 def accept_url(admin):
-    host = f"admin.{settings.PLATFORM_BASE_DOMAIN}"
+    host = f"{settings.PLATFORM_CONSOLE_SUBDOMAIN}.{settings.PLATFORM_BASE_DOMAIN}"
     return f"{settings.PLATFORM_URL_SCHEME}://{host}/accept?token={make_token(admin)}"
 
 

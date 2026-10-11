@@ -1,5 +1,5 @@
 # Dashboard (TanStack Start on Node via Nitro), behind Traefik for every
-# <slug>.<base> and admin.<base> (deploy/traefik/dynamic.yml). Runtime env:
+# <slug>.<base> and console.<base> (deploy/traefik/dynamic.yml). Runtime env:
 # API_URL (Django as this server reaches it), PLATFORM_BASE_DOMAIN, and
 # optionally SITE_URL (the marketing site) and PUBLIC_API_URL (default: the
 # request's own origin). See src/lib/origins.server.ts.

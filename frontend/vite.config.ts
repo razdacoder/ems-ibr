@@ -7,13 +7,13 @@ import { djangoDevProxy } from "./django-dev-proxy";
 
 // Ordo dashboard: TanStack Start on Node (Nitro), rendered in the browser
 // (ssr: false). One build serves every school (<slug>.<base>) and the console
-// (admin.<base>); Traefik sends /api, /ws and /media on the same host to
+// (console.<base>); Traefik sends /api, /ws and /media on the same host to
 // Django. The marketing site is a separate repo (SITE_URL). Server-side env
 // (API_URL, PLATFORM_BASE_DOMAIN, SITE_URL) comes from the process in
 // production; in dev, .env.development fills it in.
 //
 // Dev: http://<slug>.localhost:3000 (e.g. after `manage.py create_school
-// demo`) and http://admin.localhost:3000. djangoDevProxy stands in for
+// demo`) and http://console.localhost:3000. djangoDevProxy stands in for
 // Traefik and keeps the Host header, so Django sees which school is asking.
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ""), process.env);

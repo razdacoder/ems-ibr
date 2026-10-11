@@ -1,6 +1,6 @@
 """Platform admin sessions: bearer tokens and the sign in challenge.
 
-Platform tokens only work on the public urlconf (``admin.<base>``), and
+Platform tokens only work on the public urlconf (``console.<base>``), and
 school tokens never work there: every platform view sets
 ``PlatformTokenAuthentication`` and nothing else (spec 0003, child 0003).
 """

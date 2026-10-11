@@ -30,10 +30,29 @@ export const ACTION_LABELS: Record<string, string> = {
   school_provisioning_failed: "School setup failed",
   school_provisioning_retried: "Retried a school's setup",
   school_invite_resent: "Resent a school's first admin invite",
+  school_updated: "Changed a school",
+  school_suspended: "Suspended a school",
+  school_reactivated: "Reactivated a school",
+  school_deletion_requested: "Asked to delete a school",
+  school_restored: "Restored a school",
+  school_exported: "School backed up for deletion",
+  export_failed: "School backup failed",
+  school_purged: "School data purged",
+  plan_created: "Created a plan",
+  plan_updated: "Changed a plan",
+  support_ticket_issued: "Opened a support link",
+  support_started: "Entered a school as support",
+  support_ended: "Ended a support session",
 };
 
 /** Written by background work, not by an admin. */
-const SYSTEM_ACTIONS = new Set(["school_provisioned", "school_provisioning_failed"]);
+const SYSTEM_ACTIONS = new Set([
+  "school_provisioned",
+  "school_provisioning_failed",
+  "school_exported",
+  "export_failed",
+  "school_purged",
+]);
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);

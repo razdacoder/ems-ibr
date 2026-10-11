@@ -84,7 +84,7 @@ api.interceptors.response.use(
 );
 
 /*
- * The platform console (admin.<base>) has its own token, kept apart from the
+ * The platform console (console.<base>) has its own token, kept apart from the
  * school one, sent as a Bearer token. Django never accepts either on the
  * other's host.
  */
