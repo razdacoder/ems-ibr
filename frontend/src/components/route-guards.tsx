@@ -62,7 +62,10 @@ export function RequireHost({
   children: ReactNode;
 }) {
   const host = useHostKind();
-  const { pathname } = useLocation();
+  // The path this guard mounted on: while the redirect below is pending, the
+  // location already reads /console but this route is still rendered, and
+  // checking the live path would flash the not found page.
+  const [pathname] = useState(useLocation().pathname);
   if (host === kind) return <>{children}</>;
   // The console lives under /console, so its bare host lands there.
   if (host === "console" && pathname === "/") return <RedirectTo to="/console" />;

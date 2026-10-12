@@ -34,12 +34,19 @@ export function djangoDevProxy(target: string, prefixes: string[]): Plugin {
           const upstream = forward(req);
           upstream.on("response", (answer) => {
             res.writeHead(answer.statusCode ?? 502, answer.headers);
+            // Django restarting mid response resets the socket; unhandled,
+            // that ECONNRESET lands in Vite's error overlay.
+            answer.on("error", () => res.destroy());
             answer.pipe(res);
           });
           upstream.on("error", () => {
+            if (res.headersSent) return void res.destroy();
             res.statusCode = 502;
             res.end("Django isn't running on " + target);
           });
+          // The browser aborting a request (navigation, refetch) resets too.
+          req.on("error", () => upstream.destroy());
+          res.on("error", () => upstream.destroy());
           req.pipe(upstream);
         });
       }
@@ -47,6 +54,7 @@ export function djangoDevProxy(target: string, prefixes: string[]): Plugin {
       server.httpServer?.on("upgrade", (req, socket: Duplex, head) => {
         if (!prefixes.some((p) => req.url?.startsWith(p + "/"))) return;
         const upstream = forward(req);
+        socket.on("error", () => upstream.destroy());
         upstream.on("upgrade", (answer, upSocket, upHead) => {
           const lines = [`HTTP/1.1 ${answer.statusCode} ${answer.statusMessage}`];
           for (let i = 0; i < answer.rawHeaders.length; i += 2) {
@@ -56,6 +64,7 @@ export function djangoDevProxy(target: string, prefixes: string[]): Plugin {
           if (upHead.length) socket.write(upHead);
           upSocket.pipe(socket).pipe(upSocket);
           socket.on("error", () => upSocket.destroy());
+          socket.on("close", () => upSocket.destroy());
           upSocket.on("error", () => socket.destroy());
         });
         upstream.on("response", () => socket.destroy());
