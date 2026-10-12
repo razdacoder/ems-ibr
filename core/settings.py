@@ -105,6 +105,8 @@ MIDDLEWARE = [
     # /healthz first: probes may send any Host header.
     "tenancy.middleware.HealthzMiddleware",
     "tenancy.middleware.SchoolMiddleware",
+    # Request id and per school counters (spec 0004).
+    "tenancy.observability.middleware.RequestObservabilityMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -155,7 +157,24 @@ DATABASES = {
     'default': dj_database_url.parse(env("DATABASE_URL"))
 }
 DATABASES["default"]["ENGINE"] = "django_tenants.postgresql_backend"
-DATABASE_ROUTERS = ["django_tenants.routers.TenantSyncRouter"]
+# Error capture writes through its own connection (spec 0004), so a captured
+# error is stored even when the failing request's transaction rolls back. It
+# is never switched to a school schema, so it always writes the public tables.
+DATABASES["observability"] = {
+    **DATABASES["default"],
+    "ENGINE": "django.db.backends.postgresql",
+    "AUTOCOMMIT": True,
+    "ATOMIC_REQUESTS": False,
+    "OPTIONS": {
+        **DATABASES["default"].get("OPTIONS", {}),
+        "options": "-c statement_timeout=2000",
+    },
+    "TEST": {"MIRROR": "default"},
+}
+DATABASE_ROUTERS = [
+    "tenancy.observability.router.ObservabilityRouter",
+    "django_tenants.routers.TenantSyncRouter",
+]
 
 # Final exports of deleted schools (spec 0003, child 0004): a private S3
 # compatible bucket (Cloudflare R2), never Cloudinary or the app's disk.
@@ -188,6 +207,59 @@ BACKUP_TIME_UTC = env("BACKUP_TIME_UTC", default="01:00")
 # The outside monitor (a dead man's switch). Blank sends no pings.
 BACKUP_HEARTBEAT_URL = env("BACKUP_HEARTBEAT_URL", default="")
 BACKUP_HEARTBEAT_FILE = env("BACKUP_HEARTBEAT_FILE", default="/tmp/ordo-backup-ok")
+
+# Error observability (spec 0004). The master switch turns off all capture,
+# counting and alerting.
+OBSERVABILITY_ENABLED = env.bool("OBSERVABILITY_ENABLED", default=True)
+# The release id (git short sha), stamped on every captured error.
+ORDO_RELEASE = env("ORDO_RELEASE", default="dev")
+# Which connection capture writes through. Tests set "default" so captures
+# join the test's transaction (a mirror is a separate connection).
+OBSERVABILITY_DB_ALIAS = "observability"
+# Counters, sampling and alert throttles. Same Redis as Celery by default.
+OBSERVABILITY_REDIS_URL = env(
+    "OBSERVABILITY_REDIS_URL",
+    default=env("REDIS_URL", default="redis://localhost:6379/0"),
+)
+# Health status thresholds (AC-12).
+OBS_FAILING_ERRORS = env.int("OBS_FAILING_ERRORS", default=20)
+OBS_JS_DEGRADED = env.int("OBS_JS_DEGRADED", default=10)
+OBS_WS_SPIKE = env.int("OBS_WS_SPIKE", default=20)
+OBS_4XX_SPIKE_MIN = env.int("OBS_4XX_SPIKE_MIN", default=100)
+OBS_4XX_SPIKE_FACTOR = env.float("OBS_4XX_SPIKE_FACTOR", default=3)
+# Browser error ingest limits, per minute (AC-5).
+OBS_JS_IP_PER_MIN = env.int("OBS_JS_IP_PER_MIN", default=20)
+OBS_JS_SCHOOL_PER_MIN = env.int("OBS_JS_SCHOOL_PER_MIN", default=200)
+# Retention, in days (AC-20).
+OBS_EVENT_KEEP_DAYS = env.int("OBS_EVENT_KEEP_DAYS", default=30)
+OBS_BUCKET_KEEP_DAYS = env.int("OBS_BUCKET_KEEP_DAYS", default=90)
+OBS_GROUP_KEEP_DAYS = env.int("OBS_GROUP_KEEP_DAYS", default=90)
+
+# Stdout looks as it did before; ERROR records on Ordo's own loggers are also
+# captured (AC-4). ``ordo.observability`` reports capture failures and is never
+# captured itself.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "level": "INFO"},
+        "observability": {
+            "class": "tenancy.observability.handler.ObservabilityLogHandler",
+            "level": "ERROR",
+        },
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "ems": {"handlers": ["observability"], "level": "INFO"},
+        "tenancy": {"handlers": ["observability"], "level": "INFO"},
+        "core": {"handlers": ["observability"], "level": "INFO"},
+        "ordo.observability": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 # Cache keys carry the schema name, so one school never reads another's.
 CACHES = {
@@ -333,7 +405,7 @@ CORS_ALLOWED_ORIGINS = env.list(
     default=["http://localhost:3000"],
 )
 CORS_ALLOW_CREDENTIALS = False
-CORS_EXPOSE_HEADERS = ["Content-Disposition"]
+CORS_EXPOSE_HEADERS = ["Content-Disposition", "X-Request-ID"]
 
 # Channels — falls back to REDIS_URL if CHANNEL_REDIS_URL isn't set, so
 # managed-Redis providers that hand you one URL just work. Channel keys
@@ -374,3 +446,5 @@ if TESTING:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
     PLATFORM_TOTP_KEY = PLATFORM_TOTP_KEY or "nA0rJ8bFrYBqf6ZYpAgTEmCgwQqP_3ZD2Pz0F2Gm1Wc="
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    OBSERVABILITY_DB_ALIAS = "default"
+    OBSERVABILITY_REDIS_URL = "memory://"

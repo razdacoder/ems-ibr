@@ -18,6 +18,7 @@ from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
 from ems.readiness import blocking_message, check as check_readiness
 from ems.seating_rules import RELAXED, STRICT
+from tenancy.observability.capture import job_failed
 from ems.utils import (
     current_constraints,
     hall_fill_cap,
@@ -142,6 +143,10 @@ def fail_stale_jobs() -> int:
     stale = BackgroundJob.objects.filter(
         status__in=("pending", "running"), started_at__lt=_stale_cutoff()
     )
+    stale_ids = list(stale.values_list("pk", flat=True))
+    if not stale_ids:
+        return 0
+    stale = BackgroundJob.objects.filter(pk__in=stale_ids)
     now = timezone.now()
     never_started = stale.filter(status="pending").update(
         status="failed",
@@ -159,6 +164,9 @@ def fail_stale_jobs() -> int:
             "or the job ran past its time limit. Retry to run it again."
         ),
     )
+    # A bulk update sends no post_save, so each one is recorded here (AC-3).
+    for job in BackgroundJob.objects.filter(pk__in=stale_ids, status="failed"):
+        job_failed(job)
     return never_started + killed
 
 

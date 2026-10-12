@@ -48,6 +48,11 @@ export function setApiOrigin(origin: string) {
   platformApi.defaults.baseURL = `${origin}/api/platform`;
 }
 
+/** HTTP URL on the Django origin, for calls made outside axios. */
+export function apiUrl(path: string): string {
+  return (apiOrigin || window.location.origin) + path;
+}
+
 /** WebSocket URL on the Django origin, e.g. wsUrl("/ws/notifications/"). */
 export function wsUrl(path: string): string {
   return (apiOrigin || window.location.origin).replace(/^http/, "ws") + path;

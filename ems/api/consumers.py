@@ -3,10 +3,10 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from ems.models import BackgroundJob
 from ems.notifications import job_group, unread_count, user_group
-from tenancy.ws import in_school
+from tenancy.ws import ObservedConsumerMixin, in_school
 
 
-class JobProgressConsumer(AsyncJsonWebsocketConsumer):
+class JobProgressConsumer(ObservedConsumerMixin, AsyncJsonWebsocketConsumer):
     """Streams progress events for a single ``BackgroundJob``.
 
     URL: ``/ws/jobs/<job_id>/?token=<api token>``.
@@ -72,7 +72,7 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
         }
 
 
-class NotificationConsumer(AsyncJsonWebsocketConsumer):
+class NotificationConsumer(ObservedConsumerMixin, AsyncJsonWebsocketConsumer):
     """Pushes the signed-in user's new notifications as they are sent.
 
     URL: ``/ws/notifications/?token=<api token>``. Sends

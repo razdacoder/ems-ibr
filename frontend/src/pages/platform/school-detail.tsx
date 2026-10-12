@@ -32,6 +32,7 @@ import { isPlatformOwner, usePlatformAuth } from "@/lib/platform-auth";
 import { DeleteSchoolDialog, SuspendSchoolDialog } from "./school-closure";
 import { StartSupportDialog, SupportSessionsCard } from "./school-support";
 import { AuditTable } from "./audit";
+import { ErrorGroupsCard, HealthCard } from "./errors";
 import { SchoolStatusBadge, formatDay, useSchoolActions } from "./schools";
 
 function BackToSchools() {
@@ -297,6 +298,16 @@ function SchoolView({ school }: { school: SchoolDetail }) {
           </Row>
         </Section>
       </div>
+
+      {school.status !== "provisioning" && school.status !== "failed" && (
+        <section id="errors" aria-labelledby="errors-heading" className="scroll-mt-24 space-y-6">
+          <h2 id="errors-heading" className="font-serif text-[1.75rem] leading-tight tracking-[-0.01em]">
+            Errors
+          </h2>
+          <HealthCard scope={school.id} />
+          <ErrorGroupsCard scope={school.id} />
+        </section>
+      )}
 
       <UsageCard schoolId={school.id} />
       <SupportSessionsCard schoolId={school.id} />

@@ -2,6 +2,7 @@
 from django.urls import path
 
 from tenancy import account_views, console_views, school_views, views
+from tenancy.observability import views as observability_views
 
 urlpatterns = [
     path("auth/login/", views.LoginView.as_view()),
@@ -48,4 +49,12 @@ urlpatterns = [
         "support-sessions/<int:pk>/end/",
         school_views.SupportSessionEndView.as_view(),
     ),
+    # Error observability (spec 0004).
+    path("health/", observability_views.HealthListView.as_view()),
+    path("health/platform/", observability_views.PlatformHealthView.as_view()),
+    path("schools/<int:pk>/health/", observability_views.SchoolHealthView.as_view()),
+    path("errors/", observability_views.ErrorGroupListView.as_view()),
+    path("errors/<int:pk>/", observability_views.ErrorGroupDetailView.as_view()),
+    path("errors/<int:pk>/events/", observability_views.ErrorEventListView.as_view()),
+    path("errors/<int:pk>/status/", observability_views.ErrorGroupStatusView.as_view()),
 ]

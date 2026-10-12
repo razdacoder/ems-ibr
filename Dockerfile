@@ -29,6 +29,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# The release id (git short sha), stamped on every captured error
+# (spec 0004). Pass it with --build-arg; api, worker and beat all get it.
+ARG ORDO_RELEASE=dev
+ENV ORDO_RELEASE=${ORDO_RELEASE}
+
 # Application source. .dockerignore excludes .venv, node_modules,
 # db.sqlite3, etc., so this stays lean.
 COPY . .

@@ -12,6 +12,10 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
+# The release id, stamped on browser error reports (spec 0004). Read at
+# build time, so it must be a build argument.
+ARG VITE_RELEASE=dev
+ENV VITE_RELEASE=${VITE_RELEASE}
 RUN pnpm run build
 
 FROM node:22-slim AS runtime

@@ -57,6 +57,15 @@ app.conf.beat_schedule = {
         "task": "tenancy.tasks.alert_renewals",
         "schedule": crontab(hour=7, minute=0),
     },
+    # Error observability (spec 0004).
+    "observe-health": {
+        "task": "tenancy.observability.tasks.observe_health",
+        "schedule": 5 * 60,
+    },
+    "prune-observability": {
+        "task": "tenancy.observability.tasks.prune_observability",
+        "schedule": crontab(hour=3, minute=30),
+    },
 }
 
 

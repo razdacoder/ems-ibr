@@ -7,6 +7,7 @@ on no school's schema. So the school is resolved once, at connect, into
 """
 import re
 
+from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from channels.security.websocket import OriginValidator
 from django.conf import settings
@@ -14,6 +15,7 @@ from django.http.request import split_domain_port
 from django_tenants.utils import get_public_schema_name, schema_context
 
 from tenancy.models import Domain, School
+from tenancy.observability import capture, counters
 
 # Close code for an unknown or purged school, mirroring the HTTP 404.
 CLOSE_SCHOOL_NOT_FOUND = 4404
@@ -44,6 +46,28 @@ def _resolve_school(hostname):
     return school
 
 
+async def count_ws_error(school):
+    """One more refused or error closed socket for ``school`` (AC-6)."""
+    if capture.enabled():
+        await sync_to_async(counters.incr)(getattr(school, "pk", None), ws_errors=1)
+
+
+def _capture(exc, path):
+    capture.capture_exception(exc, "ws", culprit=path)
+
+
+async def capture_ws(scope, exc):
+    """Record an exception escaping socket code, in the socket's school."""
+    try:
+        path = scope.get("path", "") or "<websocket>"
+        if scope.get("school") is not None:
+            await database_sync_to_async(in_school)(scope, _capture, exc, path)
+        else:
+            await database_sync_to_async(_capture)(exc, path)
+    except Exception:
+        capture.logger.exception("Capturing a WebSocket error failed")
+
+
 class SchoolScopeMiddleware:
     """Set ``scope["school"]`` from the Host header, or refuse the socket."""
 
@@ -51,19 +75,54 @@ class SchoolScopeMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        school = await _resolve_school(_host(scope))
+        try:
+            school = await _resolve_school(_host(scope))
+        except Exception as exc:
+            await capture_ws(scope, exc)
+            raise
         refusal = None
         if school is None:
             refusal = CLOSE_SCHOOL_NOT_FOUND
         elif school.status != School.Status.ACTIVE:
             refusal = CLOSE_SCHOOL_CLOSED
         if refusal:
+            await count_ws_error(school)
             # The handshake has to be read before it can be refused.
             await receive()
             await send({"type": "websocket.close", "code": refusal})
             return
         scope = dict(scope, school=school)
         return await self.app(scope, receive, send)
+
+
+# A plain close; anything else a consumer closes with is a refusal or error.
+CLOSE_NORMAL = 1000
+
+
+class ObservedConsumerMixin:
+    """Capture exceptions escaping a consumer's connect and receive, and
+    count every refusal or error close (spec 0004, AC-6)."""
+
+    async def websocket_connect(self, message):
+        try:
+            return await super().websocket_connect(message)
+        except Exception as exc:
+            await capture_ws(self.scope, exc)
+            await count_ws_error(self.scope.get("school"))
+            raise
+
+    async def websocket_receive(self, message):
+        try:
+            return await super().websocket_receive(message)
+        except Exception as exc:
+            await capture_ws(self.scope, exc)
+            await count_ws_error(self.scope.get("school"))
+            raise
+
+    async def close(self, code=None, reason=None):
+        if code is not None and code is not True and code != CLOSE_NORMAL:
+            await count_ws_error(self.scope.get("school"))
+        await super().close(code=code, reason=reason)
 
 
 def in_school(scope, fn, *args, **kwargs):

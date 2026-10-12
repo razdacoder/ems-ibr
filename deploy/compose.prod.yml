@@ -15,6 +15,10 @@ x-django: &django
   build:
     context: ..
     dockerfile: Dockerfile
+    args:
+      # Stamped on captured errors (spec 0004). Set it when building:
+      # ORDO_RELEASE=$(git rev-parse --short HEAD) docker compose ... up -d --build
+      ORDO_RELEASE: ${ORDO_RELEASE:-dev}
   image: ${API_IMAGE:-ordo-api:latest}
   env_file: .env.prod
   restart: unless-stopped
@@ -145,6 +149,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VITE_RELEASE: ${ORDO_RELEASE:-dev}
     image: ${DASHBOARD_IMAGE:-ordo-dashboard:latest}
     restart: unless-stopped
     environment:

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   HeadContent,
   Outlet,
@@ -14,6 +14,7 @@ import { ConfirmProvider } from "@/lib/confirm";
 import { ThemeProvider } from "@/lib/theme";
 import { BrandApplier, brandCss } from "@/lib/brand";
 import { Toaster } from "@/components/toaster";
+import { installErrorReporter } from "@/lib/error-reporter";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import styles from "@/index.css?url";
 
@@ -52,9 +53,10 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
-  const { origins, branding } = Route.useLoaderData();
+  const { origins, branding, host } = Route.useLoaderData();
   // Set during render, so it's in place before any page's queries run.
   setApiOrigin(origins.api);
+  useEffect(() => installErrorReporter(host), [host]);
   const [queryClient] = useState(makeQueryClient);
   const brand = brandCss(branding?.brand_color);
 

@@ -242,6 +242,10 @@ def _purge(school_id):
 
     school.drop_schema(batch_size=PURGE_DROP_BATCH)
     exports.delete_media(school.schema_name)
+    # Error data counts as personal data: it goes with the school (AC-20).
+    from tenancy.observability.tasks import purge_school
+
+    purge_school(school)
     with transaction.atomic():
         school = School.objects.select_for_update().get(pk=school_id)
         Domain.objects.filter(tenant=school).delete()

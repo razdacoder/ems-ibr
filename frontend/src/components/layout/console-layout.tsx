@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import {
+  Activity,
   ChevronsUpDown,
   Layers,
   LayoutDashboard,
@@ -64,6 +65,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/console", label: "Dashboard", icon: LayoutDashboard },
       { to: "/console/schools", label: "Schools", icon: School },
+      { to: "/console/health", label: "Health", icon: Activity },
       { to: "/console/staff", label: "Find staff", icon: Search },
     ],
   },

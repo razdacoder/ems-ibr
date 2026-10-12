@@ -11,6 +11,15 @@ function longDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function hourStamp(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export interface TrendPoint {
   date: string;
   value: number;
@@ -27,11 +36,14 @@ export function TrendChart({
   points,
   label,
   limit,
+  unit = "day",
   empty = "The trend fills in as nightly usage snapshots are taken.",
 }: {
   points: TrendPoint[];
   label: string;
   limit?: number | null;
+  /** One point per day (the default) or per hour. */
+  unit?: "day" | "hour";
   empty?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -50,6 +62,7 @@ export function TrendChart({
   const area = `${line} L${W},${H} L0,${H} Z`;
   const point = hover === null ? null : points[hover];
   const pct = (i: number) => (i / last) * 100;
+  const stamp = unit === "hour" ? hourStamp : longDate;
 
   return (
     <div className="px-5 pt-4 pb-3">
@@ -146,7 +159,7 @@ export function TrendChart({
                 }
               >
                 <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {longDate(point.date)}
+                  {stamp(point.date)}
                 </div>
                 {[[label, point.value] as [string, number], ...(point.details ?? [])].map(([name, value], i) => (
                   <div key={name} className="flex justify-between gap-4">
@@ -165,25 +178,31 @@ export function TrendChart({
         <span>{shortDate(points[0].date)}</span>
         <span>{shortDate(points[last].date)}</span>
       </div>
-      <table className="sr-only">
-        <caption>{label} by day</caption>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>{label}</th>
-            {points[0].details?.map(([name]) => <th key={name}>{name}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.date}>
-              <td>{p.date}</td>
-              <td>{p.value}</td>
-              {p.details?.map(([name, value]) => <td key={name}>{value}</td>)}
+      {/* sr-only on a wrapper: a table never shrinks below its rows, so
+          on the table itself it stays full height and adds blank scroll. */}
+      <div className="sr-only">
+        <table>
+          <caption>
+            {label} by {unit}
+          </caption>
+          <thead>
+            <tr>
+              <th>{unit === "hour" ? "Hour" : "Date"}</th>
+              <th>{label}</th>
+              {points[0].details?.map(([name]) => <th key={name}>{name}</th>)}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.date}>
+                <td>{p.date}</td>
+                <td>{p.value}</td>
+                {p.details?.map(([name, value]) => <td key={name}>{value}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

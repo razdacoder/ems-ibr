@@ -10,6 +10,7 @@ from .models import (
     Hall, TimeTable, SeatArrangement, DistributionItem, Student
 )
 from . import seating_rules
+from tenancy.observability.capture import job_failed
 from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
     get_courses, get_halls, split_course, generate, classify_courses,
@@ -109,10 +110,12 @@ def _unplaced_students_warning(date, period):
 def _fail_not_ready(job, report):
     """Stop a job the readiness safety net refused. Expected, so no
     traceback: the lists are what the officer needs to fix the data."""
+    error = NotReady(report)
     job.status = 'failed'
-    job.error_message = str(NotReady(report))
+    job.error_message = str(error)
     job.result_data = failed_result(report)
     job.completed_at = timezone.now()
+    job_failed(job, error, expected=True)
     job.save()
     return {'status': 'failed', 'message': job.error_message}
 
@@ -408,6 +411,7 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
@@ -502,6 +506,7 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
@@ -715,6 +720,7 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
@@ -788,7 +794,7 @@ def generate_distribution_all_task(self, job_id, user_id):
         return {'status': 'success', 'message': job.result_data['message']}
     except NotReady as e:
         return _fail_not_ready(job, e.report)
-    except SoftTimeLimitExceeded:
+    except SoftTimeLimitExceeded as exc:
         # Soft limit hit — fail gracefully before the hard SIGKILL so the job
         # isn't left stuck in 'running'. This task is resumable: it skips slots
         # that already have a Distribution, so a re-run continues where it
@@ -808,6 +814,7 @@ def generate_distribution_all_task(self, job_id, user_id):
             'slots_total': total_slots,
         }
         job.completed_at = timezone.now()
+        job_failed(job, exc)
         job.save()
         raise
     except Exception as e:
@@ -820,6 +827,7 @@ def generate_distribution_all_task(self, job_id, user_id):
             'traceback': traceback.format_exc(),
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
@@ -909,13 +917,16 @@ def generate_allocation_all_task(self, job_id, user_id):
                 + '. The other slots are seated; retry to run the failed ones.'
             )
             job.result_data['failed_slots'] = failed
+            # Each failed slot was recorded by its own job; this records the
+            # bulk job ending failed.
+            job_failed(job)
         else:
             job.status = 'success'
         job.save()
         return {'status': job.status, 'message': job.error_message or job.result_data['message']}
     except NotReady as e:
         return _fail_not_ready(job, e.report)
-    except SoftTimeLimitExceeded:
+    except SoftTimeLimitExceeded as exc:
         # Soft limit hit — fail gracefully before the hard SIGKILL. Resumable:
         # slots that already have a SeatArrangement are skipped on re-run.
         done = len(results) if 'results' in locals() else 0
@@ -933,6 +944,7 @@ def generate_allocation_all_task(self, job_id, user_id):
             'slots_total': total_slots,
         }
         job.completed_at = timezone.now()
+        job_failed(job, exc)
         job.save()
         raise
     except Exception as e:
@@ -945,5 +957,6 @@ def generate_allocation_all_task(self, job_id, user_id):
             'traceback': traceback.format_exc(),
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise

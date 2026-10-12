@@ -380,3 +380,142 @@ class Announcement(models.Model):
             starts_at__lte=now,
             withdrawn_at__isnull=True,
         )
+
+
+class ErrorGroup(models.Model):
+    """Repeats of one bug in one school (spec 0004). Null school is Platform.
+
+    Only ``tenancy.observability.capture`` writes these, through the
+    ``observability`` connection, except status changes from the console.
+    """
+
+    class Source(models.TextChoices):
+        API = "api", "API request"
+        TASK = "task", "Task"
+        JOB = "job", "Job"
+        LOG = "log", "Log"
+        JS = "js", "Browser"
+        WS = "ws", "WebSocket"
+
+    class Kind(models.TextChoices):
+        ERROR = "error", "Error"
+        EXPECTED = "expected", "Expected"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        RESOLVED = "resolved", "Resolved"
+        IGNORED = "ignored", "Ignored"
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True, related_name="error_groups"
+    )
+    fingerprint = models.CharField(max_length=64)
+    # The source of the first occurrence.
+    source = models.CharField(max_length=8, choices=Source.choices)
+    kind = models.CharField(max_length=8, choices=Kind.choices)
+    exc_type = models.CharField(max_length=255)
+    title = models.CharField(max_length=255)
+    culprit = models.CharField(max_length=255)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.OPEN)
+    count = models.BigIntegerField(default=1)
+    first_seen = models.DateTimeField()
+    last_seen = models.DateTimeField()
+    # Set when created and when it regresses; alerts compare it to alerted_at.
+    last_opened_at = models.DateTimeField()
+    last_release = models.CharField(max_length=64, blank=True, default="")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        PlatformAdmin, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    alerted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "fingerprint"],
+                name="error_group_per_school",
+                nulls_distinct=False,
+            )
+        ]
+        indexes = [
+            models.Index(fields=["school", "status", "-last_seen"]),
+            models.Index(fields=["status", "kind", "last_opened_at"]),
+        ]
+
+
+class ErrorEvent(models.Model):
+    """One stored occurrence of an ``ErrorGroup``, sampled (AC-10).
+
+    ``context`` holds only the AC-8 allowlist; nothing else is ever stored.
+    """
+
+    group = models.ForeignKey(ErrorGroup, on_delete=models.CASCADE, related_name="events")
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    occurred_at = models.DateTimeField()
+    message = models.CharField(max_length=1000)
+    # At most 50 {file, line, function, code}, innermost last.
+    stack = models.JSONField(default=list)
+    context = models.JSONField(default=dict)
+    release = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["group", "-occurred_at"]),
+            models.Index(fields=["occurred_at"]),
+        ]
+
+
+class HealthBucket(models.Model):
+    """One school's counts for one UTC hour, copied from Redis (AC-13)."""
+
+    school = models.ForeignKey(
+        School, on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    hour = models.DateTimeField()
+    requests = models.IntegerField(default=0)
+    server_errors = models.IntegerField(default=0)
+    client_errors = models.IntegerField(default=0)
+    ws_errors = models.IntegerField(default=0)
+    job_failures = models.IntegerField(default=0)
+    expected_job_failures = models.IntegerField(default=0)
+    js_errors = models.IntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school", "hour"],
+                name="health_bucket_per_hour",
+                nulls_distinct=False,
+            )
+        ]
+
+
+class SchoolHealth(models.Model):
+    """A school's status over the last 60 minutes, from ``observe_health``."""
+
+    class Status(models.TextChoices):
+        HEALTHY = "healthy", "Healthy"
+        DEGRADED = "degraded", "Degraded"
+        FAILING = "failing", "Failing"
+
+    school = models.OneToOneField(
+        School, on_delete=models.CASCADE, null=True, blank=True, related_name="health"
+    )
+    status = models.CharField(max_length=8, choices=Status.choices)
+    reason = models.CharField(max_length=255, blank=True, default="")
+    server_errors = models.IntegerField(default=0)
+    client_errors = models.IntegerField(default=0)
+    ws_errors = models.IntegerField(default=0)
+    js_errors = models.IntegerField(default=0)
+    job_failures = models.IntegerField(default=0)
+    requests = models.IntegerField(default=0)
+    computed_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["school"], name="school_health_once", nulls_distinct=False
+            )
+        ]

@@ -59,10 +59,22 @@ git pull
 $C stop backup
 # A backup from before the migrations, in case a release goes wrong.
 $C run --rm backup python manage.py backup_database
+# Stamp the release on captured errors (spec 0004), then rebuild.
+export ORDO_RELEASE=$(git rev-parse --short HEAD)
 $C up -d --build
 ```
 
 If `migrate` fails, `api`, `worker`, `beat` and `backup` stay on the previous release. Read `$C logs migrate`, fix forward, and deploy again.
+
+## Error observability
+
+Ordo records server errors, failed jobs and tasks, logged errors, browser errors and WebSocket problems per school (spec 0004). The console's **Health** page shows each school as healthy, degraded or failing, and each school's page has an Errors section. Owners get an email when a new error appears or a school starts failing.
+
+- **Release id.** `ORDO_RELEASE` is a build argument for both images (the dashboard gets it as `VITE_RELEASE`). Without it, errors are stamped `dev`.
+- **Health needs beat and Redis.** `observe_health` runs every 5 minutes on the worker, from `beat`, and reads counters from Redis. If the Health page says the status is out of date, check `$C ps worker beat redis`.
+- **Off switch.** `OBSERVABILITY_ENABLED=False` in `.env.prod` turns off all capture, counting and alert emails.
+- **Retention.** Stored occurrences are kept 30 days, hourly counts 90 days, and resolved or ignored groups 90 days after they were last seen. Purging a school removes all of its error data.
+- The other settings, all optional, are listed at the end of `.env.prod.example`.
 
 ## Backups
 

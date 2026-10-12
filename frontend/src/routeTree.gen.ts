@@ -42,6 +42,7 @@ import { Route as PlatformConsoleConsoleAccountRouteImport } from './routes/_pla
 import { Route as PlatformConsoleConsoleAdminsRouteImport } from './routes/_platform/_console/console.admins'
 import { Route as PlatformConsoleConsoleAnnouncementsRouteImport } from './routes/_platform/_console/console.announcements'
 import { Route as PlatformConsoleConsoleAuditRouteImport } from './routes/_platform/_console/console.audit'
+import { Route as PlatformConsoleConsoleHealthRouteImport } from './routes/_platform/_console/console.health'
 import { Route as PlatformConsoleConsolePlansRouteImport } from './routes/_platform/_console/console.plans'
 import { Route as PlatformConsoleConsoleStaffRouteImport } from './routes/_platform/_console/console.staff'
 import { Route as PlatformConsoleConsoleSchoolsIndexRouteImport } from './routes/_platform/_console/console.schools.index'
@@ -216,6 +217,12 @@ const PlatformConsoleConsoleAuditRoute =
     path: '/console/audit',
     getParentRoute: () => PlatformConsoleRoute,
   } as any)
+const PlatformConsoleConsoleHealthRoute =
+  PlatformConsoleConsoleHealthRouteImport.update({
+    id: '/console/health',
+    path: '/console/health',
+    getParentRoute: () => PlatformConsoleRoute,
+  } as any)
 const PlatformConsoleConsolePlansRoute =
   PlatformConsoleConsolePlansRouteImport.update({
     id: '/console/plans',
@@ -283,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console/health': typeof PlatformConsoleConsoleHealthRoute
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console/': typeof PlatformConsoleConsoleIndexRoute
@@ -321,6 +329,7 @@ export interface FileRoutesByTo {
   '/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/console/health': typeof PlatformConsoleConsoleHealthRoute
   '/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/console': typeof PlatformConsoleConsoleIndexRoute
@@ -363,6 +372,7 @@ export interface FileRoutesById {
   '/_platform/_console/console/admins': typeof PlatformConsoleConsoleAdminsRoute
   '/_platform/_console/console/announcements': typeof PlatformConsoleConsoleAnnouncementsRoute
   '/_platform/_console/console/audit': typeof PlatformConsoleConsoleAuditRoute
+  '/_platform/_console/console/health': typeof PlatformConsoleConsoleHealthRoute
   '/_platform/_console/console/plans': typeof PlatformConsoleConsolePlansRoute
   '/_platform/_console/console/staff': typeof PlatformConsoleConsoleStaffRoute
   '/_platform/_console/console/': typeof PlatformConsoleConsoleIndexRoute
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/console/admins'
     | '/console/announcements'
     | '/console/audit'
+    | '/console/health'
     | '/console/plans'
     | '/console/staff'
     | '/console/'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/console/admins'
     | '/console/announcements'
     | '/console/audit'
+    | '/console/health'
     | '/console/plans'
     | '/console/staff'
     | '/console'
@@ -482,6 +494,7 @@ export interface FileRouteTypes {
     | '/_platform/_console/console/admins'
     | '/_platform/_console/console/announcements'
     | '/_platform/_console/console/audit'
+    | '/_platform/_console/console/health'
     | '/_platform/_console/console/plans'
     | '/_platform/_console/console/staff'
     | '/_platform/_console/console/'
@@ -732,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformConsoleConsoleAuditRouteImport
       parentRoute: typeof PlatformConsoleRoute
     }
+    '/_platform/_console/console/health': {
+      id: '/_platform/_console/console/health'
+      path: '/console/health'
+      fullPath: '/console/health'
+      preLoaderRoute: typeof PlatformConsoleConsoleHealthRouteImport
+      parentRoute: typeof PlatformConsoleRoute
+    }
     '/_platform/_console/console/plans': {
       id: '/_platform/_console/console/plans'
       path: '/console/plans'
@@ -830,6 +850,7 @@ interface PlatformConsoleRouteChildren {
   PlatformConsoleConsoleAdminsRoute: typeof PlatformConsoleConsoleAdminsRoute
   PlatformConsoleConsoleAnnouncementsRoute: typeof PlatformConsoleConsoleAnnouncementsRoute
   PlatformConsoleConsoleAuditRoute: typeof PlatformConsoleConsoleAuditRoute
+  PlatformConsoleConsoleHealthRoute: typeof PlatformConsoleConsoleHealthRoute
   PlatformConsoleConsolePlansRoute: typeof PlatformConsoleConsolePlansRoute
   PlatformConsoleConsoleStaffRoute: typeof PlatformConsoleConsoleStaffRoute
   PlatformConsoleConsoleIndexRoute: typeof PlatformConsoleConsoleIndexRoute
@@ -845,6 +866,7 @@ const PlatformConsoleRouteChildren: PlatformConsoleRouteChildren = {
   PlatformConsoleConsoleAnnouncementsRoute:
     PlatformConsoleConsoleAnnouncementsRoute,
   PlatformConsoleConsoleAuditRoute: PlatformConsoleConsoleAuditRoute,
+  PlatformConsoleConsoleHealthRoute: PlatformConsoleConsoleHealthRoute,
   PlatformConsoleConsolePlansRoute: PlatformConsoleConsolePlansRoute,
   PlatformConsoleConsoleStaffRoute: PlatformConsoleConsoleStaffRoute,
   PlatformConsoleConsoleIndexRoute: PlatformConsoleConsoleIndexRoute,
