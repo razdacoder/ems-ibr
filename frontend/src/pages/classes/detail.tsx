@@ -116,7 +116,7 @@ export default function ClassDetailPage() {
         <>
           <PageHeader
             section="Catalog · Classes"
-            title={cls.data.name}
+            title={cls.data.name ?? "Unnamed class"}
             meta={
               <>
                 <div>
