@@ -53,13 +53,15 @@ MAPPING = {
 
 
 def public_dns(*ips):
-    """``socket.getaddrinfo`` answering ``ips`` for every host."""
+    """The portal's DNS answering ``ips`` for every host. Patches only the
+    fetcher's lookup: patching ``socket.getaddrinfo`` would also send Redis
+    and Postgres connections to these addresses, and hang the test run."""
     ips = ips or ("93.184.216.34",)
 
     def resolve(host, port, *args, **kwargs):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port)) for ip in ips]
 
-    return mock.patch("ems.portal_sync.fetch.socket.getaddrinfo", side_effect=resolve)
+    return mock.patch("ems.portal_sync.fetch._lookup", side_effect=resolve)
 
 
 def portal(handler):
@@ -1633,7 +1635,7 @@ class PagingTests(PortalSyncTestCase):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), port))]
 
         endpoint = PortalEndpoint.objects.get()
-        with mock.patch("ems.portal_sync.fetch.socket.getaddrinfo", side_effect=resolve):
+        with mock.patch("ems.portal_sync.fetch._lookup", side_effect=resolve):
             with portal(serve({"data": [row(1)], "next": f"{URL}?p=2"})):
                 with self.assertRaises(fetch.FetchError) as caught:
                     fetch.fetch_rows(endpoint, endpoint.connection)

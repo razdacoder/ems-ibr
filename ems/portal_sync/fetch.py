@@ -86,11 +86,18 @@ def _is_public(ip):
     return ip.is_global and not ip.is_multicast
 
 
+def _lookup(host, port):
+    """DNS answers for the portal host. Its own function so tests can fake
+    the portal's DNS without patching ``socket.getaddrinfo`` itself, which
+    is the whole process's resolver (Redis, Postgres and Celery use it too)."""
+    return socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+
+
 def resolve_public(host, port):
     """One public IP for ``host``. Refuses the whole host if any address it
     resolves to is loopback, private, link local or reserved."""
     try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        infos = _lookup(host, port)
     except (socket.gaierror, UnicodeError) as exc:
         raise _Retryable(
             "connection_error", f"Could not find the portal host {host}."
