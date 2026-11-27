@@ -7,7 +7,7 @@ At most one per period; a course above even that limit is refused.
 import random
 from datetime import date
 
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory
 from django.urls import reverse
 
 from ems import seating_rules, tasks
@@ -27,6 +27,7 @@ from ems.utils import (
     relaxed_course_code,
     split_course,
 )
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import (
     enrol, listed_class, make_course, make_department, make_hall, no_fill_cap, quietly, schedule,
@@ -83,7 +84,7 @@ def students_for(bites):
     ]
 
 
-class SeatingRuleTests(TestCase):
+class SeatingRuleTests(SchoolTestCase):
     def test_even_half_counts_quarters_00_and_11(self):
         self.assertEqual(seating_rules.even_half(10, 10), 50)
         self.assertEqual(seating_rules.even_half(5, 5), 9 + 4)
@@ -114,7 +115,7 @@ class SeatingRuleTests(TestCase):
                 self.assertNotIn((r + dr, c + dc), seats)
 
 
-class RelaxedQuarterUsageTests(TestCase):
+class RelaxedQuarterUsageTests(SchoolTestCase):
     """relaxed_quarter_usage must match where the allocator actually seats a
     relaxed course, for every bite size, or the distribution model drifts."""
 
@@ -138,7 +139,7 @@ class RelaxedQuarterUsageTests(TestCase):
                     )
 
 
-class QuartersModelTests(TestCase):
+class QuartersModelTests(SchoolTestCase):
     def test_a_relaxed_course_fills_the_even_half_and_strict_courses_the_rest(self):
         bites = [("R", 50), ("A", 25), ("B", 25)]
         self.assertTrue(_quarters_can_seat(10, 10, bites, relaxed_course="R"))
@@ -161,7 +162,7 @@ class QuartersModelTests(TestCase):
         )
 
 
-class AllocatorTests(TestCase):
+class AllocatorTests(SchoolTestCase):
     def test_seats_a_full_relaxed_course_beside_strict_ones_under_each_rule(self):
         students = students_for([("R", 50), ("A", 25), ("B", 25)])
         seats, unplaced, _ = quietly(
@@ -221,7 +222,7 @@ def distribute_slot(pattern="sequential", utilization=1.0):
     return distribute_classes_to_halls(timetables, halls, relaxed_course=relaxed), relaxed
 
 
-class DistributionTests(TestCase):
+class DistributionTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)
 
@@ -297,7 +298,7 @@ class DistributionTests(TestCase):
                     self.assertEqual(conflicts(grid, code, FOUR), [])
 
 
-class TimetableClassificationTests(TestCase):
+class TimetableClassificationTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)
         four_halls()  # strict limit 100, relaxed limit 200, 400 seats a period
@@ -408,7 +409,7 @@ class TimetableJobTests(PipelineTestCase):
         )
 
 
-class ReconcileTests(TestCase):
+class ReconcileTests(SchoolTestCase):
     def setUp(self):
         no_fill_cap()
         self.hall = make_hall("Hall A", 2, 2)

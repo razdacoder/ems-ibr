@@ -1,0 +1,7 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+<p style="margin:0 0 16px;">Hello,</p>
+<p style="margin:0 0 16px;">{{ inviter }} invited you to join <strong>{{ school_name }}</strong> on Ordo as {{ role }}.</p>
+{% include "emails/_button.html" with label="Accept invite" %}
+<p style="margin:0;">The link works once and expires in {{ days }} days.</p>
+{% endblock %}

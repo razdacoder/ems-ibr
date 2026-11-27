@@ -5,13 +5,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type {
-  ClassRef,
-  DepartmentRef,
-  PaginatedResponse,
-} from "./types";
+import { SCHOOL_PLAN_KEY } from "./school";
+import type { ClassRef, DepartmentRef, PaginatedResponse, PortalOwned } from "./types";
 
-export interface Student {
+export interface Student extends PortalOwned {
   id: number;
   first_name: string;
   last_name: string;
@@ -60,7 +57,11 @@ export function useCreateStudent() {
       const res = await api.post<Student>("/students/", data);
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 
@@ -71,7 +72,11 @@ export function useUpdateStudent(id: number) {
       const res = await api.patch<Student>(`/students/${id}/`, data);
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 
@@ -81,6 +86,10 @@ export function useDeleteStudent() {
     mutationFn: async (id: number) => {
       await api.delete(`/students/${id}/`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }

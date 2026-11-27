@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useInitialBranding } from "@/lib/config";
 
 export interface SystemSettings {
   id: number;
@@ -99,12 +100,16 @@ export function useUpdateSystemSettings() {
 }
 
 export function useBranding() {
+  // Seeded from the server-rendered root, so the logo is in the first paint;
+  // later refreshes (e.g. after a settings change) come from the API.
+  const initial = useInitialBranding();
   return useQuery({
     queryKey: BRANDING_KEY,
     queryFn: async () => {
       const res = await api.get<Branding>("/system/branding/");
       return res.data;
     },
+    initialData: initial ?? undefined,
     staleTime: 5 * 60 * 1000,
   });
 }

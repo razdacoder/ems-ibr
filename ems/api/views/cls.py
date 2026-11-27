@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from ems.api.exceptions import Conflict
 from ems.api.pagination import AllowUnpaginatedMixin
-from ems.api.permissions import CanManageDepartmentScoped
+from ems.api.permissions import CanManageDepartmentScoped, PortalManagedViewSetMixin
 from ems.api.serializers.cls import (
     ClassCourseAssignSerializer,
     ClassSerializer,
@@ -14,9 +14,11 @@ from ems.api.serializers.cls import (
 )
 from ems.api.serializers.course import CourseSerializer
 from ems.models import Class, Course, TimeTable
+from ems.portal_sync import managed
 
 
-class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
+class ClassViewSet(PortalManagedViewSetMixin, AllowUnpaginatedMixin, viewsets.ModelViewSet):
+    portal_type = "classes"
     serializer_class = ClassSerializer
 
     def get_queryset(self):
@@ -91,8 +93,13 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
     )
     def add_course(self, request, pk=None):
         cls = self.get_object()
+        managed.assert_links_editable(cls)
         serializer = ClassCourseAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if serializer.would_create():
+            # A new course is a new record of the courses type: refuse it when
+            # the portal owns that type, as POST /api/courses/ does.
+            managed.assert_type_unsynced("courses")
         course = serializer.resolve_course()
         if cls.courses.filter(pk=course.pk).exists():
             raise Conflict(f"Course '{course.code}' is already in this class.")
@@ -113,6 +120,7 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
             raise NotFound("This course is not assigned to the class.") from exc
 
         if request.method == "DELETE":
+            managed.assert_links_editable(cls)
             if TimeTable.objects.filter(course=course).exists():
                 raise Conflict(
                     "Cannot remove this course: timetable entries reference it. "
@@ -121,7 +129,11 @@ class ClassViewSet(AllowUnpaginatedMixin, viewsets.ModelViewSet):
             cls.courses.remove(course)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # PATCH: edit course in class context (same constraints as global edit)
+        # PATCH: edit course in class context. Course rows are shared across
+        # departments, so editing one needs the same role as the global
+        # course edit (IsDataOfficer), not just access to this class.
+        if not request.user.can_manage_data:
+            raise PermissionDenied("Only data managers can edit courses.")
         serializer = CourseSerializer(course, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

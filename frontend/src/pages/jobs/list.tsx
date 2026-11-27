@@ -90,6 +90,7 @@ export default function JobsListPage() {
   return (
     <>
       <ListShell
+        section="Admin · Jobs"
         title="Jobs"
         description="Long-running tasks like timetable generation, and how they went. Admins can see everyone's."
         filters={
@@ -115,6 +116,7 @@ export default function JobsListPage() {
                 <SelectItem value="timetable">Timetable</SelectItem>
                 <SelectItem value="distribution">Distribution</SelectItem>
                 <SelectItem value="allocation">Allocation</SelectItem>
+                <SelectItem value="portal_sync">Portal sync</SelectItem>
               </SelectContent>
             </Select>
           </>

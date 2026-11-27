@@ -13,7 +13,6 @@ interface Props {
 export function ThemeToggle({ size = "md", iconOnly = false, className }: Props) {
   const { theme, toggle } = useTheme();
   const isDark = theme === "dark";
-  const Icon = isDark ? Sun : Moon;
   const label = isDark ? "Light mode" : "Dark mode";
 
   return (
@@ -36,8 +35,16 @@ export function ThemeToggle({ size = "md", iconOnly = false, className }: Props)
       title={label}
       className={className}
     >
-      <Icon data-icon={iconOnly ? undefined : "inline-start"} strokeWidth={2} />
-      {!iconOnly && (isDark ? "Light" : "Dark")}
+      {/* Icons and text swap via `dark:` so they match the page before
+          hydration (see lib/theme.tsx). */}
+      <Sun data-icon={iconOnly ? undefined : "inline-start"} strokeWidth={2} className="hidden dark:block" />
+      <Moon data-icon={iconOnly ? undefined : "inline-start"} strokeWidth={2} className="dark:hidden" />
+      {!iconOnly && (
+        <>
+          <span className="hidden dark:inline">Light</span>
+          <span className="dark:hidden">Dark</span>
+        </>
+      )}
     </Button>
   );
 }

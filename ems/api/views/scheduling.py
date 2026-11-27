@@ -30,6 +30,8 @@ from ems.utils import (
     hall_effective_capacity,
     slot_relaxed_course_id,
 )
+from tenancy import limits
+from tenancy.permissions import requires_feature
 
 
 class ReadinessView(APIView):
@@ -48,6 +50,8 @@ class ReadinessView(APIView):
             raise ValidationError(
                 {"detail": f"stage must be one of: {', '.join(readiness.STAGES)}."}
             )
+        # A stage the plan can't run has nothing to be ready for.
+        limits.assert_feature_for_stage(stage)
         date = request.query_params.get("date")
         period = request.query_params.get("period")
         if bool(date) != bool(period):
@@ -306,7 +310,7 @@ class TimetableEstimateView(APIView):
 
 
 class DistributionListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("distribution")]
 
     def get(self, request):
         date = request.query_params.get("date")
@@ -357,7 +361,7 @@ class DistributionListView(APIView):
 
 
 class DistributionStatisticsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("distribution")]
 
     def get(self, request):
         date = request.query_params.get("date")
@@ -366,6 +370,8 @@ class DistributionStatisticsView(APIView):
             return Response({"detail": "date and period are required."}, status=400)
 
         distributions = Distribution.objects.filter(date=date, period=period)
+        if not publication.visible_to(request.user):
+            distributions = distributions.none()
         agg = distributions.aggregate(
             total_halls=Count("id", distinct=True),
         )
@@ -386,7 +392,7 @@ class DistributionStatisticsView(APIView):
 class AllocationListView(APIView):
     """Aggregated by hall — drives the allocation summary page."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("seat_allocation")]
 
     def get(self, request):
         date = request.query_params.get("date")
@@ -419,7 +425,7 @@ class AllocationListView(APIView):
 class HallAllocationView(APIView):
     """Full seat grid + placed/unplaced lists for one hall."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, requires_feature("seat_allocation")]
 
     def get(self, request):
         date = request.query_params.get("date")

@@ -1,0 +1,18 @@
+import { getRouteApi } from "@tanstack/react-router";
+
+const root = getRouteApi("__root__");
+
+/** Site and API origins for this request (lib/origins.server.ts). */
+export function useOrigins() {
+  return root.useLoaderData().origins;
+}
+
+/** Branding as fetched during the server render, or null if it failed. */
+export function useInitialBranding() {
+  return root.useLoaderData().branding;
+}
+
+/** Whether this host is a school, the console, or neither. */
+export function useHostKind() {
+  return root.useLoaderData().host;
+}

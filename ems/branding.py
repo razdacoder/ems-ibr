@@ -14,6 +14,8 @@ import logging
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt
 
+from tenancy import limits
+
 logger = logging.getLogger(__name__)
 
 # Default for ``add_document_branding(logo=...)``: fetch the logo itself.
@@ -26,9 +28,10 @@ def load_logo(settings_obj) -> bytes | None:
     Read through the field's storage, so it works whether the logo is on
     Cloudinary or the local disk. A bulk export calls this once and passes
     the bytes to every document instead of downloading the logo per sheet.
+    None too when the school's plan leaves ``branding`` off.
     """
     logo = getattr(settings_obj, "logo", None)
-    if not logo:
+    if not logo or not limits.has_feature("branding"):
         return None
     try:
         with logo.storage.open(logo.name, "rb") as f:
@@ -38,32 +41,39 @@ def load_logo(settings_obj) -> bytes | None:
         return None
 
 
-def add_document_branding(doc, settings_obj, logo=_LOAD) -> None:
-    """Prepend the institution header (logo + metadata + session) to ``doc``.
-
-    Mirrors the previous inline header layout: left-aligned logo, then a
-    centred institution block, then the session/semester line. ``logo`` is
-    the image bytes from :func:`load_logo`; left out, it is loaded here.
-    """
-    if logo is _LOAD:
-        logo = load_logo(settings_obj)
-
-    # Logo (or a text placeholder when no image is available).
+def _add_logo(doc, logo) -> None:
+    """The logo, or a text placeholder when no image is available."""
     logo_paragraph = doc.add_paragraph()
     logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
     if logo:
         try:
             run = logo_paragraph.add_run()
             run.add_picture(io.BytesIO(logo), width=Inches(1.0))
+            return
         except Exception:
-            placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
-            placeholder.bold = True
-    else:
-        placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
-        placeholder.bold = True
+            pass
+    placeholder = logo_paragraph.add_run("[INSTITUTION LOGO]")
+    placeholder.bold = True
+
+
+def add_document_branding(doc, settings_obj, logo=_LOAD) -> None:
+    """Prepend the institution header (logo + metadata + session) to ``doc``.
+
+    Mirrors the previous inline header layout: left-aligned logo, then a
+    centred institution block, then the session/semester line. ``logo`` is
+    the image bytes from :func:`load_logo`; left out, it is loaded here.
+
+    A plan without ``branding`` gets neither the logo nor the exam heading,
+    only the institution's name and contact lines (spec 0003, child 0005).
+    """
+    branded = limits.has_feature("branding")
+    if branded:
+        if logo is _LOAD:
+            logo = load_logo(settings_obj)
+        _add_logo(doc, logo)
 
     # Institution block — only render the lines that are configured.
-    exam_heading = (getattr(settings_obj, "exam_heading", "") or "").strip()
+    exam_heading = (getattr(settings_obj, "exam_heading", "") or "").strip() if branded else ""
     name = (getattr(settings_obj, "institution_name", "") or "").strip()
     address = (getattr(settings_obj, "institution_address", "") or "").strip()
     email = (getattr(settings_obj, "contact_email", "") or "").strip()

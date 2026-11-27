@@ -1,0 +1,154 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+/** Optional features a plan switches on (tenancy.features.KEYS). */
+export type FeatureKey =
+  | "distribution"
+  | "seat_allocation"
+  | "exports"
+  | "publication"
+  | "branding"
+  | "portal_sync";
+
+export const FEATURE_LABELS: Record<FeatureKey, string> = {
+  distribution: "Distribution",
+  seat_allocation: "Seat allocation",
+  exports: "Broadsheet and bulk attendance sheets",
+  publication: "Timetable publication",
+  branding: "Branding",
+  portal_sync: "Portal sync",
+};
+
+/** This school's effective plan: GET /api/school/. Null limits are unlimited. */
+export interface SchoolPlan {
+  name: string;
+  slug: string;
+  status: string;
+  timezone: string;
+  features: FeatureKey[];
+  limits: { max_students: number | null; max_staff_users: number | null };
+  usage: { students: number; staff_users: number };
+  /** Set only for an Ordo support token: drives the support banner. */
+  support: { active: boolean; expires_at: string; admin_name: string } | null;
+  /** Messages from the Ordo team, newest first (at most three). */
+  announcements?: Array<{ id: number; message: string; level: "info" | "warning"; ends_at: string | null }>;
+}
+
+/** Seats are planned from the hall distribution, so seat allocation needs it. */
+export const SEAT_ALLOCATION_NEEDS_DISTRIBUTION = "Seat allocation needs Distribution switched on too.";
+
+export function missingFeatureRequirement(features: readonly FeatureKey[]): boolean {
+  return features.includes("seat_allocation") && !features.includes("distribution");
+}
+
+export const SCHOOL_PLAN_KEY = ["school"] as const;
+
+/** Loaded once by the dashboard layout; every other caller reads the cache. */
+export function useSchoolPlan() {
+  return useQuery({
+    queryKey: SCHOOL_PLAN_KEY,
+    queryFn: async () => (await api.get<SchoolPlan>("/school/")).data,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Whether the plan includes ``key``. True until the plan has loaded, so a
+ * school with the feature never sees it flicker; the server refuses anyway.
+ */
+export function useHasFeature(key: FeatureKey): boolean {
+  const plan = useSchoolPlan();
+  return plan.data ? plan.data.features.includes(key) : true;
+}
+
+/** Whether the school is open: GET /api/school/status/, never refused by the status gate. */
+export type SchoolStatus =
+  | "provisioning"
+  | "active"
+  | "failed"
+  | "suspended"
+  | "pending_deletion"
+  | "purged";
+
+export interface SchoolStatusInfo {
+  name: string;
+  status: SchoolStatus;
+}
+
+export const SCHOOL_STATUS_KEY = ["school", "status"] as const;
+
+export function useSchoolStatus() {
+  return useQuery({
+    queryKey: SCHOOL_STATUS_KEY,
+    queryFn: async () => (await api.get<SchoolStatusInfo>("/school/status/")).data,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+/** Swap a console support ticket for a support token: POST /api/support/redeem/. */
+export async function redeemSupportTicket(ticket: string) {
+  return (
+    await api.post<{ token: string; expires_at: string }>("/support/redeem/", { ticket })
+  ).data;
+}
+
+/** End this support session now; the token stops working at once. */
+export async function endSupportSession() {
+  await api.post("/support/end/");
+}
+
+/**
+ * Whether Ordo support may come in: GET /api/support/access/. Support can
+ * enter a school only after one of its Super Admins asks, for a day at most.
+ * Demo schools are the exception.
+ */
+export interface SupportAccessInfo {
+  is_demo: boolean;
+  current: {
+    id: number;
+    reason: string;
+    requested_by: string;
+    created_at: string;
+    expires_at: string;
+  } | null;
+  /** The latest visits from Ordo support, newest first. */
+  visits: Array<{
+    id: number;
+    admin_name: string;
+    reason: string;
+    started_at: string;
+    /** Null while the visit is still going. */
+    ended_at: string | null;
+  }>;
+}
+
+const SUPPORT_ACCESS_KEY = ["school", "support-access"] as const;
+
+export function useSupportAccess(enabled = true) {
+  return useQuery({
+    queryKey: SUPPORT_ACCESS_KEY,
+    queryFn: async () => (await api.get<SupportAccessInfo>("/support/access/")).data,
+    enabled,
+  });
+}
+
+/** Let Ordo support in for a day: POST /api/support/access/. */
+export function useRequestSupport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reason: string) => (await api.post("/support/access/", { reason })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: SUPPORT_ACCESS_KEY }),
+  });
+}
+
+/** Withdraw the request; any visit under it ends at once. */
+export function useWithdrawSupport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete("/support/access/");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: SUPPORT_ACCESS_KEY }),
+  });
+}

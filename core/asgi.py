@@ -12,16 +12,21 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django_asgi_app = get_asgi_application()
 
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
-from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
 
 from ems.api.auth_ws import TokenAuthMiddleware  # noqa: E402
 from ems.api.routing import websocket_urlpatterns  # noqa: E402
+from tenancy.ws import SchoolOriginValidator, SchoolScopeMiddleware  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
-        "websocket": AllowedHostsOriginValidator(
-            TokenAuthMiddleware(URLRouter(websocket_urlpatterns)),
+        # The dashboard is served from the school's own host, so the origin
+        # is any <slug>.<base>. The school comes from the Host header, before
+        # the token is looked up in that school's schema.
+        "websocket": SchoolOriginValidator(
+            SchoolScopeMiddleware(
+                TokenAuthMiddleware(URLRouter(websocket_urlpatterns))
+            ),
         ),
     }
 )

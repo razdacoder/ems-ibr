@@ -19,6 +19,7 @@ from django.db import transaction
 from ems.identifiers import clean_number_text
 from ems.seating_rules import DEFAULT_SEAT_ORDER, SEAT_ORDERS
 from ems.models import Class, Course, Department, Student
+from tenancy import limits
 
 
 class UploadError(ValueError):
@@ -85,7 +86,12 @@ def _hall_shape(row, name) -> dict:
     if _blank(raw):
         if _blank(row.get("ROWS")) or _blank(row.get("COLS")):
             raise UploadError(f"Hall '{name}': give ROWS and COLS, or ROW_SEATS.")
-        return {"rows": int(row["ROWS"]), "columns": int(row["COLS"]), "layout": None}
+        try:
+            rows, cols = int(row["ROWS"]), int(row["COLS"])
+            seating_rules.check_grid(rows, cols)
+        except ValueError as exc:
+            raise UploadError(f"Hall '{name}': {exc}") from exc
+        return {"rows": rows, "columns": cols, "layout": None}
     align = "left" if _blank(row.get("ALIGN")) else str(row["ALIGN"])
     try:
         counts = [
@@ -231,7 +237,13 @@ def upload_class_courses(file, cls: Class) -> dict[str, int]:
     return {"created": added, "updated": len(codes_in_file) - added}
 
 
-def upload_class_students(file, cls: Class) -> dict[str, int]:
+def upload_class_students(file, cls: Class, *, cross_department: bool = True) -> dict[str, int]:
+    """Create or update ``cls``'s students from a CSV.
+
+    ``cross_department`` False (any uploader who is not a data manager)
+    refuses the whole file when a matric number already belongs to a
+    student of another department: re-uploading would move and overwrite
+    a student the uploader has no access to."""
     # Read identifiers as text. Left to inference, one blank cell turns the
     # column into floats and astype(str) below then stores "2520320002.0".
     df = _read_csv(file, dtype={"MATRIC NUMBER": str, "PHONE NUMBER": str})
@@ -257,51 +269,65 @@ def upload_class_students(file, cls: Class) -> dict[str, int]:
     _check_no_duplicates(df, "MATRIC NUMBER", "matric numbers")
 
     matric_numbers = df["MATRIC NUMBER"].tolist()
-    existing = {
-        s.matric_no: s
-        for s in Student.objects.filter(matric_no__in=matric_numbers).only(
-            "id",
-            "matric_no",
-            "first_name",
-            "last_name",
-            "email",
-            "phone",
-            "department_id",
-            "level_id",
-        )
-    }
-
-    to_create: list[Student] = []
-    to_update: list[Student] = []
-    # Classes whose lists this upload changes: this one, plus any class a
-    # re-uploaded student moves out of.
-    touched = {cls.id}
-    for record in df.to_dict("records"):
-        matric = record["MATRIC NUMBER"]
-        if matric in existing:
-            s = existing[matric]
-            touched.add(s.level_id)
-            s.first_name = record["FIRSTNAME"]
-            s.last_name = record["LASTNAME"]
-            s.email = record["EMAIL"]
-            s.phone = record["PHONE NUMBER"]
-            s.department = cls.department
-            s.level = cls
-            to_update.append(s)
-        else:
-            to_create.append(
-                Student(
-                    matric_no=matric,
-                    first_name=record["FIRSTNAME"],
-                    last_name=record["LASTNAME"],
-                    email=record["EMAIL"],
-                    phone=record["PHONE NUMBER"],
-                    department=cls.department,
-                    level=cls,
-                )
-            )
-
     with transaction.atomic():
+        # Which rows are new is read under the plan's student lock, so two
+        # uploads at once can't jointly go over the cap.
+        limits.lock_students()
+        existing = {
+            s.matric_no: s
+            for s in Student.objects.filter(matric_no__in=matric_numbers).only(
+                "id",
+                "matric_no",
+                "first_name",
+                "last_name",
+                "email",
+                "phone",
+                "department_id",
+                "level_id",
+            )
+        }
+        if not cross_department:
+            foreign = sorted(
+                m for m, s in existing.items() if s.department_id != cls.department_id
+            )
+            if foreign:
+                shown = ", ".join(foreign[:5]) + (" …" if len(foreign) > 5 else "")
+                raise UploadError(
+                    f"{len(foreign)} matric number(s) belong to students of another "
+                    f"department ({shown}). Ask a data officer to move them."
+                )
+
+        to_create: list[Student] = []
+        to_update: list[Student] = []
+        # Classes whose lists this upload changes: this one, plus any class a
+        # re-uploaded student moves out of.
+        touched = {cls.id}
+        for record in df.to_dict("records"):
+            matric = record["MATRIC NUMBER"]
+            if matric in existing:
+                s = existing[matric]
+                touched.add(s.level_id)
+                s.first_name = record["FIRSTNAME"]
+                s.last_name = record["LASTNAME"]
+                s.email = record["EMAIL"]
+                s.phone = record["PHONE NUMBER"]
+                s.department = cls.department
+                s.level = cls
+                to_update.append(s)
+            else:
+                to_create.append(
+                    Student(
+                        matric_no=matric,
+                        first_name=record["FIRSTNAME"],
+                        last_name=record["LASTNAME"],
+                        email=record["EMAIL"],
+                        phone=record["PHONE NUMBER"],
+                        department=cls.department,
+                        level=cls,
+                    )
+                )
+
+        limits.assert_can_add_students(len(to_create))
         if to_create:
             Student.objects.bulk_create(to_create, batch_size=250)
         if to_update:

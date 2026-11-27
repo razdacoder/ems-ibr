@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 
 from ems import directory, directory_export, pdf_gen
 from ems.api.views.system import _get_or_create_settings
+from ems.export_files import counted_export
+from tenancy import limits
 
 _DOC_CHOICES = {"hall", "visa"}
 _SCOPE_CHOICES = {"slot", "week", "duration"}
@@ -48,6 +50,9 @@ def _parse_params(request):
         raise ValidationError(
             {"detail": "date is required for 'slot' and 'week' scope."}
         )
+    if doc == "hall":
+        # The Hall Directory is built from seat allocation; VISA is not.
+        limits.assert_feature("seat_allocation")
     return doc, scope, date_obj, period
 
 
@@ -58,7 +63,7 @@ class DirectoryPreviewView(APIView):
 
     def get(self, request):
         doc, scope, date_obj, period = _parse_params(request)
-        slots = directory.build_payload(doc, scope, date_obj, period)
+        slots = directory.payload_for(request.user, doc, scope, date_obj, period)
         return Response({"doc": doc, "scope": scope, "slots": slots})
 
 
@@ -78,7 +83,7 @@ class DirectoryExportView(APIView):
             raise ValidationError(
                 {"detail": f"fmt must be one of: {', '.join(sorted(_FORMATS))}."}
             )
-        payload = directory.build_payload(doc, scope, date_obj, period)
+        payload = directory.payload_for(request.user, doc, scope, date_obj, period)
 
         if fmt == "csv":
             content = directory_export.build_csv(doc, payload)
@@ -94,4 +99,4 @@ class DirectoryExportView(APIView):
         filename = f"{label}-{scope}.{extension}"
         response = HttpResponse(content, content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+        return counted_export("directory", response)

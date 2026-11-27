@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, Outlet } from "@tanstack/react-router";
+import type { AppPath } from "@/lib/paths";
 import {
   Armchair,
   Boxes,
@@ -19,6 +20,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  RefreshCw,
   School,
   ScrollText,
   Settings,
@@ -42,7 +44,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { SupportBanner } from "@/components/support-banner";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 import { useNotificationStream } from "@/api/notifications";
+import { type FeatureKey, useSchoolPlan } from "@/api/school";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,18 +67,20 @@ interface NavSection {
 }
 
 interface NavItem {
-  to: string;
+  to: AppPath;
   label: string;
   icon: LucideIcon;
   /** When set, the item is shown only if the predicate passes for the user. */
   requires?: (u: AuthUser | null) => boolean;
+  /** When set, the item is shown only if the school's plan includes it. */
+  feature?: FeatureKey;
 }
 
 const NAV_SECTIONS: NavSection[] = [
   {
     label: "Overview",
     tone: "iris",
-    items: [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+    items: [{ to: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Catalog",
@@ -101,12 +108,14 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Distribution",
         icon: Boxes,
         requires: isCommittee,
+        feature: "distribution",
       },
       {
         to: "/allocation",
         label: "Allocation",
         icon: Armchair,
         requires: isCommittee,
+        feature: "seat_allocation",
       },
       {
         to: "/directory",
@@ -128,6 +137,13 @@ const NAV_SECTIONS: NavSection[] = [
         requires: canManageFaculties,
       },
       { to: "/uploads", label: "Uploads", icon: Upload, requires: canManageData },
+      {
+        to: "/portal-sync",
+        label: "Portal sync",
+        icon: RefreshCw,
+        requires: canManageData,
+        feature: "portal_sync",
+      },
       { to: "/users", label: "Users", icon: Users, requires: isSuperAdmin },
       { to: "/jobs", label: "Jobs", icon: ListChecks, requires: isSuperAdmin },
       {
@@ -186,12 +202,12 @@ function SidebarContent({
         )}
       >
         {collapsed ? (
-          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+          <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
             <Logo size={22} />
           </Link>
         ) : (
           <>
-            <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+            <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
               <Wordmark />
             </Link>
             <InstitutionLogo size={32} className="ml-auto" />
@@ -231,10 +247,10 @@ function SidebarContent({
               )}
               <div className="space-y-0.5">
                 {section.items.map(({ to, label, icon: Icon }) => (
-                  <NavLink
+                  <Link
                     key={to}
                     to={to}
-                    end={to === "/dashboard"}
+                    activeOptions={{ exact: to === "/" }}
                     onClick={onNavigate}
                     title={collapsed ? label : undefined}
                     style={
@@ -243,17 +259,18 @@ function SidebarContent({
                         "--nav-fg": accentFg,
                       } as React.CSSProperties
                     }
-                    className={({ isActive }) =>
-                      cn(
-                        "group relative flex items-center rounded-md text-[13.5px] transition-all duration-200",
-                        collapsed
-                          ? "h-9 justify-center"
-                          : "gap-2.5 px-2.5 py-1.5",
-                        isActive
-                          ? "bg-[color:var(--nav-bg)] text-[color:var(--nav-fg)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--nav-fg)_22%,transparent)]"
-                          : "text-muted-foreground hover:bg-[color:var(--nav-bg)]/60 hover:text-[color:var(--nav-fg)]",
-                      )
-                    }
+                    className={cn(
+                      "group relative flex items-center rounded-md text-[13.5px] transition-all duration-200",
+                      collapsed ? "h-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
+                    )}
+                    activeProps={{
+                      className:
+                        "bg-[color:var(--nav-bg)] text-[color:var(--nav-fg)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--nav-fg)_22%,transparent)]",
+                    }}
+                    inactiveProps={{
+                      className:
+                        "text-muted-foreground hover:bg-[color:var(--nav-bg)]/60 hover:text-[color:var(--nav-fg)]",
+                    }}
                   >
                     {({ isActive }) => (
                       <>
@@ -284,7 +301,7 @@ function SidebarContent({
                         )}
                       </>
                     )}
-                  </NavLink>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -411,6 +428,7 @@ function SidebarContent({
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   useNotificationStream();
+  const plan = useSchoolPlan();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -423,7 +441,11 @@ export function DashboardLayout() {
 
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((i) => !i.requires || i.requires(user)),
+    items: s.items.filter(
+      (i) =>
+        (!i.requires || i.requires(user)) &&
+        (!i.feature || !plan.data || plan.data.features.includes(i.feature)),
+    ),
   })).filter((s) => s.items.length > 0);
 
   return (
@@ -477,6 +499,8 @@ export function DashboardLayout() {
 
       {/* Right column: only this area scrolls */}
       <div className="flex h-screen flex-1 flex-col overflow-hidden">
+        <SupportBanner />
+        <AnnouncementBanner />
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-[color:var(--border)] bg-background/80 px-5 backdrop-blur-md lg:hidden">
           <Button
             type="button"
@@ -487,7 +511,7 @@ export function DashboardLayout() {
           >
             <Menu strokeWidth={2} />
           </Button>
-          <Link to="/dashboard" aria-label="Go to dashboard" className={BRAND_LINK}>
+          <Link to="/" aria-label="Go to dashboard" className={BRAND_LINK}>
             <Wordmark size="sm" />
           </Link>
           <div className="flex items-center gap-2">

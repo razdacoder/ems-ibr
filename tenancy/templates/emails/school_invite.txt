@@ -1,0 +1,10 @@
+{% autoescape off %}Hello{% if name %} {{ name }}{% endif %},
+
+{{ school_name }} is ready on Ordo, and you're its first administrator ({{ role }}).
+
+Set your password and sign in here:
+
+{{ url }}
+
+The link works once and expires in {{ days }} days. Once you're in, you can invite the rest of your team.
+{% endautoescape %}

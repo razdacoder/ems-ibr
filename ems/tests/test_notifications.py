@@ -1,14 +1,17 @@
 """The notification service, the inbox API and the live WebSocket push."""
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
-from django.test import TestCase, TransactionTestCase
+from django.db import connection
 from rest_framework.authtoken.models import Token
-from rest_framework.test import APIClient
 
 from core.asgi import application
 from ems.models import AuditLog, Notification, User
 from ems.notifications import notify, user_group
+from tenancy.testcases import (
+    SCHOOL_TEST_HOST, SchoolClient, SchoolTestCase, SocketTestMixin,
+)
 
 from .helpers import make_department
 
@@ -19,7 +22,7 @@ def officer(email, department=None, **fields):
     )
 
 
-class NotifyTests(TestCase):
+class NotifyTests(SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.bola = officer("bola@example.com")
@@ -47,7 +50,9 @@ class NotifyTests(TestCase):
     def test_pushes_to_each_recipient_group_after_commit(self):
         layer = get_channel_layer()
         channel = async_to_sync(layer.new_channel)()
-        async_to_sync(layer.group_add)(user_group(self.ada.pk), channel)
+        async_to_sync(layer.group_add)(
+            user_group(connection.schema_name, self.ada.pk), channel
+        )
 
         with self.captureOnCommitCallbacks(execute=True):
             notify([self.ada], title="Hello", link="/timetable")
@@ -59,11 +64,11 @@ class NotifyTests(TestCase):
         self.assertIsNone(message["data"]["read_at"])
 
 
-class InboxApiTests(TestCase):
+class InboxApiTests(SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.bola = officer("bola@example.com")
-        self.client = APIClient()
+        self.client = SchoolClient()
         self.client.force_authenticate(self.ada)
         self.first, = notify([self.ada], title="First")
         self.second, = notify([self.ada], title="Second")
@@ -112,10 +117,10 @@ class InboxApiTests(TestCase):
         self.assertFalse(AuditLog.objects.exists())
 
     def test_needs_sign_in(self):
-        self.assertEqual(APIClient().get("/api/notifications/").status_code, 401)
+        self.assertEqual(SchoolClient().get("/api/notifications/").status_code, 401)
 
 
-class NotificationSocketTests(TransactionTestCase):
+class NotificationSocketTests(SocketTestMixin, SchoolTestCase):
     def setUp(self):
         self.ada = officer("ada@example.com")
         self.token = Token.objects.get(user=self.ada).key
@@ -125,7 +130,10 @@ class NotificationSocketTests(TransactionTestCase):
         return WebsocketCommunicator(
             application,
             f"/ws/notifications/?token={token}",
-            headers=[(b"host", b"localhost"), (b"origin", b"http://localhost")],
+            headers=[
+                (b"host", SCHOOL_TEST_HOST.encode()),
+                (b"origin", f"http://{SCHOOL_TEST_HOST}:3000".encode()),
+            ],
         )
 
     def test_sends_the_unread_count_then_each_new_one(self):
@@ -136,7 +144,7 @@ class NotificationSocketTests(TransactionTestCase):
             self.assertEqual(await ws.receive_json_from(), {"type": "unread", "count": 1})
 
             await get_channel_layer().group_send(
-                user_group(self.ada.pk),
+                user_group("school_test", self.ada.pk),
                 {"type": "notification.new", "data": {"title": "Live"}},
             )
             self.assertEqual(
@@ -144,6 +152,26 @@ class NotificationSocketTests(TransactionTestCase):
                 {"type": "notification", "notification": {"title": "Live"}},
             )
             await ws.disconnect()
+
+        async_to_sync(scenario)()
+
+    def test_a_revoked_token_stops_the_stream(self):
+        # Security audit F09: revocation after the handshake must stop
+        # delivery, not just future handshakes.
+        async def scenario():
+            ws = self.connect(self.token)
+            connected, _ = await ws.connect()
+            self.assertTrue(connected)
+            await ws.receive_json_from()
+
+            await database_sync_to_async(Token.objects.filter(key=self.token).delete)()
+            await get_channel_layer().group_send(
+                user_group("school_test", self.ada.pk),
+                {"type": "notification.new", "data": {"title": "After revoke"}},
+            )
+            output = await ws.receive_output()
+            self.assertEqual(output["type"], "websocket.close")
+            self.assertEqual(output["code"], 4401)
 
         async_to_sync(scenario)()
 

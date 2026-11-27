@@ -1,3 +1,4 @@
+import functools
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timedelta
@@ -10,6 +11,8 @@ from .models import (
     Hall, TimeTable, SeatArrangement, DistributionItem, Student
 )
 from . import seating_rules
+from tenancy.observability import metrics
+from tenancy.observability.capture import job_failed
 from .readiness import NotReady, check as check_readiness, failed_result
 from .utils import (
     get_courses, get_halls, split_course, generate, classify_courses,
@@ -109,10 +112,12 @@ def _unplaced_students_warning(date, period):
 def _fail_not_ready(job, report):
     """Stop a job the readiness safety net refused. Expected, so no
     traceback: the lists are what the officer needs to fix the data."""
+    error = NotReady(report)
     job.status = 'failed'
-    job.error_message = str(NotReady(report))
+    job.error_message = str(error)
     job.result_data = failed_result(report)
     job.completed_at = timezone.now()
+    job_failed(job, error, expected=True)
     job.save()
     return {'status': 'failed', 'message': job.error_message}
 
@@ -122,6 +127,32 @@ def _assert_ready(stage, slots=None):
     if not report['ready']:
         raise NotReady(report)
     return report
+
+
+def _counted_run(kind):
+    """Count the run and time it (spec 0006, AC-9). A run is ``succeeded``
+    when its job ends ``success``. An inner task the ``*_all`` tasks run
+    inline with ``.apply()`` is part of the outer run, so not counted."""
+    def wrap(run):
+        @functools.wraps(run)
+        def counted(self, job_id, *args, **kwargs):
+            if self.request.is_eager:
+                return run(self, job_id, *args, **kwargs)
+            metrics.GENERATION_RUNS.add(1, kind=kind, outcome='started')
+            started = time.monotonic()
+            outcome = 'failed'
+            try:
+                result = run(self, job_id, *args, **kwargs)
+                if BackgroundJob.objects.filter(job_id=job_id, status='success').exists():
+                    outcome = 'succeeded'
+                return result
+            finally:
+                metrics.GENERATION_RUNS.add(1, kind=kind, outcome=outcome)
+                metrics.GENERATION_DURATION.record(
+                    (time.monotonic() - started) * 1000, kind=kind, outcome=outcome
+                )
+        return counted
+    return wrap
 
 
 class _Progress:
@@ -183,6 +214,7 @@ def _distribute_slot(
 
 
 @shared_task(bind=True)
+@_counted_run('timetable')
 def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str):
     """
     Celery task for timetable generation
@@ -278,7 +310,32 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
 
         # Plan in memory first: the old timetable stays in place (and
         # published, if it was) until the new one is ready to replace it.
-        summary = generate(
+        # The engine is set per school by the Ordo team (School.
+        # timetable_engine), never by the school. CP-SAT falls back to the
+        # greedy if OR-Tools is missing, so generation never fails over it.
+        # ``schema_context`` leaves a stand-in tenant with no fields, hence
+        # the getattr defaults.
+        from django.db import connection
+        school = getattr(connection, 'tenant', None)
+        engine = getattr(school, 'timetable_engine', None) or 'greedy'
+        engine_note = None
+        planner, engine_kwargs = generate, {}
+        if engine == 'cpsat':
+            try:
+                from .timetable_cpsat import generate_cpsat
+            except ImportError:
+                engine, engine_note = 'greedy', (
+                    'The CP-SAT solver is not installed on this server, so '
+                    'the greedy generator was used.'
+                )
+            else:
+                planner = generate_cpsat
+                engine_kwargs = {
+                    'spread_time_limit': getattr(school, 'cpsat_spread_seconds', None) or 60,
+                    'initial_alpha': constraints.cpsat_alpha or 0.0,
+                }
+        print(f"[TASK] Timetable engine: {engine}")
+        summary = planner(
             dates,
             AM_courses,
             PM_courses,
@@ -292,8 +349,14 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             save=False,
             on_date_planned=planned_date,
             fit_check=fit_check,
+            **engine_kwargs,
         )
         schedules = summary.pop('schedules')
+        if engine == 'cpsat' and summary.get('alpha') is not None:
+            # Feed what the fit check taught this run to the next one.
+            type(constraints).objects.filter(pk=constraints.pk).update(
+                cpsat_alpha=summary['alpha']
+            )
 
         print(f"[TASK] Timetable generation completed")
         print(f"[TASK] Summary: {summary}")
@@ -355,6 +418,10 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
                 "over a full day. Assign its classes' faculties to different "
                 "CBE groups so it splits, or raise the auto-split threshold.",
             ))
+        if engine_note:
+            warnings.append(_warning(
+                'Timetable planned with the greedy generator', [], engine_note,
+            ))
         left_out = len(skipped) + len(refused_oversized) + len(refused_cbe)
         if left_out:
             message = (
@@ -387,6 +454,9 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             'refused_oversized': refused_oversized,
             'refused_cbe': summary.get('refused_cbe', []),
             'rebooked_after_fit_check': summary.get('rebooked_after_fit_check', 0),
+            'engine': engine,
+            'solver_status': summary.get('solver_status'),
+            'solver_timings': summary.get('timings'),
         }
         job.save()
         
@@ -408,11 +478,13 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
 
 @shared_task(bind=True)
+@_counted_run('distribution')
 def generate_distribution_task(self, job_id, user_id, date, period):
     """
     Celery task for distribution generation
@@ -502,11 +574,13 @@ def generate_distribution_task(self, job_id, user_id, date, period):
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
 
 @shared_task(bind=True)
+@_counted_run('allocation')
 def generate_allocation_task(self, job_id, user_id, date, period):
     """
     Celery task for seat allocation generation
@@ -715,11 +789,13 @@ def generate_allocation_task(self, job_id, user_id, date, period):
             'traceback': traceback.format_exc()
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
 
 @shared_task(bind=True)
+@_counted_run('distribution_all')
 def generate_distribution_all_task(self, job_id, user_id):
     """Distribute every (date, period) slot present in the timetable.
     Skips any slot that already has a distribution plan."""
@@ -788,7 +864,7 @@ def generate_distribution_all_task(self, job_id, user_id):
         return {'status': 'success', 'message': job.result_data['message']}
     except NotReady as e:
         return _fail_not_ready(job, e.report)
-    except SoftTimeLimitExceeded:
+    except SoftTimeLimitExceeded as exc:
         # Soft limit hit — fail gracefully before the hard SIGKILL so the job
         # isn't left stuck in 'running'. This task is resumable: it skips slots
         # that already have a Distribution, so a re-run continues where it
@@ -808,6 +884,7 @@ def generate_distribution_all_task(self, job_id, user_id):
             'slots_total': total_slots,
         }
         job.completed_at = timezone.now()
+        job_failed(job, exc)
         job.save()
         raise
     except Exception as e:
@@ -820,11 +897,13 @@ def generate_distribution_all_task(self, job_id, user_id):
             'traceback': traceback.format_exc(),
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
 
 
 @shared_task(bind=True)
+@_counted_run('allocation_all')
 def generate_allocation_all_task(self, job_id, user_id):
     """Allocate every (date, period) slot that has a Distribution but no
     SeatArrangement yet. Re-uses the per-slot allocation task by inline
@@ -909,13 +988,16 @@ def generate_allocation_all_task(self, job_id, user_id):
                 + '. The other slots are seated; retry to run the failed ones.'
             )
             job.result_data['failed_slots'] = failed
+            # Each failed slot was recorded by its own job; this records the
+            # bulk job ending failed.
+            job_failed(job)
         else:
             job.status = 'success'
         job.save()
         return {'status': job.status, 'message': job.error_message or job.result_data['message']}
     except NotReady as e:
         return _fail_not_ready(job, e.report)
-    except SoftTimeLimitExceeded:
+    except SoftTimeLimitExceeded as exc:
         # Soft limit hit — fail gracefully before the hard SIGKILL. Resumable:
         # slots that already have a SeatArrangement are skipped on re-run.
         done = len(results) if 'results' in locals() else 0
@@ -933,6 +1015,7 @@ def generate_allocation_all_task(self, job_id, user_id):
             'slots_total': total_slots,
         }
         job.completed_at = timezone.now()
+        job_failed(job, exc)
         job.save()
         raise
     except Exception as e:
@@ -945,5 +1028,51 @@ def generate_allocation_all_task(self, job_id, user_id):
             'traceback': traceback.format_exc(),
         }
         job.completed_at = timezone.now()
+        job_failed(job, e)
         job.save()
         raise
+
+
+@shared_task(bind=True)
+def portal_sync_task(self, job_id, run_id):
+    """Fetch the school's portal and apply it (spec 0005). Runs in the
+    school's schema, like every task queued from a school request."""
+    from .models import SyncRun
+    from .portal_sync.runs import execute
+
+    try:
+        execute(run_id, job_id)
+    finally:
+        _count_sync(SyncRun.objects.filter(pk=run_id).values("status", "is_preview", "counts").first())
+
+
+def _count_sync(run):
+    """The finished run, and the records it applied by outcome (spec 0006,
+    AC-9). A preview applies nothing, so its counts are not records."""
+    if run is None:
+        return
+    from .models import SyncRun
+
+    failed = run["status"] in (SyncRun.Status.FAILED, SyncRun.Status.RUNNING)
+    metrics.SYNC_RUNS.add(
+        1, outcome='failed' if failed else 'succeeded', preview='yes' if run["is_preview"] else 'no'
+    )
+    if run["is_preview"]:
+        return
+    totals = {}
+    for counts in (run["counts"] or {}).values():
+        for outcome, n in (counts or {}).items():
+            if isinstance(n, int) and not isinstance(n, bool):
+                totals[outcome] = totals.get(outcome, 0) + n
+    for outcome, n in totals.items():
+        if n:
+            metrics.SYNC_RECORDS.add(n, outcome=outcome)
+
+
+@shared_task
+def prune_sync_runs():
+    """Delete portal sync runs older than 90 days in every school (beat,
+    daily)."""
+    from .portal_sync.runs import prune
+
+    prune()

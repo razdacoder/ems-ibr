@@ -1,15 +1,6 @@
-# --- Stage 1: build the React SPA -----------------------------------------
-FROM node:20-slim AS frontend
-WORKDIR /frontend
+# Django API (REST + WebSockets). The site and dashboard are a separate
+# image built from frontend/Dockerfile.
 
-# package manifests first for layer-cached installs
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-COPY frontend/ ./
-RUN npm run build
-
-# --- Stage 2: Python runtime ----------------------------------------------
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,9 +10,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Postgres client for the entrypoint healthcheck; build toolchain for wheels.
+# Postgres client for the entrypoint healthcheck and the final export of a
+# deleted school. pg_dump refuses a server newer than itself, so it comes
+# from the PGDG repo at the server's major version; bump PG_MAJOR with it.
+# Build toolchain for wheels.
+ARG PG_MAJOR=16
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        postgresql-client \
+        postgresql-common \
+    && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+    && apt-get install -y --no-install-recommends \
+        postgresql-client-${PG_MAJOR} \
         gcc \
         python3-dev \
         libpq-dev \
@@ -31,12 +29,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# The release id (git short sha), stamped on every captured error
+# (spec 0004). Pass it with --build-arg; api, worker and beat all get it.
+ARG ORDO_RELEASE=dev
+ENV ORDO_RELEASE=${ORDO_RELEASE}
+
 # Application source. .dockerignore excludes .venv, node_modules,
 # db.sqlite3, etc., so this stays lean.
 COPY . .
-
-# Drop in the React build from stage 1 so collectstatic can pick it up.
-COPY --from=frontend /frontend/dist ./frontend/dist
 
 # Materialize STATIC_ROOT inside the image. Failing fast here catches a
 # broken build at image-build time, not runtime.

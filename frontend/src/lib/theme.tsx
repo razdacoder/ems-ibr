@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
-type Theme = "light" | "dark";
+import { readStoredTheme, storeTheme, type Theme } from "./theme-cookie";
 
 interface ThemeContext {
   theme: Theme;
@@ -15,18 +15,7 @@ interface ThemeContext {
   toggle: () => void;
 }
 
-const STORAGE_KEY = "ordo:theme";
-
 const Ctx = createContext<ThemeContext | null>(null);
-
-function readInitial(): Theme {
-  if (typeof window === "undefined") return "light";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
 
 function apply(theme: Theme) {
   const root = document.documentElement;
@@ -34,29 +23,43 @@ function apply(theme: Theme) {
   root.style.colorScheme = theme;
 }
 
+/**
+ * The server can't know the visitor's theme, so the inline script in
+ * __root.tsx sets it before paint and this provider reads it back after
+ * hydration. Until then `theme` reports "light"; render theme-dependent UI
+ * with `dark:` classes rather than from `theme` so it's right from the
+ * first paint.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => readInitial());
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    apply(theme);
-    window.localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme]);
+    setThemeState(
+      document.documentElement.classList.contains("dark") ? "dark" : "light",
+    );
+  }, []);
 
   // Follow OS changes only when the user has not made an explicit choice.
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = (e: MediaQueryListEvent) => {
-      if (window.localStorage.getItem(STORAGE_KEY)) return;
-      setThemeState(e.matches ? "dark" : "light");
+      if (readStoredTheme()) return;
+      const next = e.matches ? "dark" : "light";
+      apply(next);
+      setThemeState(next);
     };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  const setTheme = useCallback((next: Theme) => setThemeState(next), []);
+  const setTheme = useCallback((next: Theme) => {
+    apply(next);
+    storeTheme(next);
+    setThemeState(next);
+  }, []);
   const toggle = useCallback(
-    () => setThemeState((t) => (t === "dark" ? "light" : "dark")),
-    [],
+    () => setTheme(document.documentElement.classList.contains("dark") ? "light" : "dark"),
+    [setTheme],
   );
 
   return <Ctx.Provider value={{ theme, setTheme, toggle }}>{children}</Ctx.Provider>;

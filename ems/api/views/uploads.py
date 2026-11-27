@@ -6,8 +6,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ems import upload_handlers
-from ems.api.permissions import IsDataOfficer, UploadsUnlocked
+from ems.api.permissions import IsDataOfficer, NotPortalManaged, UploadsUnlocked
 from ems.models import Class, Department
+from tenancy.observability import metrics
 
 
 def _require_dept_access(request, department: Department) -> None:
@@ -24,10 +25,25 @@ def _require_dept_access(request, department: Department) -> None:
 
 
 class _BaseUploadView(APIView):
-    permission_classes = [IsDataOfficer, UploadsUnlocked]
+    permission_classes = [IsDataOfficer, UploadsUnlocked, NotPortalManaged]
     parser_classes = [MultiPartParser, FormParser]
 
     handler_attr: str = ""
+    # The data type the upload writes; the portal may own it (spec 0005).
+    data_type: str | None = None
+    # The ``kind`` label of the upload metrics (spec 0006).
+    metric_kind: str = ""
+
+    def portal_data_type(self, request):
+        return self.data_type
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        # A successful upload is counted with its file's size (AC-9).
+        f = request.FILES.get("file") if response.status_code < 300 else None
+        if f is not None:
+            metrics.UPLOADS.add(1, kind=self.metric_kind)
+            metrics.UPLOAD_BYTES.add(f.size, kind=self.metric_kind)
+        return super().finalize_response(request, response, *args, **kwargs)
 
     def _file(self, request):
         f = request.FILES.get("file")
@@ -40,6 +56,9 @@ class _BaseUploadView(APIView):
 
 
 class DepartmentUploadView(_BaseUploadView):
+    data_type = "departments"
+    metric_kind = "department"
+
     def post(self, request):
         f = self._file(request)
         if isinstance(f, Response):
@@ -52,6 +71,8 @@ class DepartmentUploadView(_BaseUploadView):
 
 
 class HallUploadView(_BaseUploadView):
+    metric_kind = "hall"
+
     def post(self, request):
         f = self._file(request)
         if isinstance(f, Response):
@@ -64,6 +85,9 @@ class HallUploadView(_BaseUploadView):
 
 
 class CourseUploadView(_BaseUploadView):
+    data_type = "courses"
+    metric_kind = "course"
+
     def post(self, request):
         f = self._file(request)
         if isinstance(f, Response):
@@ -76,7 +100,9 @@ class CourseUploadView(_BaseUploadView):
 
 
 class ClassesForDepartmentUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "classes"
+    metric_kind = "classes"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, dept_slug):
         department = get_object_or_404(Department, slug=dept_slug)
@@ -92,7 +118,9 @@ class ClassesForDepartmentUploadView(_BaseUploadView):
 
 
 class ClassCoursesUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "courses"
+    metric_kind = "class_courses"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
@@ -108,7 +136,9 @@ class ClassCoursesUploadView(_BaseUploadView):
 
 
 class ClassStudentsUploadView(_BaseUploadView):
-    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked]
+    data_type = "students"
+    metric_kind = "class_students"
+    permission_classes = [permissions.IsAuthenticated, UploadsUnlocked, NotPortalManaged]
 
     def post(self, request, class_id):
         cls = get_object_or_404(Class, pk=class_id)
@@ -117,7 +147,9 @@ class ClassStudentsUploadView(_BaseUploadView):
         if isinstance(f, Response):
             return f
         try:
-            result = upload_handlers.upload_class_students(f, cls)
+            result = upload_handlers.upload_class_students(
+                f, cls, cross_department=request.user.can_manage_data
+            )
         except upload_handlers.UploadError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
@@ -125,6 +157,12 @@ class ClassStudentsUploadView(_BaseUploadView):
 
 class BulkUploadView(_BaseUploadView):
     """POST /api/uploads/bulk/ with `upload_type` field selecting the dispatcher."""
+
+    metric_kind = "bulk"
+
+    def portal_data_type(self, request):
+        upload_type = request.data.get("upload_type", "").strip()
+        return upload_type if upload_type in ("departments", "courses") else None
 
     def post(self, request):
         f = self._file(request)

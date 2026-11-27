@@ -1,0 +1,9 @@
+{% autoescape off %}Hello {{ name }},
+
+You've been invited to the Ordo console as {{ role }}.
+Set your password here:
+
+{{ url }}
+
+The link works once and expires in 48 hours. After setting your password you'll be asked to set up an authenticator app.
+{% endautoescape %}

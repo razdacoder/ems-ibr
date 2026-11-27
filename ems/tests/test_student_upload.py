@@ -1,9 +1,9 @@
 """upload_class_students: a class's student CSV."""
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
 
 from ems.models import Student
 from ems.upload_handlers import UploadError, upload_class_students
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import make_class
 
@@ -14,7 +14,7 @@ def csv_file(body):
     return SimpleUploadedFile("students.csv", (HEADER + body).encode(), content_type="text/csv")
 
 
-class UploadClassStudentsTests(TestCase):
+class UploadClassStudentsTests(SchoolTestCase):
     def setUp(self):
         self.cls = make_class(0)
 
@@ -82,7 +82,7 @@ class UploadClassStudentsTests(TestCase):
             upload_class_students(csv_file(",Ada,Obi,ada@example.com,0803\n"), self.cls)
 
 
-class SpreadsheetFloatTailTests(TestCase):
+class SpreadsheetFloatTailTests(SchoolTestCase):
     """A CSV saved from Excel can hold "2530710047.0" for 2530710047."""
 
     def setUp(self):
@@ -120,7 +120,7 @@ class SpreadsheetFloatTailTests(TestCase):
         self.assertEqual((student.matric_no, student.phone), ("2530710047", "8031234567"))
 
 
-class CleanNumberTextTests(TestCase):
+class CleanNumberTextTests(SchoolTestCase):
     def test_only_an_all_digit_value_with_a_zero_decimal_changes(self):
         from ems.identifiers import clean_number_text
 

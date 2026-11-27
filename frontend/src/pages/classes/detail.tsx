@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +18,8 @@ import {
 } from "@/api/uploads";
 import { useSystemSettings } from "@/api/system";
 import { FileUploadCard } from "@/components/file-upload-card";
+import { FromPortalBadge, portalLocked } from "@/components/from-portal-badge";
+import { PlanUsage } from "@/components/plan-usage";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,7 +63,7 @@ import { toast } from "@/lib/use-toast";
 import { formatEmail, formatName, formatTitle, orEmpty } from "@/lib/format";
 
 export default function ClassDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams({ from: "/_app/classes/$id" });
   const numericId = id ? Number(id) : undefined;
   const cls = useClass(numericId);
   const remove = useRemoveCourseFromClass(numericId ?? 0);
@@ -74,6 +77,8 @@ export default function ClassDetailPage() {
     (!!user?.department && user.department.id === cls.data?.department.id);
   const [open, setOpen] = useState(false);
   const confirm = useConfirm();
+  // The portal lists this class's courses, so they change there.
+  const canEditCourses = isAdmin && !portalLocked(cls.data, "courses");
 
   const onRemove = async (courseId: number, code: string) => {
     const ok = await confirm({
@@ -109,66 +114,69 @@ export default function ClassDetailPage() {
         <Skeleton className="h-32" />
       ) : cls.data ? (
         <>
-          <header className="flex flex-col gap-6 border-b border-[color:var(--border)] pb-8 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Catalog · Class
-              </p>
-              <h1 className="mt-3 font-serif text-[2.5rem] leading-[1.05] tracking-[-0.015em] sm:text-[3rem]">
-                {cls.data.name}
-              </h1>
-              <p className="mt-2 text-[14.5px] text-muted-foreground">
-                {cls.data.department.name}
-                <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
-                  {cls.data.department.slug}
-                </span>
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Students enrolled
-                </p>
-                <p className="mt-1 font-serif text-[2rem] tabular-nums">
-                  {cls.data.student_count}
-                </p>
-              </div>
-              <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4">
-                <p
-                  id="class-active-label"
-                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
-                >
-                  Sitting this session
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  {isAdmin ? (
-                    <Switch
-                      checked={cls.data.is_active}
-                      disabled={setActive.isPending}
-                      aria-labelledby="class-active-label"
-                      onCheckedChange={async (is_active) => {
-                        try {
-                          await setActive.mutateAsync({
-                            id: cls.data!.id,
-                            is_active,
-                          });
-                        } catch (err) {
-                          toast({
-                            title: "Could not change the class",
-                            description: extractErrorEnvelope(err).detail,
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    />
-                  ) : null}
-                  <span className="text-sm">
-                    {cls.data.is_active ? "Yes" : "No, left out of planning"}
+          <PageHeader
+            section="Catalog · Classes"
+            title={cls.data.name ?? "Unnamed class"}
+            meta={
+              <>
+                <div>
+                  <FromPortalBadge record={cls.data} />
+                </div>
+                <p className="mt-2 text-[14.5px] text-muted-foreground">
+                  {cls.data.department.name}
+                  <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.12em]">
+                    {cls.data.department.slug}
                   </span>
+                </p>
+              </>
+            }
+            actions={
+              <div className="flex gap-3">
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4 text-right">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Students enrolled
+                  </p>
+                  <p className="mt-1 font-serif text-[2rem] tabular-nums">
+                    {cls.data.student_count}
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-[color:var(--border)] bg-card px-5 py-4">
+                  <p
+                    id="class-active-label"
+                    className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                  >
+                    Sitting this session
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    {isAdmin ? (
+                      <Switch
+                        checked={cls.data.is_active}
+                        disabled={setActive.isPending}
+                        aria-labelledby="class-active-label"
+                        onCheckedChange={async (is_active) => {
+                          try {
+                            await setActive.mutateAsync({
+                              id: cls.data!.id,
+                              is_active,
+                            });
+                          } catch (err) {
+                            toast({
+                              title: "Could not change the class",
+                              description: extractErrorEnvelope(err).detail,
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <span className="text-sm">
+                      {cls.data.is_active ? "Yes" : "No, left out of planning"}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </header>
+            }
+          />
 
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -178,7 +186,7 @@ export default function ClassDetailPage() {
                   Courses currently linked to this class.
                 </CardDescription>
               </div>
-              {isAdmin && numericId !== undefined && (
+              {canEditCourses && numericId !== undefined && (
                 <Button onClick={() => setOpen(true)}>
                   <Plus data-icon="inline-start" /> Add course
                 </Button>
@@ -191,7 +199,7 @@ export default function ClassDetailPage() {
                     <TableHead className="w-[140px]">Code</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead className="w-[120px]">Type</TableHead>
-                    {isAdmin && (
+                    {canEditCourses && (
                       <TableHead className="w-[80px] text-right" />
                     )}
                   </TableRow>
@@ -200,7 +208,7 @@ export default function ClassDetailPage() {
                   {cls.data.courses.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={isAdmin ? 4 : 3}
+                        colSpan={canEditCourses ? 4 : 3}
                         className="py-12 text-center font-serif italic text-muted-foreground"
                       >
                         No courses assigned yet.
@@ -235,7 +243,7 @@ export default function ClassDetailPage() {
                             {c.exam_type}
                           </span>
                         </TableCell>
-                        {isAdmin && (
+                        {canEditCourses && (
                           <TableCell className="text-right">
                             <Button
                               variant="ghost"
@@ -341,7 +349,10 @@ function ClassStudentsCard({ classId }: { classId: number }) {
                         </span>
                       </TableCell>
                       <TableCell className="font-serif text-[1rem] tracking-[-0.005em]">
-                        {formatName(s.first_name, s.last_name)}
+                        <div className="flex items-center gap-2">
+                          {formatName(s.first_name, s.last_name)}
+                          <FromPortalBadge record={s} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatEmail(s.email)}
@@ -568,39 +579,42 @@ function ClassUploadGrid({ classId }: { classId: number }) {
     useState<{ created: number; updated: number } | null>(null);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <FileUploadCard
-        title="Upload class courses"
-        description="CSV with a single COURSE CODE column. Courses must already exist in the catalog."
-        disabled={locked}
-        isPending={courseUpload.isPending}
-        result={coursesResult}
-        error={courseUpload.error}
-        onUpload={async (file) => {
-          const r = await courseUpload.mutateAsync(file);
-          setCoursesResult(r);
-          toast({
-            title: "Courses linked",
-            description: `Added ${r.created}, already-linked ${r.updated}`,
-          });
-        }}
-      />
-      <FileUploadCard
-        title="Upload class students"
-        description="CSV columns: MATRIC NUMBER, FIRSTNAME, LASTNAME, EMAIL, PHONE NUMBER"
-        disabled={locked}
-        isPending={studentUpload.isPending}
-        result={studentsResult}
-        error={studentUpload.error}
-        onUpload={async (file) => {
-          const r = await studentUpload.mutateAsync(file);
-          setStudentsResult(r);
-          toast({
-            title: "Students uploaded",
-            description: `Created ${r.created}, updated ${r.updated}`,
-          });
-        }}
-      />
+    <div className="space-y-3">
+      <PlanUsage kind="students" className="block text-right" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <FileUploadCard
+          title="Upload class courses"
+          description="CSV with a single COURSE CODE column. Courses must already exist in the catalog."
+          disabled={locked}
+          isPending={courseUpload.isPending}
+          result={coursesResult}
+          error={courseUpload.error}
+          onUpload={async (file) => {
+            const r = await courseUpload.mutateAsync(file);
+            setCoursesResult(r);
+            toast({
+              title: "Courses linked",
+              description: `Added ${r.created}, already-linked ${r.updated}`,
+            });
+          }}
+        />
+        <FileUploadCard
+          title="Upload class students"
+          description="CSV columns: MATRIC NUMBER, FIRSTNAME, LASTNAME, EMAIL, PHONE NUMBER"
+          disabled={locked}
+          isPending={studentUpload.isPending}
+          result={studentsResult}
+          error={studentUpload.error}
+          onUpload={async (file) => {
+            const r = await studentUpload.mutateAsync(file);
+            setStudentsResult(r);
+            toast({
+              title: "Students uploaded",
+              description: `Created ${r.created}, updated ${r.updated}`,
+            });
+          }}
+        />
+      </div>
     </div>
   );
 }

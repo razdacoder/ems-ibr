@@ -1,0 +1,8 @@
+{% extends "emails/_base.html" %}
+{% block body %}
+<p style="margin:0 0 16px;">Hello {{ name }},</p>
+<p style="margin:0 0 16px;">You've been invited to the Ordo console as {{ role }}.</p>
+{% include "emails/_button.html" with label="Set your password" %}
+<p style="margin:0;">The link works once and expires in 48 hours. After setting your password you'll be asked to set up an authenticator app.</p>
+{% endblock %}
+{% block footer %}You're getting this because an Ordo Owner invited you to the platform console.{% endblock %}

@@ -3,7 +3,8 @@
 ``notify`` is the one way in. It writes a ``Notification`` row per
 recipient (the inbox the API serves) and, once the transaction commits,
 pushes each one to the recipient's WebSocket group so an open browser shows
-it at once. The push is best effort: when the channel layer is down the
+it at once. Group names start with the school's schema, so a push never
+reaches another school's socket even when user ids coincide. The push is best effort: when the channel layer is down the
 rows are still there and the inbox picks them up on its next fetch.
 """
 
@@ -11,7 +12,7 @@ import logging
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Count, Max, Min
 
 from ems.models import Department, Notification, TimeTable, User
@@ -19,9 +20,14 @@ from ems.models import Department, Notification, TimeTable, User
 logger = logging.getLogger(__name__)
 
 
-def user_group(user_id) -> str:
+def user_group(schema, user_id) -> str:
     """Channel group every open tab of one user joins."""
-    return f"notifications_{user_id}"
+    return f"{schema}.notifications_{user_id}"
+
+
+def job_group(schema, job_id) -> str:
+    """Channel group every socket watching one background job joins."""
+    return f"{schema}.job_{job_id}"
 
 
 def serialize(notification: Notification) -> dict:
@@ -39,7 +45,7 @@ def serialize(notification: Notification) -> dict:
     }
 
 
-def _push(notifications) -> None:
+def _push(schema, notifications) -> None:
     layer = get_channel_layer()
     if layer is None:
         return
@@ -47,7 +53,7 @@ def _push(notifications) -> None:
     for n in notifications:
         try:
             send(
-                user_group(n.recipient_id),
+                user_group(schema, n.recipient_id),
                 {"type": "notification.new", "data": serialize(n)},
             )
         except Exception:
@@ -79,7 +85,8 @@ def notify(
         )
         for uid in sorted(ids)
     )
-    transaction.on_commit(lambda: _push(created))
+    schema = connection.schema_name
+    transaction.on_commit(lambda: _push(schema, created))
     return created
 
 

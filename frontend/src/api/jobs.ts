@@ -5,11 +5,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, getToken } from "@/lib/api";
+import { api, getToken, wsUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { PaginatedResponse } from "./types";
 
-export type JobType = "timetable" | "distribution" | "allocation";
+export type JobType = "timetable" | "distribution" | "allocation" | "portal_sync";
 export type JobStatus = "pending" | "running" | "success" | "failed";
 
 export interface BackgroundJob {
@@ -189,8 +189,7 @@ export function useJobProgress(jobId: string | null) {
     const token = getToken();
     if (!token) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${protocol}://${window.location.host}/ws/jobs/${jobId}/?token=${token}`;
+    const url = wsUrl(`/ws/jobs/${jobId}/?token=${token}`);
     let cancelled = false;
 
     try {

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, getToken } from "@/lib/api";
+import { api, getToken, wsUrl } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "@/lib/use-toast";
 import type { PaginatedResponse } from "./types";
@@ -97,10 +97,7 @@ export function useNotificationStream() {
     const connect = () => {
       const token = getToken();
       if (!token || closed) return;
-      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(
-        `${protocol}://${window.location.host}/ws/notifications/?token=${token}`,
-      );
+      ws = new WebSocket(wsUrl(`/ws/notifications/?token=${token}`));
       ws.onopen = () => {
         attempts = 0;
       };

@@ -9,16 +9,16 @@ import { cn } from "@/lib/utils";
  * (so it drops straight into react-hook-form `field` spreads); the `type` is
  * managed internally and any incoming `type` is ignored.
  */
-function PasswordInput({
-  className,
-  type: _ignored,
-  ...props
-}: React.ComponentProps<"input">) {
+const PasswordInput = React.forwardRef<
+  HTMLInputElement,
+  React.ComponentProps<"input">
+>(function PasswordInput({ className, type: _ignored, ...props }, ref) {
   const [visible, setVisible] = React.useState(false);
 
   return (
     <div className="relative">
       <Input
+        ref={ref}
         type={visible ? "text" : "password"}
         className={cn("pr-10", className)}
         {...props}
@@ -39,6 +39,6 @@ function PasswordInput({
       </button>
     </div>
   );
-}
+});
 
 export { PasswordInput };

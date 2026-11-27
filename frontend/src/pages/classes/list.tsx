@@ -57,7 +57,8 @@ import { useConfirm } from "@/lib/confirm";
 import { extractErrorEnvelope } from "@/lib/api";
 import { toast } from "@/lib/use-toast";
 import { EMPTY } from "@/lib/format";
-import { Link } from "react-router-dom";
+import { FromPortalBadge, PortalLockedHint, portalLocked } from "@/components/from-portal-badge";
+import { Link } from "@tanstack/react-router";
 
 export default function ClassesListPage() {
   const { user } = useAuth();
@@ -144,7 +145,9 @@ export default function ClassesListPage() {
   return (
     <>
       <ListShell
+        section="Catalog · Classes"
         title="Classes"
+        emptyMessage={query || department !== "__all__" ? "No classes match these filters." : "No classes yet."}
         description="Each department's classes, with their courses and students."
         toolbar={
           isAdmin && (
@@ -232,7 +235,10 @@ export default function ClassesListPage() {
                   </kbd>
                 </TableCell>
                 <TableCell className="font-serif text-[1.0625rem] tracking-[-0.005em]">
-                  {c.name}
+                  <div className="flex items-center gap-2">
+                    {c.name}
+                    <FromPortalBadge record={c} />
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="font-mono tabular-nums">
@@ -274,7 +280,7 @@ export default function ClassesListPage() {
                   <TableCell className="text-right">
                     <RowActions>
                       <Button
-                        render={<Link to={`/classes/${c.id}`} />}
+                        render={<Link to="/classes/$id" params={{ id: String(c.id) }} />}
                         size="xs"
                         variant="outline"
                       >
@@ -290,14 +296,16 @@ export default function ClassesListPage() {
                       >
                         Edit
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        onClick={() => onDelete(c)}
-                        disabled={remove.isPending}
-                      >
-                        Delete
-                      </Button>
+                      {!c.from_portal && (
+                        <Button
+                          size="xs"
+                          variant="destructive"
+                          onClick={() => onDelete(c)}
+                          disabled={remove.isPending}
+                        >
+                          Delete
+                        </Button>
+                      )}
                     </RowActions>
                   </TableCell>
                 )}
@@ -520,8 +528,13 @@ function ClassFormDialog({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="100 Level" {...field} />
+                    <Input
+                      placeholder="100 Level"
+                      {...field}
+                      disabled={portalLocked(initial, "name")}
+                    />
                   </FormControl>
+                  <PortalLockedHint locked={portalLocked(initial, "name")} />
                   <FormMessage />
                 </FormItem>
               )}

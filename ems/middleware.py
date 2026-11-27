@@ -14,7 +14,11 @@ though token auth has no session middleware behind it.
 import json
 import re
 
+from django.db import connection
+from django_tenants.utils import get_public_schema_name
+
 from ems.models import AuditLog, User
+from tenancy.audit import client_ip
 
 # Trailing path segments that name a custom action rather than an object id.
 _ACTION_VERBS = {
@@ -29,6 +33,9 @@ _ACTION_VERBS = {
     "enable-bulk-upload": "Enabled bulk upload",
     "publish": "Published",
     "unpublish": "Withdrew",
+    "revoke": "Revoked",
+    "resend": "Resent",
+    "end": "Ended",
 }
 
 # A user's own inbox housekeeping (marking notifications read) is not
@@ -38,6 +45,7 @@ _UNAUDITED_RESOURCES = frozenset({"notifications"})
 # Map URL resource segment -> singular human label.
 _RESOURCE_LABELS = {
     "users": "user",
+    "invites": "invite",
     "departments": "department",
     "faculties": "faculty",
     "courses": "course",
@@ -52,6 +60,8 @@ _RESOURCE_LABELS = {
     "settings": "system settings",
     "branding": "branding",
     "constraints": "generation constraints",
+    "support": "support session",
+    "portal-sync": "portal sync",
 }
 
 _METHOD_VERBS = {
@@ -80,11 +90,13 @@ _EXPORT_LABELS = {
 _FILENAME_RE = re.compile(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", re.IGNORECASE)
 
 
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR") or None
+def set_audit(request, action, *, object_type, object_id="", **metadata):
+    """Name the audit row for this request instead of the path derived
+    description. For a view whose actions the path can't tell apart (a
+    connection change vs a secret change). ``metadata`` must hold no
+    secrets and no row content."""
+    target = getattr(request, "_request", request)
+    target._ordo_audit = (action, object_type, str(object_id or ""), metadata)
 
 
 def _segments(path):
@@ -196,6 +208,9 @@ class AuditLogMiddleware:
         path = request.path or ""
         if not path.startswith("/api/"):
             return
+        # console.<base> and api.<base> have no school, so no AuditLog table.
+        if connection.schema_name == get_public_schema_name():
+            return
 
         method = (request.method or "").upper()
         status_code = getattr(response, "status_code", None)
@@ -264,7 +279,11 @@ class AuditLogMiddleware:
         if segments and segments[0] in _UNAUDITED_RESOURCES:
             return
 
-        action, object_type, object_id = _describe(request, segments)
+        metadata = None
+        if named := getattr(request, "_ordo_audit", None):
+            action, object_type, object_id, metadata = named
+        else:
+            action, object_type, object_id = _describe(request, segments)
         self._write(
             user=user,
             email=user.email,
@@ -273,6 +292,7 @@ class AuditLogMiddleware:
             response=response,
             object_type=object_type,
             object_id=object_id,
+            metadata=metadata,
         )
 
     def _write(
@@ -288,6 +308,9 @@ class AuditLogMiddleware:
         metadata=None,
     ):
         status_code = getattr(response, "status_code", None)
+        # Everything Ordo support does is marked (spec 0003, child 0006).
+        if getattr(user, "support_expires_at", None) is not None:
+            action = f"[Ordo support] {action}"
         AuditLog.objects.create(
             user=user,
             user_email=(email or "")[:254],
@@ -297,7 +320,7 @@ class AuditLogMiddleware:
             object_type=(object_type or "")[:100],
             object_id=(str(object_id) if object_id else "")[:64],
             status_code=status_code,
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", "")[:512],
             metadata=metadata or {},
         )

@@ -1,3 +1,8 @@
+import atexit
+import os
+import subprocess
+import sys
+
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import autoreload
@@ -16,10 +21,18 @@ class Command(BaseCommand):
             nargs='?',
             default='worker',
             choices=['worker', 'beat', 'all'],
-            help="worker (default), beat, or all (worker with embedded beat)",
+            help="worker (default), beat, or all (worker and separate beat process)",
         )
         parser.add_argument('-l', '--loglevel', default='info')
         parser.add_argument('-c', '--concurrency', type=int, default=4)
+        # Celery 5.3's prefork fast tracer has no task registry in spawned
+        # children on macOS/Windows. Solo avoids that local startup failure.
+        parser.add_argument(
+            '-P', '--pool',
+            default='solo' if sys.platform in ('darwin', 'win32') else 'prefork',
+            help='Worker pool (default: solo on macOS/Windows, prefork elsewhere). '
+                 'Solo runs one task at a time and ignores concurrency.',
+        )
         parser.add_argument(
             '--reload',
             action='store_true',
@@ -52,9 +65,33 @@ class Command(BaseCommand):
         if mode == 'beat':
             argv = ['beat', '-l', loglevel]
         else:
-            argv = ['worker', '-l', loglevel, '--concurrency', concurrency]
-            if mode == 'all':
-                argv.append('-B')
+            # Both queues locally; production gives observability its own
+            # worker (spec 0006).
+            argv = ['worker', '-l', loglevel, '--concurrency', concurrency,
+                    '--pool', options['pool'],
+                    '-Q', 'celery,observability']
+
+        # Where pool children spawn instead of fork (macOS), they start with
+        # none of the worker's state and every task dies with "not enough
+        # values to unpack (expected 3, got 0)". This tells Celery to set
+        # them up itself; children inherit it. Harmless where they fork.
+        os.environ.setdefault('FORKED_BY_MULTIPROCESSING', '1')
 
         self.stdout.write(self.style.SUCCESS(f"Starting Celery {mode}..."))
-        app.start(argv)
+        if mode == 'all':
+            # Beat as its own process, as in production, not the worker's -B:
+            # where processes spawn (macOS) Celery 5.3 pickles the embedded
+            # beat with its arguments out of order and it dies with
+            # "'CeleryApp' object is not callable".
+            beat = subprocess.Popen([
+                sys.executable, '-m', 'celery', '-A', 'core',
+                'beat', '-l', loglevel,
+            ])
+            # The reloader exits the process on a change; never orphan beat.
+            atexit.register(beat.terminate)
+            try:
+                app.start(argv)
+            finally:
+                beat.terminate()
+        else:
+            app.start(argv)

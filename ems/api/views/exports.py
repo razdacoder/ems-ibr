@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 
 from ems import csv_gen
 from ems.branding import load_logo
-from ems.export_files import ZIP, SpooledFileResponse, spool
+from ems.export_files import ZIP, SpooledFileResponse, counted_export, spool
 from ems.models import SeatArrangement, SystemSettings
 from ems.utils import slot_relaxed_course_id
 from ems.views import (
@@ -24,6 +24,7 @@ from ems.views import (
     generate_broadsheet as legacy_generate_broadsheet,
     write_hall_attendance_sheets,
 )
+from tenancy.permissions import requires_feature
 
 
 def _slot_params(request):
@@ -48,21 +49,21 @@ class TimetableExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return csv_gen.export_department_timetable(request)
+        return counted_export("timetable", csv_gen.export_department_timetable(request))
 
 
 class DistributionExportView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("distribution")]
 
     def get(self, request):
-        return csv_gen.export_distribution(request)
+        return counted_export("distribution", csv_gen.export_distribution(request))
 
 
 class ArrangementExportView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation")]
 
     def get(self, request):
-        return csv_gen.export_arrangements(request)
+        return counted_export("arrangement", csv_gen.export_arrangements(request))
 
 
 class AttendanceSheetsView(APIView):
@@ -70,7 +71,7 @@ class AttendanceSheetsView(APIView):
     # ``bool(role)`` — i.e. every admin-side role (super admin, data officer,
     # faculty officer, exam committee) but not department officers, who have a
     # null role. That is exactly the intended audience for attendance sheets.
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation")]
 
     def get(self, request):
         params = request.query_params
@@ -118,7 +119,7 @@ class BulkAttendanceSheetsView(APIView):
     folder per hall. Same sheets, and the same audience, as the per hall
     export (:class:`AttendanceSheetsView`)."""
 
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("seat_allocation"), requires_feature("exports")]
 
     def get(self, request):
         date, period = _slot_params(request)
@@ -165,7 +166,7 @@ class BulkAttendanceSheetsView(APIView):
 
 
 class BroadsheetView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser, requires_feature("exports")]
 
     def get(self, request):
         return legacy_generate_broadsheet(request)

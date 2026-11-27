@@ -6,7 +6,6 @@ halls then left students unplaced for the cross hall reconcile to scatter.
 """
 import random
 
-from django.test import TestCase
 
 from ems.models import Hall, TimeTable
 from ems.utils import (
@@ -16,6 +15,7 @@ from ems.utils import (
     convert_hall_to_dict,
     distribute_classes_to_halls,
 )
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import listed_class, make_course, make_hall, quietly, schedule
 
@@ -47,7 +47,7 @@ def unplaced_after_seating(hall_result):
     return unplaced
 
 
-class QuartersCanSeatTests(TestCase):
+class QuartersCanSeatTests(SchoolTestCase):
     """_quarters_can_seat mirrors the allocator's quarter placer."""
 
     def test_accepts_four_courses_that_each_fill_one_quarter(self):
@@ -73,7 +73,7 @@ class QuartersCanSeatTests(TestCase):
         self.assertTrue(_quarters_can_seat(10, 10, []))
 
 
-class MaxSeatableBiteTests(TestCase):
+class MaxSeatableBiteTests(SchoolTestCase):
     def hall(self, classes):
         return {"rows": 10, "columns": 10, "classes": classes}
 
@@ -99,7 +99,7 @@ class MaxSeatableBiteTests(TestCase):
         self.assertEqual(_max_seatable_bite(self.hall([]), "A", 0), 0)
 
 
-class LargestFirstTests(TestCase):
+class LargestFirstTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)  # make_schedules shuffles
 
@@ -217,7 +217,7 @@ class LargestFirstTests(TestCase):
         self.assertEqual(loads, {"Room 0": 75, "Room 1": 75, "Room 2": 30})
 
 
-class SeatableAssignmentTests(TestCase):
+class SeatableAssignmentTests(SchoolTestCase):
     """Whatever distribution gives a hall, the allocator must seat in full.
 
     Before the fix a hall could be handed its whole grid in a mix of course
@@ -264,7 +264,7 @@ class SeatableAssignmentTests(TestCase):
             self.assertEqual(unplaced_after_seating(hall_result), [])
 
 
-class LargeCourseTests(TestCase):
+class LargeCourseTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)
 

@@ -9,7 +9,7 @@ import io
 import random
 from datetime import date
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 
 from ems import seating_rules
 from ems.api.serializers.hall import HallSerializer
@@ -24,6 +24,7 @@ from ems.utils import (
     is_valid_position,
     reconcile_unplaced,
 )
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import (
     enrol, listed_class, make_class, make_course, no_fill_cap, quietly, schedule,
@@ -194,7 +195,7 @@ class ShapedCapacityTests(SimpleTestCase):
         self.assertEqual(len(set(seats.values())), len(students))
 
 
-class ShapedPipelineTests(TestCase):
+class ShapedPipelineTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)
 
@@ -245,7 +246,7 @@ class ShapedPipelineTests(TestCase):
         self.assertIsNotNone(seating_rules.layout_of(hall).cell(seat))
 
 
-class HallInputTests(TestCase):
+class HallInputTests(SchoolTestCase):
     def test_row_seats_set_rows_columns_and_layout(self):
         serializer = HallSerializer(data={
             "name": "Aud", "capacity": 20, "rows": 1, "columns": 1, "row_seats": [2, 4], "align": "center",
@@ -293,7 +294,7 @@ class HallInputTests(TestCase):
             upload_halls(io.StringIO(csv))
 
 
-class SeatOrderTests(TestCase):
+class SeatOrderTests(SchoolTestCase):
     """How a hall numbers its seats (seating_rules.SEAT_ORDERS)."""
 
     def numbers(self, seat_order, rows=2, cols=3, mask=None):

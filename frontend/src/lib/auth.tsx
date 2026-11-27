@@ -39,6 +39,8 @@ interface AuthContextValue {
   status: AuthStatus;
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<AuthUser>;
+  /** Sign in with a token the API just issued (accepting an invite). */
+  startSession: (token: string, user: AuthUser) => void;
   logout: () => Promise<void>;
 }
 
@@ -78,6 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res.data.user;
   };
 
+  const startSession = (token: string, next: AuthUser) => {
+    setToken(token);
+    setUser(next);
+    setStatus("authenticated");
+  };
+
   const logout = async () => {
     try {
       await api.post("/auth/logout/");
@@ -90,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ status, user, login, logout }}>
+    <AuthContext.Provider value={{ status, user, login, startSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

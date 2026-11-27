@@ -2,7 +2,7 @@
 groups that keep a course's halls together (see ems/halls.py)."""
 import random
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 
 from ems.halls import (
     course_limit,
@@ -15,6 +15,7 @@ from ems.models import Distribution, Hall, SeatArrangement, TimeTable
 from ems.utils import (
     convert_hall_to_dict, distribute_classes_to_halls, get_halls, reconcile_unplaced,
 )
+from tenancy.testcases import SchoolTestCase
 
 from .helpers import enrol, listed_class, make_class, make_course, make_hall, no_fill_cap, schedule
 from .test_relaxed_seating import ManualAssignmentTests
@@ -80,7 +81,7 @@ class CourseLimitTests(SimpleTestCase):
             ])
 
 
-class HallGroupFieldTests(TestCase):
+class HallGroupFieldTests(SchoolTestCase):
     def test_a_blank_group_is_filled_from_the_name(self):
         self.assertEqual(make_hall("BE 3", 5, 5).group, "BE")
 
@@ -91,7 +92,7 @@ class HallGroupFieldTests(TestCase):
         self.assertEqual(hall.group, "BE")
 
 
-class DistributionRuleTests(TestCase):
+class DistributionRuleTests(SchoolTestCase):
     def setUp(self):
         random.seed(0)
 
@@ -181,7 +182,7 @@ class DistributionRuleTests(TestCase):
             self.assertEqual(positions, list(range(positions[0], positions[-1] + 1)), code)
 
 
-class ReconcileRuleTests(TestCase):
+class ReconcileRuleTests(SchoolTestCase):
     def setUp(self):
         self.cls = make_class(3)
 
@@ -249,7 +250,7 @@ class ManualFillCapTests(ManualAssignmentTests):
         self.assertIn("fill cap", response.data["detail"])
 
 
-class ClosedHallTests(TestCase):
+class ClosedHallTests(SchoolTestCase):
     """A closed hall is left out of every generate run (Hall.is_open)."""
 
     def test_get_halls_leaves_closed_halls_out(self):

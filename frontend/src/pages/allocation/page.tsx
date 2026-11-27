@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import {
   useAllocation,
@@ -253,7 +253,8 @@ export default function AllocationPage() {
                             render={
                               date ? (
                                 <Link
-                                  to={`/allocation/hall?date=${date}&period=${period}&hall_id=${row.hall_id}`}
+                                  to="/allocation/hall"
+                                  search={{ date, period, hall_id: String(row.hall_id) }}
                                 />
                               ) : (
                                 <span />

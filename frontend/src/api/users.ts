@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { SCHOOL_PLAN_KEY } from "./school";
 import type { AuthUser, UserRole } from "@/lib/auth";
 import type { PaginatedResponse } from "./types";
 
@@ -42,7 +43,11 @@ export function useCreateUser() {
       const res = await api.post<UserRow>("/users/", data);
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 
@@ -53,7 +58,11 @@ export function useUpdateUser(id: number) {
       const res = await api.patch<UserRow>(`/users/${id}/`, data);
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 
@@ -63,7 +72,11 @@ export function useDeleteUser() {
     mutationFn: async (id: number) => {
       await api.delete(`/users/${id}/`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 
@@ -91,7 +104,11 @@ export function useSeedDepartmentUsers() {
       );
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      // Plan usage counts these.
+      void qc.invalidateQueries({ queryKey: SCHOOL_PLAN_KEY });
+    },
   });
 }
 

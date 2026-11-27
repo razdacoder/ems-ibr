@@ -18,6 +18,7 @@ from ems.api.views.constraints import get_or_create_constraints
 from ems.api.views.system import _get_or_create_settings
 from ems.readiness import blocking_message, check as check_readiness
 from ems.seating_rules import RELAXED, STRICT
+from tenancy.observability.capture import job_failed
 from ems.utils import (
     current_constraints,
     hall_fill_cap,
@@ -39,6 +40,8 @@ from ems.models import (
     SystemSettings,
     TimeTable,
 )
+from tenancy import limits
+from tenancy.permissions import requires_feature
 
 
 def _assert_ready(stage: str, slots=None) -> None:
@@ -140,6 +143,10 @@ def fail_stale_jobs() -> int:
     stale = BackgroundJob.objects.filter(
         status__in=("pending", "running"), started_at__lt=_stale_cutoff()
     )
+    stale_ids = list(stale.values_list("pk", flat=True))
+    if not stale_ids:
+        return 0
+    stale = BackgroundJob.objects.filter(pk__in=stale_ids)
     now = timezone.now()
     never_started = stale.filter(status="pending").update(
         status="failed",
@@ -157,6 +164,9 @@ def fail_stale_jobs() -> int:
             "or the job ran past its time limit. Retry to run it again."
         ),
     )
+    # A bulk update sends no post_save, so each one is recorded here (AC-3).
+    for job in BackgroundJob.objects.filter(pk__in=stale_ids, status="failed"):
+        job_failed(job)
     return never_started + killed
 
 
@@ -166,6 +176,7 @@ _JOB_LABELS = {
     "distribution_all": "distribution",
     "allocation": "seat allocation",
     "allocation_all": "seat allocation",
+    "portal_sync": "portal sync",
 }
 
 
@@ -244,6 +255,8 @@ class JobViewSet(viewsets.ReadOnlyModelViewSet):
 
         if _TASK_MAP_SOURCES.get(job.job_type) is None:
             raise Conflict(f"Jobs of type '{job.job_type}' cannot be retried.")
+        # A retry starts a job without its gated endpoint, so check here too.
+        limits.assert_feature_for_job(job.job_type)
         # Re-dispatch the matching Celery task with the original params.
         new_id = _start_job(
             request.user, job.job_type, job.params or {}, "retrying a job"
@@ -303,7 +316,7 @@ def _populate_task_map():
 def _start_job(user, job_type, params, action):
     """Create a job and queue its task, unless another generation job is
     active. The settings row is locked while checking, so two requests at
-    once cannot both start a job (on Postgres; SQLite serialises writes)."""
+    once cannot both start a job."""
     _populate_task_map()
     job_id = str(uuid.uuid4())
     with transaction.atomic():
@@ -419,6 +432,7 @@ class GenerateTimetableView(_BaseGenerateView):
 
 
 class GenerateDistributionView(_BaseGenerateView):
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
     job_type = "distribution"
 
     def post(self, request):
@@ -438,6 +452,7 @@ class GenerateDistributionView(_BaseGenerateView):
 
 
 class GenerateAllocationView(_BaseGenerateView):
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
     job_type = "allocation"
 
     def post(self, request):
@@ -468,6 +483,7 @@ class GenerateDistributionAllView(_BaseGenerateView):
     """Distribute every (date, period) slot in the timetable in one go.
     Slots that already have a distribution plan are skipped."""
 
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
     job_type = "distribution_all"
 
     def post(self, request):
@@ -487,6 +503,7 @@ class GenerateAllocationAllView(_BaseGenerateView):
     """Allocate every (date, period) slot that has a Distribution but no
     SeatArrangement yet."""
 
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
     job_type = "allocation_all"
 
     def post(self, request):
@@ -523,7 +540,7 @@ class ClearDistributionView(APIView):
     Clears one slot's distribution and the seat allocation planned from it,
     so the slot can be distributed again."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("distribution")]
 
     def post(self, request):
         date, period = _slot_from(request.data)
@@ -539,7 +556,7 @@ class ClearAllocationView(APIView):
     """POST /api/allocation/clear/ — body: {date, period}. Clears one slot's
     seat allocation; its distribution stays."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
 
     def post(self, request):
         date, period = _slot_from(request.data)
@@ -551,7 +568,7 @@ class ClearAllocationView(APIView):
 class ManualSeatAssignmentView(APIView):
     """POST /api/allocation/manual-assign/ — body: {seat_arrangement_id, seat_number}."""
 
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsSuperAdmin, requires_feature("seat_allocation")]
 
     def post(self, request):
         sa_id = request.data.get("seat_arrangement_id")

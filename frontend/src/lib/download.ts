@@ -1,3 +1,4 @@
+import type { AxiosInstance } from "axios";
 import { api } from "./api";
 
 function pickFilename(disposition: string | undefined, fallback: string) {
@@ -41,10 +42,12 @@ export async function downloadAuthenticatedFile(
   url: string,
   fallbackFilename: string,
   params?: Record<string, string | number | undefined>,
+  /** The console passes platformApi; school pages use the default. */
+  client: AxiosInstance = api,
 ): Promise<void> {
   let res;
   try {
-    res = await api.get(url, {
+    res = await client.get(url, {
       params,
       responseType: "blob",
     });

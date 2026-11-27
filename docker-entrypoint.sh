@@ -84,8 +84,34 @@ sys.exit(1)
 END
 }
 
+# An explicit command (e.g. a platform's pre-deploy command, or
+# `docker run <image> python manage.py ...`) runs as is, never the web server.
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
 # Check SERVICE_TYPE and execute appropriate commands
-if [ "${SERVICE_TYPE}" = "worker" ]; then
+if [ "${SERVICE_TYPE}" = "migrate" ]; then
+    # One shot, run before every release. Web, worker and beat must only
+    # start once this exits 0 (Compose service_completed_successfully,
+    # Render pre-deploy command). set -e makes any failure exit non zero.
+    echo "Running platform migrations..."
+
+    wait_for_postgres
+
+    exec python manage.py migrate_platform
+
+elif [ "${SERVICE_TYPE}" = "backup" ]; then
+    # Whole database backup now, then daily at BACKUP_TIME_UTC, with
+    # retries (spec 0003, child 0007).
+    # Kept out of Celery so it still runs when the workers are broken.
+    echo "Starting database backup daemon..."
+
+    wait_for_postgres
+
+    exec python manage.py backup_database --daemon
+
+elif [ "${SERVICE_TYPE}" = "worker" ]; then
     echo "Starting Celery Worker..."
     
     # Wait for dependencies
@@ -95,6 +121,18 @@ if [ "${SERVICE_TYPE}" = "worker" ]; then
     # Start Celery worker
     exec celery -A core worker -l info --concurrency=4
     
+elif [ "${SERVICE_TYPE}" = "worker-observability" ]; then
+    # Telemetry only (spec 0006): the 10 second flush, partitions, and later
+    # the host, database and media numbers. One at a time, so flushes never
+    # overlap and the shared Postgres never sees two.
+    echo "Starting Celery observability worker..."
+
+    wait_for_postgres
+    wait_for_redis
+
+    export OBS_PROCESS_ROLE="${OBS_PROCESS_ROLE:-worker-observability}"
+    exec celery -A core worker -l info -Q observability --concurrency=1
+
 elif [ "${SERVICE_TYPE}" = "beat" ]; then
     echo "Starting Celery Beat..."
     
@@ -111,26 +149,10 @@ else
 
     wait_for_postgres
 
-    # Frontend: the image bundles the built React SPA at frontend/dist
-    # (Dockerfile stage 1). Django serves frontend/dist/index.html for every
-    # non-/api, non-/admin route and WhiteNoise serves its hashed assets from
-    # /static/. Fail loudly if the build is absent so it isn't a mystery 500
-    # on every page (a missing build still leaves the API usable).
-    if [ -f frontend/dist/index.html ]; then
-        echo "Frontend SPA build found (frontend/dist/index.html)."
-    else
-        echo "WARNING: frontend/dist/index.html is missing."
-        echo "         The API will run, but every non-/api route will 500"
-        echo "         because there is no SPA shell to serve. Rebuild the"
-        echo "         image so the Dockerfile frontend stage runs, or run"
-        echo "         'npm --prefix frontend run build' before starting."
-    fi
-
-    # collectstatic materializes the SPA's hashed assets (and admin/DRF
-    # static) into STATIC_ROOT for WhiteNoise. It already ran at image-build
-    # time; re-running is a no-op in the typical case but keeps a
-    # volume-mounted copy correct.
-    echo "Collecting static files (incl. the React SPA bundle)..."
+    # collectstatic materializes admin/DRF static into STATIC_ROOT for
+    # WhiteNoise. It already ran at image-build time; re-running is a no-op
+    # in the typical case but keeps a volume-mounted copy correct.
+    echo "Collecting static files..."
     python manage.py collectstatic --no-input
 
     # Fails the deploy on errors only (the stock --deploy security checks are
@@ -139,11 +161,8 @@ else
     echo "Running deploy checks..."
     python manage.py check --deploy --fail-level ERROR
 
-    echo "Running database migrations..."
-    python manage.py migrate --noinput
-
-    echo "Creating superuser if needed..."
-    python manage.py create_superuser || true
+    # Migrations are not run here: the one shot migrate step
+    # (SERVICE_TYPE=migrate) has already applied them before this starts.
 
     echo "Starting Daphne (ASGI) on port ${PORT:-8000}..."
     exec daphne \

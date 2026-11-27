@@ -53,7 +53,28 @@ from ems.api.views.publication import (
     UnpublishTimetableView,
 )
 from ems.api.views.directory import DirectoryExportView, DirectoryPreviewView
-from ems.api.views.public import FeatureDetailView, FeaturesIndexView
+from ems.api.views.portal_sync import (
+    ConnectionView,
+    EndpointDetailView,
+    EndpointListView,
+    EndpointTestView,
+    FieldsView,
+    IssueResolveView,
+    RunApproveView,
+    RunConfirmMassDeleteView,
+    RunDetailView,
+    RunIssueListView,
+    RunListView,
+)
+from ems.api.views.school import SchoolStatusView, SchoolView
+from ems.api.views.support import SupportAccessView, SupportEndView, SupportRedeemView
+from ems.api.views.invites import (
+    InviteAcceptView,
+    InviteDetailView,
+    InviteListView,
+    InviteResendView,
+    InviteRevokeView,
+)
 
 auth_patterns = [
     path("login/", LoginView.as_view(), name="api-login"),
@@ -215,23 +236,66 @@ directory_patterns = [
     path("export/", DirectoryExportView.as_view(), name="api-directory-export"),
 ]
 
-public_patterns = [
-    path("features/", FeaturesIndexView.as_view(), name="api-public-features"),
+invite_patterns = [
+    path("", InviteListView.as_view(), name="api-invites"),
+    path("<int:pk>/revoke/", InviteRevokeView.as_view(), name="api-invite-revoke"),
+    path("<int:pk>/resend/", InviteResendView.as_view(), name="api-invite-resend"),
+    path("<str:token>/", InviteDetailView.as_view(), name="api-invite-detail"),
+    path("<str:token>/accept/", InviteAcceptView.as_view(), name="api-invite-accept"),
+]
+
+portal_sync_patterns = [
+    path("connection/", ConnectionView.as_view(), name="api-portal-connection"),
+    path("fields/", FieldsView.as_view(), name="api-portal-fields"),
+    path("endpoints/", EndpointListView.as_view(), name="api-portal-endpoints"),
     path(
-        "features/<slug:slug>/",
-        FeatureDetailView.as_view(),
-        name="api-public-feature-detail",
+        "endpoints/<int:pk>/",
+        EndpointDetailView.as_view(),
+        name="api-portal-endpoint",
+    ),
+    path(
+        "endpoints/<int:pk>/test/",
+        EndpointTestView.as_view(),
+        name="api-portal-endpoint-test",
+    ),
+    path("runs/", RunListView.as_view(), name="api-portal-runs"),
+    path("runs/<int:pk>/", RunDetailView.as_view(), name="api-portal-run"),
+    path(
+        "runs/<int:pk>/approve/",
+        RunApproveView.as_view(),
+        name="api-portal-run-approve",
+    ),
+    path(
+        "runs/<int:pk>/issues/",
+        RunIssueListView.as_view(),
+        name="api-portal-run-issues",
+    ),
+    path(
+        "runs/<int:pk>/confirm-mass-delete/",
+        RunConfirmMassDeleteView.as_view(),
+        name="api-portal-run-confirm-mass-delete",
+    ),
+    path(
+        "issues/<int:pk>/resolve/",
+        IssueResolveView.as_view(),
+        name="api-portal-issue-resolve",
     ),
 ]
 
-
 urlpatterns = [
     path("auth/", include(auth_patterns)),
+    path("school/", SchoolView.as_view(), name="api-school"),
+    path("school/status/", SchoolStatusView.as_view(), name="api-school-status"),
+    path("support/redeem/", SupportRedeemView.as_view(), name="api-support-redeem"),
+    path("support/end/", SupportEndView.as_view(), name="api-support-end"),
+    path("support/access/", SupportAccessView.as_view(), name="api-support-access"),
+    path("invites/", include(invite_patterns)),
     path("system/", include(system_patterns)),
     path("uploads/", include(upload_patterns)),
     path("exports/", include(export_patterns)),
     path("directory/", include(directory_patterns)),
-    path("public/", include(public_patterns)),
+    path("portal-sync/", include(portal_sync_patterns)),
+    path("public/", include("ems.api.public_urls")),
     path("", include(scheduling_patterns)),
     path("", include(router.urls)),
 ]

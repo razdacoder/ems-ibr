@@ -1,0 +1,8 @@
+{% autoescape off %}{{ headline }}
+
+{% for line in lines %}- {{ line }}
+{% endfor %}
+Open the console: {{ url }}
+
+You're getting this as an Ordo platform Owner.
+{% endautoescape %}

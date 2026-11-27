@@ -3,10 +3,11 @@ from rest_framework import serializers
 from ems.api.exceptions import Conflict
 from ems.api.serializers.course import CourseSerializer
 from ems.api.serializers.department import DepartmentSerializer
+from ems.api.serializers.portal_owned import PortalOwnedMixin
 from ems.models import Class, Course, Department, Student, TimeTable
 
 
-class ClassSerializer(serializers.ModelSerializer):
+class ClassSerializer(PortalOwnedMixin, serializers.ModelSerializer):
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(),
@@ -34,6 +35,8 @@ class ClassSerializer(serializers.ModelSerializer):
             "visa_code",
             "visa_label",
             "full_label",
+            "from_portal",
+            "portal_locked",
         ]
         # ``size`` is a display copy of the student count, kept in step on
         # every student write; a written value is ignored.
@@ -52,6 +55,7 @@ class ClassSerializer(serializers.ModelSerializer):
         return name
 
     def validate(self, attrs):
+        attrs = super().validate(attrs)
         name = attrs.get("name") or (self.instance.name if self.instance else None)
         department = attrs.get("department") or (
             self.instance.department if self.instance else None
@@ -106,6 +110,13 @@ class ClassCourseAssignSerializer(serializers.Serializer):
         attrs["code"] = code
         attrs["name"] = name
         return attrs
+
+    def would_create(self) -> bool:
+        """True when resolve_course would create a new Course row."""
+        data = self.validated_data
+        if data.get("course_id"):
+            return False
+        return not Course.objects.filter(code__iexact=data["code"]).exists()
 
     def resolve_course(self) -> Course:
         data = self.validated_data

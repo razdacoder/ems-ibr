@@ -1,8 +1,10 @@
 import csv
-from datetime import datetime
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
@@ -15,9 +17,10 @@ from ems.api.serializers.user import (
     ChangePasswordSerializer,
     UserSerializer,
 )
+from ems.export_files import counted_export
 from ems.models import Department, User
+from tenancy import limits
 
-DEFAULT_SEED_PASSWORD = "Ems@2025"
 SEED_EMAIL_DOMAIN = "ems.com"
 
 
@@ -37,10 +40,20 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @transaction.atomic
     def perform_create(self, serializer):
         # password is required when creating a user
         if not self.request.data.get("password"):
             raise ValidationError({"password": ["Password is required."]})
+        if serializer.validated_data.get("is_active", True):
+            limits.assert_can_add_staff(1)
+        serializer.save()
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        # Reactivating an account takes a staff seat again; a role change doesn't.
+        if serializer.validated_data.get("is_active") and not serializer.instance.is_active:
+            limits.assert_can_add_staff(1)
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -63,7 +76,7 @@ class UserViewSet(viewsets.ModelViewSet):
         accounts are excluded.
         """
         users = self.get_queryset().filter(is_staff=False)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = timezone.localtime().strftime("%Y%m%d-%H%M%S")
         filename = f"departmental-staff-{timestamp}.csv"
         response = HttpResponse(
             content_type="text/csv",
@@ -91,43 +104,68 @@ class UserViewSet(viewsets.ModelViewSet):
                     dept.name if dept else "",
                     dept.slug if dept else "",
                     "yes" if u.is_active else "no",
-                    u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
+                    timezone.localtime(u.created_at).strftime("%Y-%m-%d %H:%M:%S") if u.created_at else "",
                 ]
             )
-        return response
+        return counted_export("users", response)
 
     @action(detail=False, methods=["post"], url_path="seed-departments")
     def seed_departments(self, request):
         """Create one staff user per department.
 
-        Email is ``{department.slug}@ems.com``; password defaults to a
-        shared seed value but can be overridden in the request body.
-        Existing emails are skipped unless ``overwrite=true`` is sent,
-        in which case the password is reset.
+        Email is ``{department.slug}@ems.com``; the caller must supply the
+        password (there is no default: a shipped default is a publicly known
+        credential). Existing emails are skipped unless ``overwrite`` is true,
+        in which case the password is reset and any role is cleared.
+        Superusers and the caller's own account are never overwritten.
         """
-        password = (request.data.get("password") or DEFAULT_SEED_PASSWORD).strip()
-        if len(password) < 8:
-            raise ValidationError(
-                {"password": ["Password must be at least 8 characters."]}
-            )
-        overwrite = bool(request.data.get("overwrite", False))
+        password = (request.data.get("password") or "").strip()
+        if not password:
+            raise ValidationError({"password": ["Password is required."]})
+        try:
+            validate_password(password)
+        except DjangoValidationError as exc:
+            raise ValidationError({"password": list(exc.messages)}) from exc
+        overwrite = request.data.get("overwrite", False)
+        if isinstance(overwrite, str):
+            overwrite = overwrite.strip().lower() in ("true", "1", "yes", "on")
+        else:
+            overwrite = overwrite is True
 
-        departments = Department.objects.all().order_by("name")
+        departments = list(Department.objects.all().order_by("name"))
         created: list[str] = []
         updated: list[str] = []
         skipped: list[str] = []
 
         with transaction.atomic():
+            emails = {dept.pk: f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower() for dept in departments}
+            users = {u.email: u for u in User.objects.filter(email__in=emails.values())}
+            # New accounts take a staff seat, and so does an inactive one that
+            # overwrite turns back on.
+            seats = sum(
+                1
+                for email in emails.values()
+                if email not in users or (overwrite and not users[email].is_active)
+            )
+            limits.assert_can_add_staff(seats)
             for dept in departments:
-                email = f"{dept.slug}@{SEED_EMAIL_DOMAIN}".lower()
-                existing = User.objects.filter(email=email).first()
+                email = emails[dept.pk]
+                existing = users.get(email)
                 first_name = (dept.name or dept.slug)[:30]
                 last_name = "Staff"
                 if existing:
-                    if overwrite:
+                    if overwrite and (existing.is_superuser or existing.pk == request.user.pk):
+                        # Never hand a shared password to a superuser or to
+                        # the admin running the seed.
+                        skipped.append(email)
+                    elif overwrite:
                         existing.first_name = first_name
                         existing.last_name = last_name
                         existing.department = dept
+                        # Authorization keys off ``role``; clearing only
+                        # is_staff would leave an admin role on an account
+                        # whose password is now shared.
+                        existing.role = None
                         existing.is_staff = False
                         existing.is_active = True
                         existing.set_password(password)
@@ -159,7 +197,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 "created": created,
                 "updated": updated,
                 "skipped": skipped,
-                "departments_total": departments.count(),
+                "departments_total": len(departments),
                 "password": password,
             }
         )

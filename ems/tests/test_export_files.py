@@ -7,12 +7,13 @@ from asgiref.sync import async_to_sync
 from django.core.files.base import ContentFile
 from django.core.files.storage import InMemoryStorage, default_storage
 from django.core.management import call_command
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, override_settings
 
 from ems import export_files
 from ems.checks import check_media_storage
 from ems.export_files import ZIP, SpooledFileResponse, spool
 from ems.models import SystemSettings
+from tenancy.testcases import SchoolTestCase
 
 
 def filled_spool(data):
@@ -74,7 +75,7 @@ class MediaStorageCheckTests(SimpleTestCase):
         self.assertEqual(check_media_storage(None), [])
 
 
-class RepairLogoTests(TestCase):
+class RepairLogoTests(SchoolTestCase):
     def setUp(self):
         media = tempfile.TemporaryDirectory()
         self.addCleanup(media.cleanup)

@@ -146,7 +146,10 @@ print_info "Login successful!"
 
 # Build the Docker image
 print_info "Building Docker image..."
-docker build -t "$IMAGE_NAME" .
+# The release id stamped on captured errors (spec 0004).
+RELEASE=$(git rev-parse --short HEAD 2>/dev/null || echo "$VERSION")
+print_info "Release: ${RELEASE}"
+docker build --build-arg ORDO_RELEASE="$RELEASE" -t "$IMAGE_NAME" .
 
 if [ $? -ne 0 ]; then
     print_error "Failed to build Docker image"

@@ -1,0 +1,89 @@
+# Ordo edge routing (spec 0003, child 0002). One file for the VPS and Render;
+# only TLS differs, and that lives in the static config.
+#
+# Rendered by Traefik's file provider with Go templating (plus Sprig):
+#   PLATFORM_BASE_DOMAIN  ordo.app, staging.ordo.app or localhost
+#   API_UPSTREAM          Django (Daphne), e.g. http://api:8000
+#   DASHBOARD_UPSTREAM    the dashboard (Nitro), e.g. http://dashboard:3000
+#   SITE_URL              the marketing site the apex redirects to
+#   TRAEFIK_TLS           "cloudflare" on the VPS, empty on Render (plain HTTP)
+#
+# Hosts are never rewritten: Django picks the school from the same Host
+# header these rules match on, so routing and tenancy can't disagree.
+{{ $base := env "PLATFORM_BASE_DOMAIN" }}
+{{ $hosts := printf "HostRegexp(`^[a-z0-9-]+\\.%s$`)" ($base | replace "." "\\.") }}
+{{ $tls := env "TRAEFIK_TLS" }}
+
+http:
+  routers:
+    # /api, /ws and /media on any <label>.<base>: schools get the school
+    # urlconf, the console and api. the public one (Django decides by host).
+    django:
+      rule: '{{ $hosts }} && (PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/media`))'
+      priority: 100
+      service: django
+      {{- if $tls }}
+      tls:
+        certResolver: {{ $tls }}
+        domains:
+          - main: "{{ $base }}"
+            sans: ["*.{{ $base }}"]
+      {{- end }}
+
+    # Everything else: the dashboard, which works out school vs console from
+    # the host and shows not found on the wrong one.
+    dashboard:
+      rule: '{{ $hosts }}'
+      priority: 10
+      service: dashboard
+      middlewares: [dashboard-headers]
+      {{- if $tls }}
+      tls:
+        certResolver: {{ $tls }}
+      {{- end }}
+
+    # The bare domain no longer hosts anything: send it to the marketing site.
+    apex:
+      rule: 'Host(`{{ $base }}`) || Host(`www.{{ $base }}`)'
+      priority: 50
+      service: noop@internal
+      middlewares: [to-site]
+      {{- if $tls }}
+      tls:
+        certResolver: {{ $tls }}
+      {{- end }}
+
+  middlewares:
+    to-site:
+      redirectRegex:
+        regex: '^https?://[^/]+/?(.*)$'
+        replacement: '{{ env "SITE_URL" | trimSuffix "/" }}/${1}'
+        permanent: true
+
+    # Tokens live in localStorage, so XSS is the main threat to them.
+    dashboard-headers:
+      headers:
+        referrerPolicy: no-referrer
+        contentTypeNosniff: true
+        frameDeny: true
+
+  services:
+    django:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: '{{ env "API_UPSTREAM" }}'
+        healthCheck:
+          path: /healthz
+          interval: 15s
+          timeout: 3s
+
+    dashboard:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: '{{ env "DASHBOARD_UPSTREAM" }}'
+        healthCheck:
+          path: /
+          interval: 15s
+          timeout: 3s

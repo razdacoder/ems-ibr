@@ -1,6 +1,5 @@
 from rest_framework import status
 from rest_framework.exceptions import APIException
-from rest_framework.views import exception_handler as drf_exception_handler
 
 
 class Conflict(APIException):
@@ -9,12 +8,21 @@ class Conflict(APIException):
     default_code = "conflict"
 
 
+class CodedAPIException(APIException):
+    """An error whose ``default_code`` is part of the response, as ``code``,
+    so the client can tell it apart (``plan_limit``, ``feature_disabled``)."""
+
+
 def handler(exc, context):
-    """Uniform error envelope: {detail, errors?}.
+    """Uniform error envelope: {detail, errors?, code?}.
 
     `detail` is a single human-readable message, `errors` (optional) is a
     field -> list[message] map suitable for react-hook-form `setError`.
     """
+    # Imported here: DRF imports the auth classes (which use this module)
+    # while rest_framework.views is still loading.
+    from rest_framework.views import exception_handler as drf_exception_handler
+
     response = drf_exception_handler(exc, context)
     if response is None:
         return None
@@ -49,4 +57,6 @@ def handler(exc, context):
     else:
         response.data = {"detail": str(data)}
 
+    if isinstance(exc, CodedAPIException):
+        response.data["code"] = exc.default_code
     return response
