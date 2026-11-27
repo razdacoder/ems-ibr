@@ -224,6 +224,40 @@ class EditSchoolTests(SchoolConsoleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("renews_on", response.data["errors"])
 
+    def test_an_owner_picks_the_timetable_engine(self):
+        self.assertEqual(self.owner.get(self.url).data["timetable_engine"], "greedy")
+
+        response = self.owner.patch(
+            self.url, {"timetable_engine": "cpsat", "cpsat_spread_seconds": 90},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["timetable_engine"], "cpsat")
+        self.assertEqual(response.data["cpsat_spread_seconds"], 90)
+        entry = PlatformAuditLog.objects.get(action="school_updated")
+        self.assertEqual(entry.detail["changes"]["timetable_engine"], ["greedy", "cpsat"])
+
+    def test_the_engine_settings_are_checked(self):
+        bad_engine = self.owner.patch(self.url, {"timetable_engine": "magic"}, format="json")
+        bad_time = self.owner.patch(self.url, {"cpsat_spread_seconds": 1}, format="json")
+
+        self.assertEqual(bad_engine.status_code, 400)
+        self.assertIn("timetable_engine", bad_engine.data["errors"])
+        self.assertEqual(bad_time.status_code, 400)
+        self.assertIn("cpsat_spread_seconds", bad_time.data["errors"])
+
+    def test_support_cant_change_the_engine(self):
+        support = self.sign_in(
+            self.make_admin("support2@ordo.app", role=PlatformAdmin.Role.SUPPORT)
+        )
+
+        response = support.patch(self.url, {"timetable_engine": "cpsat"}, format="json")
+
+        self.assertEqual(response.status_code, 403)
+        self.school.refresh_from_db()
+        self.assertEqual(self.school.timetable_engine, "greedy")
+
     def test_support_cant_edit_a_school(self):
         support = self.sign_in(
             self.make_admin("support@ordo.app", role=PlatformAdmin.Role.SUPPORT)

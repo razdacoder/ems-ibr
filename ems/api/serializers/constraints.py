@@ -31,6 +31,7 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
             "remainder_merge_threshold",
             "small_course_threshold",
             "placement_success_threshold_pct",
+            "cpsat_alpha",
             "configured_at",
             "configured_by",
             "configured_by_email",
@@ -39,6 +40,7 @@ class GenerationConstraintsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "cpsat_alpha",
             "configured_at",
             "configured_by",
             "configured_by_email",

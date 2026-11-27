@@ -317,6 +317,11 @@ function SchoolView({ school, search }: { school: SchoolDetail; search: SchoolSe
               </Row>
               <Row label="Started">{formatDay(school.plan_started_on)}</Row>
               <Row label="Renews">{formatDay(school.renews_on)}</Row>
+              <Row label="Timetable engine">
+                {school.timetable_engine === "cpsat"
+                  ? `CP-SAT solver (${school.cpsat_spread_seconds}s spreading)`
+                  : "Greedy"}
+              </Row>
             </Section>
 
             <Section title="School">

@@ -95,6 +95,12 @@ const schema = z
     timezone: z.string().trim().min(1, "Pick a time zone"),
     notes: z.string(),
     is_demo: z.boolean(),
+    timetable_engine: z.enum(["greedy", "cpsat"]),
+    cpsat_spread_seconds: z
+      .string()
+      .trim()
+      .regex(/^\d+$/, "Use a whole number of seconds")
+      .refine((v) => Number(v) >= 5 && Number(v) <= 600, "Between 5 and 600 seconds"),
   })
   .refine((v) => !v.plan_started_on || !v.renews_on || v.renews_on >= v.plan_started_on, {
     path: ["renews_on"],
@@ -124,6 +130,8 @@ const FIELDS = [
   "timezone",
   "notes",
   "is_demo",
+  "timetable_engine",
+  "cpsat_spread_seconds",
 ] as const;
 
 const count = (value: string) => (value === "" ? null : Number(value));
@@ -149,6 +157,8 @@ function toValues(school: SchoolDetail | undefined): Values {
       timezone: DEFAULT_TIMEZONE,
       notes: "",
       is_demo: false,
+      timetable_engine: "greedy",
+      cpsat_spread_seconds: "60",
     };
   }
   return {
@@ -169,6 +179,8 @@ function toValues(school: SchoolDetail | undefined): Values {
     timezone: school.timezone,
     notes: school.notes,
     is_demo: school.is_demo,
+    timetable_engine: school.timetable_engine,
+    cpsat_spread_seconds: String(school.cpsat_spread_seconds),
   };
 }
 
@@ -190,6 +202,8 @@ function toInput(v: Values): CreateSchoolInput {
     timezone: v.timezone,
     notes: v.notes,
     is_demo: v.is_demo,
+    timetable_engine: v.timetable_engine,
+    cpsat_spread_seconds: Number(v.cpsat_spread_seconds),
   };
 }
 
@@ -541,6 +555,57 @@ export function SchoolForm({
                   )}
                 />
               </div>
+            </Section>
+
+            <Section
+              title="Timetable"
+              description="Which generator plans this school's exam timetable. Only the Ordo team can change it."
+            >
+              <FormField
+                control={form.control}
+                name="timetable_engine"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Engine</FormLabel>
+                    <Select value={field.value} onValueChange={(v) => field.onChange(v ?? "greedy")}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="greedy">Greedy</SelectItem>
+                        <SelectItem value="cpsat">CP-SAT solver</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {field.value === "cpsat"
+                        ? "Schedules every course that can fit and spreads each class's exams apart. Takes a minute or two."
+                        : "Fast, but can leave courses out and puts more exams on back-to-back days."}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {form.watch("timetable_engine") === "cpsat" && (
+                <FormField
+                  control={form.control}
+                  name="cpsat_spread_seconds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Spreading time (seconds)</FormLabel>
+                      <FormControl>
+                        <Input inputMode="numeric" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Time spent moving exams off back-to-back days. 60 is a good default; more time
+                        gives a better spread.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </Section>
 
             <Section title="Contact and region" description="The contact email goes on the school's documents. Dates and times follow the time zone.">

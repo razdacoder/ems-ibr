@@ -170,6 +170,13 @@ class GenerationConstraints(models.Model):
 
     placement_success_threshold_pct = models.PositiveIntegerField(default=60)
 
+    # CP-SAT (the engine is the school's ``timetable_engine``, set by the
+    # Ordo team): seats lost per course in a period, learned from the hall
+    # fit check on the last run and fed to the next, which then skips most fit
+    # rounds. Set by generation, never by hand. A stale value is safe: the
+    # solver caps it so the greedy's plan stays legal, and relearns it.
+    cpsat_alpha = models.FloatField(null=True, blank=True)
+
     configured_at = models.DateTimeField(null=True, blank=True)
     configured_by = models.ForeignKey(
         "User", on_delete=models.SET_NULL, null=True, blank=True

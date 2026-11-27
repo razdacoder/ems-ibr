@@ -200,6 +200,8 @@ export interface SchoolUsage {
   last_activity_at: string | null;
 }
 
+export type TimetableEngine = "greedy" | "cpsat";
+
 export interface SchoolRow {
   id: number;
   name: string;
@@ -225,6 +227,10 @@ export interface SchoolDetail extends SchoolRow {
   max_students_override: number | null;
   max_staff_users_override: number | null;
   features_override: FeatureKey[] | null;
+  /** Timetable generator the school's runs use. Set by the Ordo team only. */
+  timetable_engine: TimetableEngine;
+  /** CP-SAT only: seconds spent spreading each class's exams apart. */
+  cpsat_spread_seconds: number;
   contact_name: string;
   contact_email: string;
   timezone: string;
@@ -264,6 +270,8 @@ export interface CreateSchoolInput {
   max_students_override?: number | null;
   max_staff_users_override?: number | null;
   features_override?: FeatureKey[] | null;
+  timetable_engine?: TimetableEngine;
+  cpsat_spread_seconds?: number;
   first_admin_name: string;
   first_admin_email: string;
   contact_name?: string;

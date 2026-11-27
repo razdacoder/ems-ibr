@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from tenancy.features import KEYS, missing_requirement
 from tenancy.models import (
+    TimetableEngine,
     Plan,
     PlatformAdmin,
     PlatformAuditLog,
@@ -245,6 +246,8 @@ class SchoolDetailSerializer(SchoolListSerializer):
             "max_students_override",
             "max_staff_users_override",
             "features_override",
+            "timetable_engine",
+            "cpsat_spread_seconds",
             "contact_name",
             "contact_email",
             "timezone",
@@ -311,6 +314,12 @@ class CreateSchoolSerializer(serializers.Serializer):
     plan_started_on = serializers.DateField(allow_null=True, required=False)
     renews_on = serializers.DateField(allow_null=True, required=False)
     is_demo = serializers.BooleanField(required=False, default=False)
+    timetable_engine = serializers.ChoiceField(
+        choices=TimetableEngine.choices, required=False
+    )
+    cpsat_spread_seconds = serializers.IntegerField(
+        min_value=5, max_value=600, required=False
+    )
 
     def validate_slug(self, value):
         if not SLUG_RE.match(value):

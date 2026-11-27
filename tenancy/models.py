@@ -52,6 +52,11 @@ class Plan(models.Model):
         return self.name
 
 
+class TimetableEngine(models.TextChoices):
+    GREEDY = "greedy", "Greedy (fast, randomized)"
+    CPSAT = "cpsat", "CP-SAT solver (schedules more, spreads exams)"
+
+
 class School(TenantMixin):
     """One school, living in its own schema ``school_<slug>``.
 
@@ -95,6 +100,15 @@ class School(TenantMixin):
     # A school the Ordo team runs for demos. Support may enter it without
     # the school asking first (tenancy.support.start); only Owners set it.
     is_demo = models.BooleanField(default=False)
+    # Which timetable generator the school's runs use: the randomized greedy
+    # (ems.utils.generate) or the CP-SAT solver (ems.timetable_cpsat). Set
+    # by the Ordo team, never by the school.
+    timetable_engine = models.CharField(
+        max_length=10, choices=TimetableEngine.choices, default=TimetableEngine.GREEDY
+    )
+    # CP-SAT only: seconds spent spreading each class's exams apart. More
+    # time, fewer back-to-back days; every course is scheduled either way.
+    cpsat_spread_seconds = models.PositiveIntegerField(default=60)
     plan_started_on = models.DateField(null=True, blank=True)
     renews_on = models.DateField(null=True, blank=True)
     provisioning_error = models.TextField(blank=True, default="")

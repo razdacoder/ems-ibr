@@ -310,7 +310,32 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
 
         # Plan in memory first: the old timetable stays in place (and
         # published, if it was) until the new one is ready to replace it.
-        summary = generate(
+        # The engine is set per school by the Ordo team (School.
+        # timetable_engine), never by the school. CP-SAT falls back to the
+        # greedy if OR-Tools is missing, so generation never fails over it.
+        # ``schema_context`` leaves a stand-in tenant with no fields, hence
+        # the getattr defaults.
+        from django.db import connection
+        school = getattr(connection, 'tenant', None)
+        engine = getattr(school, 'timetable_engine', None) or 'greedy'
+        engine_note = None
+        planner, engine_kwargs = generate, {}
+        if engine == 'cpsat':
+            try:
+                from .timetable_cpsat import generate_cpsat
+            except ImportError:
+                engine, engine_note = 'greedy', (
+                    'The CP-SAT solver is not installed on this server, so '
+                    'the greedy generator was used.'
+                )
+            else:
+                planner = generate_cpsat
+                engine_kwargs = {
+                    'spread_time_limit': getattr(school, 'cpsat_spread_seconds', None) or 60,
+                    'initial_alpha': constraints.cpsat_alpha or 0.0,
+                }
+        print(f"[TASK] Timetable engine: {engine}")
+        summary = planner(
             dates,
             AM_courses,
             PM_courses,
@@ -324,8 +349,14 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             save=False,
             on_date_planned=planned_date,
             fit_check=fit_check,
+            **engine_kwargs,
         )
         schedules = summary.pop('schedules')
+        if engine == 'cpsat' and summary.get('alpha') is not None:
+            # Feed what the fit check taught this run to the next one.
+            type(constraints).objects.filter(pk=constraints.pk).update(
+                cpsat_alpha=summary['alpha']
+            )
 
         print(f"[TASK] Timetable generation completed")
         print(f"[TASK] Summary: {summary}")
@@ -387,6 +418,10 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
                 "over a full day. Assign its classes' faculties to different "
                 "CBE groups so it splits, or raise the auto-split threshold.",
             ))
+        if engine_note:
+            warnings.append(_warning(
+                'Timetable planned with the greedy generator', [], engine_note,
+            ))
         left_out = len(skipped) + len(refused_oversized) + len(refused_cbe)
         if left_out:
             message = (
@@ -419,6 +454,9 @@ def generate_timetable_task(self, job_id, user_id, start_date_str, end_date_str)
             'refused_oversized': refused_oversized,
             'refused_cbe': summary.get('refused_cbe', []),
             'rebooked_after_fit_check': summary.get('rebooked_after_fit_check', 0),
+            'engine': engine,
+            'solver_status': summary.get('solver_status'),
+            'solver_timings': summary.get('timings'),
         }
         job.save()
         
